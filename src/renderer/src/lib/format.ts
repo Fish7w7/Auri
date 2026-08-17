@@ -64,6 +64,8 @@ export function mapDomainError(error: unknown): string {
       return 'Este título alternativo já está associado à obra.'
     case 'DUPLICATE_EXTERNAL_REF':
       return 'Este identificador externo já pertence a outra obra.'
+    case 'DUPLICATE_SOURCE':
+      return 'Esta fonte já está cadastrada para uma obra.'
     case 'METADATA_PROVIDER_UNAVAILABLE':
       return 'A pesquisa de metadados não está disponível agora.'
     case 'METADATA_RATE_LIMITED':
@@ -76,6 +78,23 @@ export function mapDomainError(error: unknown): string {
       return 'Esta obra já está na Lixeira.'
     case 'METADATA_PROBABLE_DUPLICATE':
       return 'Uma obra com título semelhante já existe.'
+    case 'URL_INVALID':
+      return 'Informe uma URL válida.'
+    case 'URL_PROTOCOL_NOT_ALLOWED':
+      return 'Apenas URLs HTTP ou HTTPS são permitidas.'
+    case 'URL_DESTINATION_BLOCKED':
+    case 'URL_REDIRECT_BLOCKED':
+      return 'Essa URL aponta para um destino local ou não permitido.'
+    case 'URL_TOO_MANY_REDIRECTS':
+      return 'A página excedeu o limite de redirecionamentos.'
+    case 'URL_FETCH_TIMEOUT':
+      return 'A página demorou demais para responder.'
+    case 'URL_RESPONSE_TOO_LARGE':
+      return 'A página é grande demais para ser analisada.'
+    case 'URL_UNSUPPORTED_CONTENT':
+      return 'A URL não retornou uma página HTML compatível.'
+    case 'URL_FETCH_FAILED':
+      return 'Não foi possível acessar essa página agora.'
     case 'COVER_TOO_LARGE':
       return 'A capa excede o limite de 10 MB.'
     case 'COVER_INVALID_IMAGE':

@@ -22,6 +22,17 @@ async function setup(client: CoverDownloadClient) {
 }
 
 describe('CoverService', () => {
+  it('gera preview remoto temporário sem persistir no cache', async () => {
+    const image = await sharp({ create: { width: 400, height: 600, channels: 3, background: '#7c5cff' } }).png().toBuffer()
+    const fixture = await setup({ isOnline: () => true, download: async () => image })
+    const preview = await fixture.service.previewRemoteCover({ url: 'https://img.example/preview.png' })
+    expect(preview).toMatchObject({ state: 'ready', source: 'remote', cached: false })
+    expect(fixture.service.getCacheUsage()).toMatchObject({ files: 0, bytes: 0 })
+    const output = await sharp(Buffer.from(preview.dataUrl!.split(',')[1], 'base64')).metadata()
+    expect(output).toMatchObject({ format: 'webp', width: 300, height: 450 })
+    fixture.db.close()
+  })
+
   it('gera WebP 300×450, usa cache e deduplica requisições concorrentes', async () => {
     const image = await sharp({ create: { width: 600, height: 600, channels: 3, background: '#6c5ce7' } }).png().toBuffer()
     let calls = 0

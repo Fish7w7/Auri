@@ -8,6 +8,7 @@ import {
   workIdSchema
 } from '@shared/schemas/domain'
 import type { Source } from '@shared/types/domain'
+import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
 import type { SourceRepository } from '../database/repositories/source-repository'
 import type { WorkRepository } from '../database/repositories/work-repository'
 import { generateId, parseDomainInput, utcNow, type Clock, type IdGenerator } from './service-utils'
@@ -28,7 +29,10 @@ export class SourceService {
       throw new DomainError('INVALID_STATUS', 'Uma fonte arquivada não pode ser preferida.')
     }
     const now = this.clock()
-    const domain = request.domain ?? this.deriveDomain(request.seriesUrl ?? request.lastReadUrl ?? null)
+    const seriesUrl = this.normalizeUrl(request.seriesUrl)
+    const lastReadUrl = this.normalizeUrl(request.lastReadUrl)
+    this.assertUrlAvailable(request.workId, seriesUrl, lastReadUrl)
+    const domain = request.domain ?? this.deriveDomain(seriesUrl ?? lastReadUrl)
     if (!domain) throw new DomainError('INVALID_INPUT', 'Informe uma URL válida para identificar a fonte.')
     const source: Source = {
       id: this.idGenerator(),
@@ -36,8 +40,8 @@ export class SourceService {
       name: request.name ?? null,
       domain,
       language: request.language ?? null,
-      seriesUrl: request.seriesUrl ?? null,
-      lastReadUrl: request.lastReadUrl ?? null,
+      seriesUrl,
+      lastReadUrl,
       translatorGroup: request.translatorGroup ?? null,
       status: request.status ?? 'active',
       isPreferred: request.isPreferred ?? false,
@@ -56,13 +60,16 @@ export class SourceService {
   updateSource(input: unknown): Source {
     const request = parseDomainInput(updateSourceSchema, input) as UpdateSourceRequest
     const current = this.requireSource(request.id)
+    const seriesUrl = request.seriesUrl === undefined ? current.seriesUrl : this.normalizeUrl(request.seriesUrl)
+    const lastReadUrl = request.lastReadUrl === undefined ? current.lastReadUrl : this.normalizeUrl(request.lastReadUrl)
+    this.assertUrlAvailable(current.workId, seriesUrl, lastReadUrl, current.id)
     const updated: Source = {
       ...current,
       name: request.name === undefined ? current.name : request.name,
-      domain: request.domain ?? this.deriveDomain(request.seriesUrl ?? request.lastReadUrl ?? null) ?? current.domain,
+      domain: request.domain ?? this.deriveDomain(seriesUrl ?? lastReadUrl) ?? current.domain,
       language: request.language === undefined ? current.language : request.language,
-      seriesUrl: request.seriesUrl === undefined ? current.seriesUrl : request.seriesUrl,
-      lastReadUrl: request.lastReadUrl === undefined ? current.lastReadUrl : request.lastReadUrl,
+      seriesUrl,
+      lastReadUrl,
       translatorGroup:
         request.translatorGroup === undefined ? current.translatorGroup : request.translatorGroup,
       status: request.status ?? current.status,
@@ -129,5 +136,26 @@ export class SourceService {
   private deriveDomain(value: string | null): string | null {
     if (!value) return null
     try { return new URL(value).hostname.toLocaleLowerCase('en-US') || null } catch { return null }
+  }
+
+  private normalizeUrl(value: string | null | undefined): string | null {
+    if (!value) return null
+    const normalized = normalizeSourceUrl(value)
+    if (!normalized) throw new DomainError('INVALID_INPUT', 'Informe uma URL HTTP ou HTTPS válida para a fonte.')
+    return normalized
+  }
+
+  private assertUrlAvailable(workId: string, seriesUrl: string | null, lastReadUrl: string | null, ignoredSourceId?: string): void {
+    const incoming = new Set([seriesUrl, lastReadUrl].filter((value): value is string => Boolean(value)))
+    if (!incoming.size) return
+    const duplicate = this.sources.listAll().find((source) => source.id !== ignoredSourceId && [source.seriesUrl, source.lastReadUrl]
+      .map((value) => normalizeSourceUrl(value)).some((value) => value !== null && incoming.has(value)))
+    if (duplicate) {
+      throw new DomainError('DUPLICATE_SOURCE', 'Esta fonte já está cadastrada para uma obra.', {
+        workId: duplicate.workId,
+        sourceId: duplicate.id,
+        sameWork: duplicate.workId === workId
+      })
+    }
   }
 }

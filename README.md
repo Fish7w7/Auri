@@ -76,7 +76,28 @@ npm run test:backup-smoke
 npm run build:app
 npm run dist:dir
 npm run dist
+npm run release:win
 ```
+
+## Instalação no Windows
+
+O Lumi é distribuído para Windows x64 pelo instalador NSIS. Baixe `Lumi-Setup-<versão>-x64.exe` somente na página de [Releases do repositório oficial](https://github.com/Fish7w7/Lumi/releases) e execute o arquivo.
+
+Esta versão ainda não possui assinatura de código. Por isso, o Windows SmartScreen pode exibir um aviso mesmo quando o instalador é legítimo. Antes de continuar, confirme que o arquivo veio da página oficial acima; não desative as proteções do sistema.
+
+## Publicação de uma versão
+
+O `package.json` é a fonte da versão. Depois de atualizar e validar esse número, faça o commit correspondente e crie a tag estável com o mesmo valor prefixado por `v`, por exemplo `v0.2.0`. Envie o commit e a tag ao repositório.
+
+Em um ambiente Windows x64 com as dependências instaladas, defina `GH_TOKEN` somente como variável de ambiente ou segredo do CI, com permissão de leitura e escrita em **Contents** para esse repositório, e execute:
+
+```bash
+npm run release:win
+```
+
+Esse é o único comando do projeto que publica artefatos. Ele roda as validações, gera o instalador, o blockmap e `latest.yml`, e os envia para uma release em estado **draft**. Revise no GitHub a tag, a versão, as notas e todos os arquivos anexados; publique a release manualmente apenas quando estiver tudo correto. Builds locais com `npm run dist` e `npm run dist:dir` usam `--publish never`.
+
+Não grave o token no repositório, no `package.json` ou em arquivos `.env`. O app instalado consulta somente o canal estável `latest`; releases draft não são oferecidas como atualização até serem publicadas.
 
 ## Fluxo de camadas
 

@@ -50,6 +50,12 @@ export class SourceRepository {
     )
   }
 
+  listAll(): Source[] {
+    return this.mapMany(
+      this.db.prepare(`SELECT ${SOURCE_COLUMNS} FROM sources ORDER BY created_at`).all() as SourceRow[]
+    )
+  }
+
   update(source: Source): Source {
     this.db
       .prepare(`
@@ -150,4 +156,3 @@ export class SourceRepository {
     return rows.map((row) => this.map(row))
   }
 }
-

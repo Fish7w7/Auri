@@ -57,8 +57,12 @@ export const IPC_CHANNELS = {
     search: 'lumi:metadata:search', review: 'lumi:metadata:review', import: 'lumi:metadata:import',
     previewRefresh: 'lumi:metadata:preview-refresh', applyRefresh: 'lumi:metadata:apply-refresh'
   },
+  urlMetadata: {
+    analyze: 'lumi:url-metadata:analyze',
+    checkDuplicate: 'lumi:url-metadata:check-duplicate'
+  },
   covers: {
-    get: 'lumi:covers:get', refresh: 'lumi:covers:refresh', clearWork: 'lumi:covers:clear-work',
+    get: 'lumi:covers:get', preview: 'lumi:covers:preview', refresh: 'lumi:covers:refresh', clearWork: 'lumi:covers:clear-work',
     clearAll: 'lumi:covers:clear-all', usage: 'lumi:covers:usage'
   },
   library: {
