@@ -57,6 +57,73 @@ describe('análise segura de páginas por URL', () => {
 })
 
 describe('extração genérica de metadata HTML', () => {
+  it('descarta metadata global quando uma URL específica colapsa para a homepage', () => {
+    const result = extractPageMetadata(`
+      <html><head>
+        <title>ToonLivre | Manhwas e Webtoons em português</title>
+        <meta name="description" content="Leia manhwas e webtoons em português.">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="ToonLivre">
+        <meta property="og:title" content="ToonLivre | Manhwas e Webtoons em português">
+        <meta property="og:description" content="Leia manhwas e webtoons em português.">
+        <meta property="og:image" content="/logo.png">
+        <meta property="og:url" content="https://reader.example/">
+        <meta name="twitter:title" content="ToonLivre | Manhwas e Webtoons em português">
+        <meta name="twitter:description" content="Leia manhwas e webtoons em português.">
+        <link rel="canonical" href="https://reader.example/">
+        <script type="application/ld+json">{
+          "@type": "WebSite", "name": "ToonLivre",
+          "description": "Leia manhwas e webtoons em português."
+        }</script>
+      </head></html>
+    `, 'https://reader.example/contos-de-demonios-e-deuses', 'https://reader.example/contos-de-demonios-e-deuses')
+
+    expect(result).toMatchObject({
+      finalUrl: 'https://reader.example/contos-de-demonios-e-deuses', siteName: 'ToonLivre',
+      title: null, description: null, canonicalUrl: null, coverUrl: null
+    })
+  })
+
+  it('usa Twitter Cards específicas mesmo quando Open Graph e canonical são globais', () => {
+    const result = extractPageMetadata(`
+      <html><head>
+        <title>Reader — quadrinhos online</title>
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Reader">
+        <meta property="og:title" content="Reader — quadrinhos online">
+        <meta property="og:url" content="https://reader.example/">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="The Shepherd Wizard">
+        <meta name="twitter:description" content="A história específica da obra.">
+        <meta name="twitter:image" content="/covers/shepherd.jpg">
+        <link rel="canonical" href="https://reader.example/">
+      </head></html>
+    `, 'https://reader.example/work/shepherd', 'https://reader.example/work/shepherd')
+
+    expect(result).toMatchObject({
+      title: 'The Shepherd Wizard', description: 'A história específica da obra.',
+      coverUrl: 'https://reader.example/covers/shepherd.jpg', canonicalUrl: null
+    })
+  })
+
+  it('usa um h1 único como fallback sem herdar descrição ou capa globais', () => {
+    const result = extractPageMetadata(`
+      <html><head>
+        <title>Reader — quadrinhos online</title>
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Reader">
+        <meta property="og:title" content="Reader — quadrinhos online">
+        <meta property="og:description" content="Descrição genérica do catálogo.">
+        <meta property="og:image" content="/logo.png">
+        <link rel="canonical" href="https://reader.example/">
+      </head><body><main><h1>Contos de Demônios e Deuses</h1></main></body></html>
+    `, 'https://reader.example/contos', 'https://reader.example/contos')
+
+    expect(result).toMatchObject({
+      title: 'Contos de Demônios e Deuses', description: null, coverUrl: null, canonicalUrl: null
+    })
+  })
+
   it('extrai Open Graph, canonical e fallbacks HTML básicos', () => {
     const result = extractPageMetadata(`
       <html><head>

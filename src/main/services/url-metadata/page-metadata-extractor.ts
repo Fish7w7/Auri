@@ -1,11 +1,26 @@
 import type { UrlPageMetadata } from '@shared/contracts'
+import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import { isBlockedDestination, parseAllowedHttpUrl } from './url-safety'
 
 type JsonObject = Record<string, unknown>
 
 const RELEVANT_JSON_LD_TYPES = new Set([
-  'article', 'book', 'comicstory', 'creativework', 'manga', 'novel', 'webpage', 'webcomic'
+  'article', 'book', 'bookseries', 'comicseries', 'comicstory', 'creativework', 'creativeworkseries',
+  'manga', 'novel', 'webpage', 'webcomic'
 ])
+const WORK_JSON_LD_TYPES = new Set([
+  'book', 'bookseries', 'comicseries', 'comicstory', 'creativework', 'creativeworkseries', 'manga', 'novel', 'webcomic'
+])
+
+interface JsonLdMetadata {
+  title: string | null
+  siteName: string | null
+  websiteName: string | null
+  description: string | null
+  coverUrl: string | null
+  workSpecific: boolean
+  hasWebsite: boolean
+}
 
 export function extractPageMetadata(html: string, requestedUrl: string, finalUrl: string): UrlPageMetadata {
   const meta = new Map<string, string>()
@@ -16,6 +31,7 @@ export function extractPageMetadata(html: string, requestedUrl: string, finalUrl
     if (key && value && !meta.has(key)) meta.set(key, value)
   }
 
+  const parsedFinal = parseAllowedHttpUrl(finalUrl)
   let canonical: string | null = null
   for (const match of html.matchAll(/<link\b([^>]*)>/gi)) {
     const attributes = parseAttributes(match[1])
@@ -28,12 +44,53 @@ export function extractPageMetadata(html: string, requestedUrl: string, finalUrl
 
   const jsonLd = extractJsonLd(html, finalUrl)
   const htmlTitle = cleanText(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1], 300, true)
-  const title = firstText(meta.get('og:title'), jsonLd.title, htmlTitle)
-  const siteName = firstText(meta.get('og:site_name'), jsonLd.siteName, meta.get('application-name'))
-  const description = firstText(meta.get('og:description'), jsonLd.description, meta.get('description'))
-  const coverUrl = firstUrl(resolvePublicResourceUrl(meta.get('og:image'), finalUrl), jsonLd.coverUrl)
-  const canonicalUrl = firstUrl(canonical, resolvePublicResourceUrl(meta.get('og:url'), finalUrl))
-  const parsedFinal = parseAllowedHttpUrl(finalUrl)
+  const ogTitle = cleanText(meta.get('og:title'), 300)
+  const twitterTitle = cleanText(meta.get('twitter:title'), 300)
+  const siteName = firstText(meta.get('og:site_name'), jsonLd.siteName, jsonLd.websiteName, meta.get('application-name'))
+  const ogUrl = resolvePublicResourceUrl(meta.get('og:url'), finalUrl)
+  const canonicalSuspicious = collapsesSpecificUrlToOriginRoot(parsedFinal, canonical)
+  const ogUrlSuspicious = collapsesSpecificUrlToOriginRoot(parsedFinal, ogUrl)
+  const socialIdentityLooksGlobal = equivalent(ogTitle, htmlTitle) || equivalent(ogTitle, siteName) ||
+    equivalent(twitterTitle, ogTitle) || equivalent(twitterTitle, htmlTitle)
+  const globalContext = isSpecificLocation(parsedFinal) && (
+    canonicalSuspicious || ogUrlSuspicious ||
+    ((meta.get('og:type')?.toLocaleLowerCase('en-US') === 'website' || jsonLd.hasWebsite) && socialIdentityLooksGlobal)
+  )
+  const h1Title = extractUniqueH1(html)
+
+  let title: string | null
+  let description: string | null
+  let coverUrl: string | null
+  if (globalContext) {
+    const fingerprints = [htmlTitle, siteName, jsonLd.websiteName]
+    const jsonLdSpecific = jsonLd.title && (jsonLd.workSpecific || isDistinct(jsonLd.title, fingerprints)) ? jsonLd.title : null
+    const ogSpecific = isDistinct(ogTitle, fingerprints) ? ogTitle : null
+    const twitterSpecific = isDistinct(twitterTitle, [...fingerprints, ogTitle]) ? twitterTitle : null
+    const h1Specific = isDistinct(h1Title, [...fingerprints, ogTitle, twitterTitle]) ? h1Title : null
+    title = firstText(jsonLdSpecific, ogSpecific, twitterSpecific, h1Specific)
+    if (title && title === jsonLdSpecific) {
+      description = jsonLd.description
+      coverUrl = jsonLd.coverUrl
+    } else if (title && title === ogSpecific) {
+      description = cleanText(meta.get('og:description'), 4_000)
+      coverUrl = resolvePublicResourceUrl(meta.get('og:image'), finalUrl)
+    } else if (title && title === twitterSpecific) {
+      description = cleanText(meta.get('twitter:description'), 4_000)
+      coverUrl = resolvePublicResourceUrl(firstText(meta.get('twitter:image'), meta.get('twitter:image:src')), finalUrl)
+    } else {
+      description = null
+      coverUrl = null
+    }
+  } else {
+    title = firstText(ogTitle, jsonLd.title, twitterTitle, h1Title, htmlTitle)
+    description = firstText(meta.get('og:description'), jsonLd.description, meta.get('twitter:description'), meta.get('description'))
+    coverUrl = firstUrl(
+      resolvePublicResourceUrl(meta.get('og:image'), finalUrl),
+      jsonLd.coverUrl,
+      resolvePublicResourceUrl(firstText(meta.get('twitter:image'), meta.get('twitter:image:src')), finalUrl)
+    )
+  }
+  const canonicalUrl = firstUrl(canonicalSuspicious ? null : canonical, ogUrlSuspicious ? null : ogUrl)
 
   return {
     requestedUrl,
@@ -47,7 +104,10 @@ export function extractPageMetadata(html: string, requestedUrl: string, finalUrl
   }
 }
 
-function extractJsonLd(html: string, baseUrl: string): { title: string | null; siteName: string | null; description: string | null; coverUrl: string | null } {
+function extractJsonLd(html: string, baseUrl: string): JsonLdMetadata {
+  let websiteName: string | null = null
+  let hasWebsite = false
+  let selected: Omit<JsonLdMetadata, 'websiteName' | 'hasWebsite'> | null = null
   for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
     const attributes = parseAttributes(match[1])
     if (attributes.type?.split(';', 1)[0]?.trim().toLocaleLowerCase('en-US') !== 'application/ld+json') continue
@@ -55,18 +115,28 @@ function extractJsonLd(html: string, baseUrl: string): { title: string | null; s
       const raw = match[2].trim().replace(/^<!--|-->$/g, '').trim()
       const parsed = JSON.parse(raw) as unknown
       for (const candidate of flattenJsonLd(parsed)) {
-        if (!isRelevantJsonLd(candidate)) continue
+        const types = jsonLdTypes(candidate)
+        if (types.includes('website')) {
+          hasWebsite = true
+          websiteName ??= cleanText(asText(candidate.name), 160)
+        }
+        if (!types.some((type) => RELEVANT_JSON_LD_TYPES.has(type))) continue
         const title = firstText(asText(candidate.name), asText(candidate.headline))
         const description = cleanText(asText(candidate.description), 4_000)
         const coverUrl = resolvePublicResourceUrl(readImage(candidate.image), baseUrl)
         const siteName = cleanText(readPublisher(candidate.publisher), 160)
-        if (title || description || coverUrl || siteName) return { title, description, coverUrl, siteName }
+        if (!selected && (title || description || coverUrl || siteName)) selected = {
+          title, description, coverUrl, siteName,
+          workSpecific: types.some((type) => WORK_JSON_LD_TYPES.has(type))
+        }
       }
     } catch {
       // JSON-LD inválido não invalida os outros fallbacks da página.
     }
   }
-  return { title: null, siteName: null, description: null, coverUrl: null }
+  return selected
+    ? { ...selected, websiteName, hasWebsite }
+    : { title: null, siteName: null, websiteName, description: null, coverUrl: null, workSpecific: false, hasWebsite }
 }
 
 function flattenJsonLd(value: unknown): JsonObject[] {
@@ -76,9 +146,36 @@ function flattenJsonLd(value: unknown): JsonObject[] {
   return [value, ...graph]
 }
 
-function isRelevantJsonLd(value: JsonObject): boolean {
+function jsonLdTypes(value: JsonObject): string[] {
   const types = Array.isArray(value['@type']) ? value['@type'] : [value['@type']]
-  return types.some((type) => typeof type === 'string' && RELEVANT_JSON_LD_TYPES.has(type.toLocaleLowerCase('en-US')))
+  return types.filter((type): type is string => typeof type === 'string').map((type) => type.toLocaleLowerCase('en-US'))
+}
+
+function extractUniqueH1(html: string): string | null {
+  const unique = new Map<string, string>()
+  for (const match of html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)) {
+    const value = cleanText(match[1], 300, true)
+    if (value && value.length >= 3) unique.set(normalizeSearchText(value), value)
+  }
+  return unique.size === 1 ? [...unique.values()][0] : null
+}
+
+function isSpecificLocation(url: URL): boolean { return url.pathname !== '/' || Boolean(url.search) }
+
+function collapsesSpecificUrlToOriginRoot(finalUrl: URL, candidate: string | null): boolean {
+  if (!candidate || !isSpecificLocation(finalUrl)) return false
+  try {
+    const parsed = new URL(candidate)
+    return parsed.host === finalUrl.host && parsed.pathname === '/' && !parsed.search
+  } catch { return false }
+}
+
+function equivalent(left: string | null | undefined, right: string | null | undefined): boolean {
+  return Boolean(left && right && normalizeSearchText(left) === normalizeSearchText(right))
+}
+
+function isDistinct(candidate: string | null, fingerprints: Array<string | null | undefined>): candidate is string {
+  return Boolean(candidate) && !fingerprints.some((fingerprint) => equivalent(candidate, fingerprint))
 }
 
 function readImage(value: unknown): string | null {
