@@ -296,12 +296,22 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 .dialog:has(.work-form) { width: min(920px, calc(100vw - 48px)); }
 .dialog:has(.work-form) .dialog__body { max-height: calc(100vh - 150px); overflow-y: auto; }
 .dialog:has(.cover-manager) { width: min(650px, calc(100vw - 48px)); }
-.add-mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+.add-mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
 .add-mode-grid > button { min-height: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface); text-align: left; }
 .add-mode-grid > button:hover, .add-mode-grid > button:focus-visible { border-color: var(--accent); background: var(--accent-subtle); }
 .add-mode-grid strong { font-size: 1rem; }
 .add-mode-grid span { color: var(--text-secondary); font-size: .8rem; line-height: 1.5; }
-.dialog:has(.metadata-search), .dialog:has(.metadata-review) { width: min(760px, calc(100vw - 48px)); }
+.dialog:has(.metadata-search), .dialog:has(.metadata-review), .dialog:has(.url-metadata-preview) { width: min(760px, calc(100vw - 48px)); }
+.url-analyze-form, .url-metadata-preview { margin-top: 20px; }
+.url-preview-summary { display: grid; grid-template-columns: 70px 1fr; gap: 16px; align-items: center; margin-bottom: 18px; }
+.url-preview-summary h3 { margin: 4px 0; font-size: 1.25rem; }
+.url-preview-summary p { margin: 0; color: var(--text-secondary); font-size: .82rem; line-height: 1.5; }
+.url-preview-summary .metadata-summary__cover { overflow: hidden; }
+.url-preview-summary .metadata-summary__cover img { width: 100%; height: 100%; object-fit: cover; }
+.url-partial-callout { margin: 0 0 16px; padding: 14px; border-left: 2px solid var(--accent); border-radius: var(--radius-sm); background: var(--surface); }
+.url-partial-callout p { margin: 6px 0 0; color: var(--text-secondary); font-size: .84rem; }
+.url-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.url-metadata-preview .metadata-facts dd { overflow-wrap: anywhere; }
 .metadata-search { margin-top: 20px; }
 .metadata-hint { color: var(--text-secondary); font-size: .84rem; }
 .metadata-search-tip { margin: 9px 0 14px; padding-left: 10px; border-left: 2px solid var(--accent); color: var(--text-secondary); font-size: .78rem; line-height: 1.5; }

@@ -92,8 +92,13 @@ export const domainApi: Omit<LumiApi, 'system' | 'settings'> = {
     previewRefresh: (request) => invoke(IPC_CHANNELS.metadata.previewRefresh, request),
     applyRefresh: (request) => invoke(IPC_CHANNELS.metadata.applyRefresh, request)
   },
+  urlMetadata: {
+    analyze: (request) => invoke(IPC_CHANNELS.urlMetadata.analyze, request),
+    checkDuplicate: (request) => invoke(IPC_CHANNELS.urlMetadata.checkDuplicate, request)
+  },
   covers: {
     get: (request) => invoke(IPC_CHANNELS.covers.get, request),
+    preview: (request) => invoke(IPC_CHANNELS.covers.preview, request),
     refresh: (request) => invoke(IPC_CHANNELS.covers.refresh, request),
     clearWork: (request) => invoke(IPC_CHANNELS.covers.clearWork, request),
     clearAll: () => invoke(IPC_CHANNELS.covers.clearAll),

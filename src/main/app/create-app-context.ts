@@ -39,6 +39,9 @@ import { BackupService } from '../services/backup/backup-service'
 import { TransferService } from '../services/transfer-service'
 import { CriticalOperationCoordinator } from '../services/critical-operation-coordinator'
 import { runMigrationsSafely } from '../database/migrations/safe-migration-runner'
+import { ElectronPageTransport } from '../services/url-metadata/electron-page-transport'
+import { SafePageFetcher } from '../services/url-metadata/safe-page-fetcher'
+import { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -55,6 +58,7 @@ export interface AppContext {
     assets: AssetService
     covers: CoverService
     metadata: MetadataService
+    urlMetadata: UrlMetadataService
     externalNavigation: ExternalNavigationService
     backups: BackupService
     transfer: TransferService
@@ -65,6 +69,7 @@ export interface AppContext {
 export interface CreateAppContextOptions {
   metadataProviders?: MetadataProvider[]
   coverClient?: CoverDownloadClient
+  pageFetcher?: SafePageFetcher
 }
 
 export async function createAppContext(app: App, options: CreateAppContextOptions = {}): Promise<AppContext> {
@@ -129,6 +134,12 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
       genres: genresRepository, externalRefs: externalRefsRepository, overrides: overridesRepository
     }, details, covers)
+    const urlMetadata = new UrlMetadataService(
+      options.pageFetcher ?? new SafePageFetcher(new ElectronPageTransport()),
+      worksRepository,
+      sourcesRepository,
+      logger
+    )
     const externalNavigation = new ExternalNavigationService()
     const library = new LibraryService(worksRepository)
     const transfer = new TransferService(database.db, {
@@ -146,7 +157,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     return {
       database,
       logger,
-      services: { system, updates, works, progress, sources, library, settings, details, assets, covers, metadata, externalNavigation, backups, transfer },
+      services: { system, updates, works, progress, sources, library, settings, details, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
       dispose() {
         database.close()
       }

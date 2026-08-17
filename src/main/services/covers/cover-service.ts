@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import sharp from 'sharp'
 import type { CoverCacheUsage, CoverResult } from '@shared/contracts'
 import { DomainError } from '@shared/errors/domain-error'
-import { coverWorkSchema } from '@shared/schemas/domain'
+import { coverPreviewSchema, coverWorkSchema } from '@shared/schemas/domain'
 import type { WorkRepository } from '../../database/repositories/work-repository'
 import type { AssetService } from '../asset-service'
 import { parseDomainInput } from '../service-utils'
@@ -52,6 +52,19 @@ export class CoverService {
     const oldExists = existsSync(this.cachePath(workId))
     try { const prepared = await this.enqueue(workId, work.cover.sourceUrl, true); if (existsSync(prepared.temporaryPath)) this.commitPrepared(prepared); return this.cachedResult(workId) }
     catch { return oldExists ? this.cachedResult(workId) : { state: 'error', dataUrl: null, source: 'cache', cached: false } }
+  }
+
+  async previewRemoteCover(input: unknown): Promise<CoverResult> {
+    const { url } = parseDomainInput(coverPreviewSchema, input)
+    let temporaryPath: string | null = null
+    try {
+      const prepared = await this.enqueue(`__url-preview__-${randomUUID()}`, url, true)
+      temporaryPath = prepared.temporaryPath
+      const data = readFileSync(temporaryPath)
+      return { state: 'ready', dataUrl: `data:image/webp;base64,${data.toString('base64')}`, source: 'remote', cached: false }
+    } catch {
+      return { state: 'error', dataUrl: null, source: 'remote', cached: false }
+    } finally { if (temporaryPath) this.removeIfExists(temporaryPath) }
   }
 
   prepareRemoteCover(workId: string, sourceUrl: string): Promise<PreparedCover> { return this.enqueue(workId, sourceUrl, true) }

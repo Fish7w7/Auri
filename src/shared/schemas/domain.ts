@@ -159,6 +159,13 @@ export const metadataImportSchema = z.object({
 })
 export const metadataRefreshSchema = workIdSchema
 export const coverWorkSchema = workIdSchema
+export const coverPreviewSchema = z.object({
+  url: z.string().url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Protocolo não permitido.')
+})
+export const urlMetadataAnalyzeSchema = z.object({ url: z.string().trim().min(1).max(2048) })
+export const urlMetadataDuplicateSchema = urlMetadataAnalyzeSchema.extend({
+  title: z.string().trim().min(1).max(300).nullable().optional()
+})
 
 export const updateProgressSchema = z.object({
   workId: z.string().uuid(),

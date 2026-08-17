@@ -73,6 +73,7 @@ if (!singleInstanceLock) {
           assets: context.services.assets,
           covers: context.services.covers,
           metadata: context.services.metadata,
+          urlMetadata: context.services.urlMetadata,
           externalNavigation: context.services.externalNavigation,
           backups: context.services.backups,
           transfer: context.services.transfer,

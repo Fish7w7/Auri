@@ -16,6 +16,7 @@ import type { MetadataService } from '../services/metadata/metadata-service'
 import type { BackupService } from '../services/backup/backup-service'
 import type { TransferService } from '../services/transfer-service'
 import type { UpdateService } from '../services/update-service'
+import type { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
 
 export interface IpcServices {
   system: SystemService
@@ -28,6 +29,7 @@ export interface IpcServices {
   assets: AssetService
   covers: CoverService
   metadata: MetadataService
+  urlMetadata: UrlMetadataService
   externalNavigation: ExternalNavigationService
   backups: BackupService
   transfer: TransferService
@@ -116,7 +118,10 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.metadata.import, (request) => services.metadata.import(request)],
     [IPC_CHANNELS.metadata.previewRefresh, (request) => services.metadata.previewRefresh(request)],
     [IPC_CHANNELS.metadata.applyRefresh, (request) => services.metadata.applyRefresh(request)],
+    [IPC_CHANNELS.urlMetadata.analyze, (request) => services.urlMetadata.analyze(request)],
+    [IPC_CHANNELS.urlMetadata.checkDuplicate, (request) => services.urlMetadata.checkDuplicate(request)],
     [IPC_CHANNELS.covers.get, (request) => services.covers.getCover(request)],
+    [IPC_CHANNELS.covers.preview, (request) => services.covers.previewRemoteCover(request)],
     [IPC_CHANNELS.covers.refresh, (request) => services.covers.refreshCover(request)],
     [IPC_CHANNELS.covers.clearWork, (request) => services.covers.clearWorkCache(request)],
     [IPC_CHANNELS.covers.clearAll, () => services.covers.clearAllCache()],
