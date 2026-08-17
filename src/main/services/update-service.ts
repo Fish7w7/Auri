@@ -1,0 +1,126 @@
+import electronUpdater from 'electron-updater'
+import type { UpdateState } from '@shared/contracts'
+import { DomainError } from '@shared/errors/domain-error'
+import type { Logger } from '../logging/logger'
+import type { CriticalOperationCoordinator } from './critical-operation-coordinator'
+
+interface UpdateInfoLike {
+  version: string
+  releaseNotes?: string | Array<{ version?: string; note: string | null }> | null
+}
+
+interface ProgressLike { percent: number }
+
+export interface UpdaterAdapter {
+  autoDownload: boolean
+  autoInstallOnAppQuit: boolean
+  channel: string | null
+  on(event: 'error', listener: (error: Error) => void): unknown
+  on(event: 'checking-for-update', listener: () => void): unknown
+  on(event: 'update-available' | 'update-not-available' | 'update-downloaded', listener: (info: UpdateInfoLike) => void): unknown
+  on(event: 'download-progress', listener: (progress: ProgressLike) => void): unknown
+  checkForUpdates(): Promise<unknown>
+  downloadUpdate(): Promise<unknown>
+  quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void
+}
+
+export interface UpdateServiceOptions {
+  currentVersion: string
+  isPackaged: boolean
+  isConfigured: boolean
+  criticalOperations: CriticalOperationCoordinator
+  updater?: UpdaterAdapter
+}
+
+export class UpdateService {
+  private readonly updater: UpdaterAdapter
+  private readonly dirtyScopes = new Set<string>()
+  private state: UpdateState
+
+  constructor(private readonly logger: Logger, private readonly options: UpdateServiceOptions) {
+    this.updater = options.updater ?? (electronUpdater.autoUpdater as unknown as UpdaterAdapter)
+    const availability = !options.isPackaged ? 'development' : options.isConfigured ? 'ready' : 'not_configured'
+    this.state = { status: availability === 'ready' ? 'idle' : 'unavailable', currentVersion: options.currentVersion, availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, availability }
+    this.updater.autoDownload = false
+    this.updater.autoInstallOnAppQuit = false
+    this.registerEvents()
+  }
+
+  configure(channel: 'stable'): void {
+    this.updater.channel = 'latest'
+    this.logger.info('updater', 'Canal de atualização configurado.', { event: 'updater.configured', channel })
+  }
+
+  getState(): UpdateState { return { ...this.state } }
+
+  async checkForUpdates(): Promise<UpdateState> {
+    if (this.state.availability !== 'ready') return this.getState()
+    if (this.state.status === 'checking' || this.state.status === 'downloading') return this.getState()
+    this.patch({ status: 'checking', errorMessage: null, progressPercent: null })
+    try {
+      await this.updater.checkForUpdates()
+      if (this.getState().status === 'checking') this.patch({ status: 'up_to_date' })
+      return this.getState()
+    } catch (error) {
+      this.fail('Não foi possível verificar atualizações.', 'updater.check_failed', error)
+      throw new DomainError('UPDATE_CHECK_FAILED', 'Não foi possível verificar atualizações agora.')
+    }
+  }
+
+  async downloadUpdate(): Promise<UpdateState> {
+    if (this.state.status !== 'available') throw new DomainError('UPDATE_DOWNLOAD_FAILED', 'Nenhuma atualização está disponível para download.')
+    this.patch({ status: 'downloading', progressPercent: 0, errorMessage: null })
+    try {
+      await this.updater.downloadUpdate()
+      return this.getState()
+    } catch (error) {
+      this.fail('Não foi possível baixar a atualização.', 'updater.download_failed', error)
+      throw new DomainError('UPDATE_DOWNLOAD_FAILED', 'Não foi possível baixar a atualização agora.')
+    }
+  }
+
+  installUpdate(): void {
+    if (this.state.status !== 'ready') throw new DomainError('UPDATE_INSTALL_BLOCKED', 'A atualização ainda não está pronta para instalar.')
+    const operation = this.options.criticalOperations.current
+    if (operation) throw new DomainError('UPDATE_INSTALL_BLOCKED', 'A instalação será liberada quando a operação crítica terminar.', { operation })
+    if (this.dirtyScopes.size) throw new DomainError('UPDATE_INSTALL_BLOCKED', 'Salve ou descarte as alterações não salvas antes de atualizar.')
+    this.logger.info('updater', 'Reiniciando para instalar atualização.', { event: 'updater.install_started', version: this.state.availableVersion })
+    this.updater.quitAndInstall(false, true)
+  }
+
+  setDirty(input: unknown): void {
+    const request = input as { scope?: unknown; dirty?: unknown }
+    if (typeof request.scope !== 'string' || !request.scope.trim() || typeof request.dirty !== 'boolean') throw new DomainError('INVALID_INPUT', 'Estado de edição inválido.')
+    if (request.dirty) this.dirtyScopes.add(request.scope)
+    else this.dirtyScopes.delete(request.scope)
+  }
+
+  private registerEvents(): void {
+    this.updater.on('checking-for-update', () => this.patch({ status: 'checking', errorMessage: null }))
+    this.updater.on('update-available', (info) => {
+      this.patch({ status: 'available', availableVersion: info.version, releaseNotes: normalizeReleaseNotes(info.releaseNotes), progressPercent: null })
+      this.logger.info('updater', 'Atualização disponível.', { event: 'updater.update_available', version: info.version })
+    })
+    this.updater.on('update-not-available', () => this.patch({ status: 'up_to_date', availableVersion: null, releaseNotes: null, progressPercent: null }))
+    this.updater.on('download-progress', (progress) => this.patch({ status: 'downloading', progressPercent: Math.max(0, Math.min(100, progress.percent)) }))
+    this.updater.on('update-downloaded', (info) => {
+      this.patch({ status: 'ready', availableVersion: info.version, releaseNotes: normalizeReleaseNotes(info.releaseNotes), progressPercent: 100 })
+      this.logger.info('updater', 'Atualização pronta para instalar.', { event: 'updater.update_downloaded', version: info.version })
+    })
+    this.updater.on('error', (error) => this.fail('O updater encontrou um erro.', 'updater.error', error))
+  }
+
+  private patch(patch: Partial<UpdateState>): void { this.state = { ...this.state, ...patch } }
+
+  private fail(message: string, event: string, error: unknown): void {
+    this.patch({ status: 'error', errorMessage: message, progressPercent: null })
+    this.logger.error('updater', message, { event, errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
+  }
+}
+
+function normalizeReleaseNotes(notes: UpdateInfoLike['releaseNotes']): string | null {
+  if (typeof notes === 'string') return notes.trim() || null
+  if (!Array.isArray(notes)) return null
+  const text = notes.map((item) => `${item.version ? `${item.version}\n` : ''}${item.note ?? ''}`.trim()).filter(Boolean).join('\n\n')
+  return text || null
+}
