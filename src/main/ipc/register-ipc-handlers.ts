@@ -17,6 +17,7 @@ import type { BackupService } from '../services/backup/backup-service'
 import type { TransferService } from '../services/transfer-service'
 import type { UpdateService } from '../services/update-service'
 import type { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
+import type { BulkLibraryService } from '../services/bulk-library-service'
 
 export interface IpcServices {
   system: SystemService
@@ -34,6 +35,7 @@ export interface IpcServices {
   backups: BackupService
   transfer: TransferService
   updates: UpdateService
+  bulk: BulkLibraryService
 }
 
 export interface IpcHandlerOptions {
@@ -51,6 +53,13 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
   })
 
   const domainHandlers: Array<[string, (request: unknown, event: IpcMainInvokeEvent) => unknown]> = [
+    [IPC_CHANNELS.bulk.setStatus, (request) => services.bulk.setStatus(request)],
+    [IPC_CHANNELS.bulk.setFavorite, (request) => services.bulk.setFavorite(request)],
+    [IPC_CHANNELS.bulk.addTag, (request) => services.bulk.addTag(request)],
+    [IPC_CHANNELS.bulk.removeTag, (request) => services.bulk.removeTag(request)],
+    [IPC_CHANNELS.bulk.addCollection, (request) => services.bulk.addCollection(request)],
+    [IPC_CHANNELS.bulk.removeCollection, (request) => services.bulk.removeCollection(request)],
+    [IPC_CHANNELS.bulk.moveToTrash, (request) => services.bulk.moveToTrash(request)],
     [IPC_CHANNELS.works.create, (request) => services.works.createWork(request)],
     [IPC_CHANNELS.works.createDetailed, (request) => services.details.createDetailed(request)],
     [IPC_CHANNELS.works.get, (request) => services.works.getWork(request)],

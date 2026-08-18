@@ -1,4 +1,13 @@
 export const IPC_CHANNELS = {
+  bulk: {
+    setStatus: 'lumi:bulk:set-status',
+    setFavorite: 'lumi:bulk:set-favorite',
+    addTag: 'lumi:bulk:add-tag',
+    removeTag: 'lumi:bulk:remove-tag',
+    addCollection: 'lumi:bulk:add-collection',
+    removeCollection: 'lumi:bulk:remove-collection',
+    moveToTrash: 'lumi:bulk:move-to-trash'
+  },
   system: {
     getStatus: 'lumi:system:get-status'
   },

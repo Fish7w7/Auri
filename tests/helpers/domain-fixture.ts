@@ -16,6 +16,7 @@ import { ProgressService } from '@main/services/progress-service'
 import { SourceService } from '@main/services/source-service'
 import { WorkService } from '@main/services/work-service'
 import { WorkDetailsService } from '@main/services/work-details-service'
+import { BulkLibraryService } from '@main/services/bulk-library-service'
 import { TestLogger } from './test-logger'
 
 export function createDomainFixture(databasePath = ':memory:') {
@@ -60,6 +61,11 @@ export function createDomainFixture(databasePath = ':memory:') {
     ),
     sources: new SourceService(db, repositories.sources, repositories.works, clock),
     library: new LibraryService(repositories.works),
+    bulk: new BulkLibraryService(db, {
+      works: repositories.works,
+      tags: repositories.tags,
+      collections: repositories.collections
+    }, clock),
     details: undefined as unknown as WorkDetailsService
   }
 

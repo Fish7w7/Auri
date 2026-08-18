@@ -77,7 +77,8 @@ if (!singleInstanceLock) {
           externalNavigation: context.services.externalNavigation,
           backups: context.services.backups,
           transfer: context.services.transfer,
-          updates: context.services.updates
+          updates: context.services.updates,
+          bulk: context.services.bulk
         },
         context.logger,
         smokeCoverPath ? { selectCoverFile: async () => smokeCoverPath } : undefined

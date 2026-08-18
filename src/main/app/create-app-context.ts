@@ -42,6 +42,7 @@ import { runMigrationsSafely } from '../database/migrations/safe-migration-runne
 import { ElectronPageTransport } from '../services/url-metadata/electron-page-transport'
 import { SafePageFetcher } from '../services/url-metadata/safe-page-fetcher'
 import { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
+import { BulkLibraryService } from '../services/bulk-library-service'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -62,6 +63,7 @@ export interface AppContext {
     externalNavigation: ExternalNavigationService
     backups: BackupService
     transfer: TransferService
+    bulk: BulkLibraryService
   }
   dispose(): void
 }
@@ -127,6 +129,11 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,
       sources: sourcesRepository, overrides: overridesRepository, externalRefs: externalRefsRepository
     }, works, sources)
+    const bulk = new BulkLibraryService(database.db, {
+      works: worksRepository,
+      tags: tagsRepository,
+      collections: collectionsRepository
+    })
     const assets = new AssetService(paths.assets, works)
     const covers = new CoverService(paths.coverCache, worksRepository, assets, options.coverClient ?? new ElectronCoverClient())
     const metadataProviders = options.metadataProviders ?? [new AniListProvider(new AniListClient(new ElectronGraphqlTransport()))]
@@ -157,7 +164,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     return {
       database,
       logger,
-      services: { system, updates, works, progress, sources, library, settings, details, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
+      services: { system, updates, works, progress, sources, library, settings, details, bulk, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
       dispose() {
         database.close()
       }

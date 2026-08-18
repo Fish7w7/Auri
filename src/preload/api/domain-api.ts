@@ -16,6 +16,15 @@ async function invoke<T>(channel: string, request?: unknown): Promise<T> {
 }
 
 export const domainApi: Omit<LumiApi, 'system' | 'settings'> = {
+  bulk: {
+    setStatus: (request) => invoke(IPC_CHANNELS.bulk.setStatus, request),
+    setFavorite: (request) => invoke(IPC_CHANNELS.bulk.setFavorite, request),
+    addTag: (request) => invoke(IPC_CHANNELS.bulk.addTag, request),
+    removeTag: (request) => invoke(IPC_CHANNELS.bulk.removeTag, request),
+    addCollection: (request) => invoke(IPC_CHANNELS.bulk.addCollection, request),
+    removeCollection: (request) => invoke(IPC_CHANNELS.bulk.removeCollection, request),
+    moveToTrash: (request) => invoke(IPC_CHANNELS.bulk.moveToTrash, request)
+  },
   works: {
     create: (request) => invoke(IPC_CHANNELS.works.create, request),
     createDetailed: (request) => invoke(IPC_CHANNELS.works.createDetailed, request),
