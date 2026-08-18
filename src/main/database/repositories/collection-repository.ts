@@ -7,6 +7,7 @@ interface CollectionRow {
   description: string | null
   created_at: string
   updated_at: string
+  work_count?: number
 }
 
 export class CollectionRepository {
@@ -30,7 +31,14 @@ export class CollectionRepository {
   }
 
   listAll(): Collection[] {
-    return (this.db.prepare('SELECT * FROM collections ORDER BY name COLLATE NOCASE').all() as CollectionRow[]).map((row) => this.map(row))
+    return (this.db.prepare(`
+      SELECT c.*, COUNT(w.id) AS work_count
+      FROM collections c
+      LEFT JOIN collection_items ci ON ci.collection_id = c.id
+      LEFT JOIN works w ON w.id = ci.work_id AND w.deleted_at IS NULL
+      GROUP BY c.id
+      ORDER BY c.name COLLATE NOCASE
+    `).all() as CollectionRow[]).map((row) => this.map(row))
   }
 
   update(collection: Collection): Collection {
@@ -67,12 +75,14 @@ export class CollectionRepository {
   }
 
   private map(row: CollectionRow): Collection {
-    return {
+    const collection: Collection = {
       id: row.id,
       name: row.name,
       description: row.description,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }
+    if (typeof row.work_count === 'number') collection.workCount = row.work_count
+    return collection
   }
 }

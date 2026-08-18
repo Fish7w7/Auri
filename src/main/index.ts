@@ -24,7 +24,7 @@ const testMetadataProvider: MetadataProvider = { id: 'anilist', search: async (q
 const testCoverClient: CoverDownloadClient = { isOnline: () => true, download: async () => testCoverBytes }
 
 app.setName('Lumi')
-if (isBackupSmokeTest) app.disableHardwareAcceleration()
+if (isSmokeTest || isScreenshotTest || isBackupSmokeTest) app.disableHardwareAcceleration()
 if (isSmokeTest || isScreenshotTest || isBackupSmokeTest) {
   app.setPath(
     'userData',
@@ -103,11 +103,15 @@ if (!singleInstanceLock) {
         void context.services.updates.checkForUpdates().catch(() => { /* estado e logging são tratados pelo serviço */ })
       }
       if (isScreenshotTest) {
+        context.services.settings.updateSettings({ sidebarCompact: false, libraryView: 'grid', cardSize: 'medium' })
         for (const work of context.services.library.queryWorks({})) {
           context.services.works.deletePermanently({ workId: work.id })
         }
         for (const work of context.services.works.listTrash()) {
           context.services.works.deletePermanently({ workId: work.id })
+        }
+        for (const collection of context.services.details.listCollections()) {
+          context.services.details.deleteCollection({ collectionId: collection.id })
         }
         const titles = [
           'Nano Machine', 'Eleceed', 'A Leitora Onisciente', 'O Retorno da Vilã',
@@ -236,7 +240,9 @@ if (!singleInstanceLock) {
                 for (const [value, label] of [['small', 'Pequeno'], ['medium', 'Médio'], ['large', 'Grande']]) {
                   window.location.hash = '/settings'
                   await waitFor(() => document.querySelector('.settings-page'), 'Configurações para tamanho ' + label)
-                  await chooseSelect('Tamanho dos cards', label)
+                  const sizeButton = await waitFor(() => Array.from(document.querySelectorAll('.size-segmented button')).find((button) => button.textContent.trim() === label), 'controle de tamanho ' + label)
+                  sizeButton.click()
+                  await waitFor(async () => (await window.lumi.settings.get()).cardSize === value, 'persistência do tamanho ' + label)
                   const persistedSidebar = (await window.lumi.settings.get()).sidebarCompact
                   if (!document.querySelector('.sidebar--compact button[aria-label="Expandir sidebar"]') || !persistedSidebar) throw new Error('Sidebar foi resetada ao mudar tamanho dos cards: persistida=' + persistedSidebar)
                   window.location.hash = '/library'
@@ -332,7 +338,7 @@ if (!singleInstanceLock) {
                 await waitFor(() => bulkMenu.open, 'menu bulk aberto')
                 bulkMenu.querySelector('summary').focus()
                 bulkMenu.querySelector('summary').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
-                await waitFor(() => document.activeElement?.textContent.trim() === 'Mover para a Lixeira', 'seta no menu bulk')
+                await waitFor(() => document.activeElement?.textContent.trim() === 'Favoritar', 'seta no menu bulk')
                 document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
                 if (bulkMenu.open || !document.querySelector('.bulk-toolbar')) throw new Error('Esc não fechou primeiro o menu bulk.')
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -512,6 +518,7 @@ if (!singleInstanceLock) {
                 })
             `)
             .then(() => new Promise((resolve) => setTimeout(resolve, 500)))
+            .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'lumi-home.png'), image.toPNG()))
             .then(() =>
@@ -736,8 +743,143 @@ if (!singleInstanceLock) {
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => {
               writeFileSync(join(output, 'lumi-library-list-compact.png'), image.toPNG())
-              return mainWindow.webContents.executeJavaScript(`window.lumi.settings.update({ libraryView: 'grid' })`)
+              return mainWindow.webContents.executeJavaScript(`document.querySelector('button[aria-label="Visualização em grade"]')?.click()`)
             })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => document.querySelector('.library-page .work-card')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Grade compacta não terminou de renderizar.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              (() => {
+                const root = document.documentElement
+                if (root.scrollWidth > root.clientWidth + 1) throw new Error('Overflow horizontal global na Biblioteca compacta.')
+                return true
+              })()
+            `))
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-library-grid-compact.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const button = Array.from(document.querySelectorAll('.library-toolbar button')).find((item) => item.textContent.trim() === 'Filtros')
+                button?.click()
+                const started = Date.now()
+                const check = () => {
+                  const panel = document.querySelector('.filter-popover')
+                  if (panel) {
+                    const bounds = panel.getBoundingClientRect()
+                    const content = document.querySelector('.app-content').getBoundingClientRect()
+                    if (bounds.left < content.left - 1 || bounds.right > innerWidth + 1 || bounds.bottom > innerHeight + 1) reject(new Error('Painel de filtros saiu da área útil: ' + JSON.stringify({ left: bounds.left, right: bounds.right, bottom: bounds.bottom, contentLeft: content.left, width: innerWidth, height: innerHeight })))
+                    else resolve(true)
+                  } else if (Date.now() - started > 5000) reject(new Error('Painel de filtros não abriu.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-library-filters-compact.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              document.querySelector('.filter-popover__header > button')?.click()
+              window.location.hash = '/'
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => document.querySelector('.home-section')
+                  ? document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1 ? resolve(true) : reject(new Error('Overflow horizontal global na Home compacta.'))
+                  : Date.now() - started > 5000 ? reject(new Error('Home compacta não terminou de renderizar.')) : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-home-compact.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              window.location.hash = '/collections'
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => document.querySelector('.collection-row')
+                  ? resolve(true)
+                  : Date.now() - started > 5000 ? reject(new Error('Coleções não terminou de renderizar.')) : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-collections-compact.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              window.location.hash = '/library'
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const byText = (text) => Array.from(document.querySelectorAll('.library-page button')).find((button) => button.textContent.trim() === text)
+                const check = () => {
+                  const select = byText('Selecionar')
+                  if (select) {
+                    select.click()
+                    setTimeout(() => {
+                      document.querySelector('.work-card__open')?.click()
+                      setTimeout(() => document.querySelector('.bulk-toolbar')?.textContent.includes('1 selecionada') ? resolve(true) : reject(new Error('Seleção múltipla não estabilizou.')), 100)
+                    }, 100)
+                  } else if (Date.now() - started > 5000) reject(new Error('Biblioteca não reabriu para seleção.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-bulk-actions-compact.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const exit = Array.from(document.querySelectorAll('.bulk-toolbar button')).find((button) => button.textContent.trim() === 'Sair da seleção')
+                exit?.click()
+                const collapse = document.querySelector('button[aria-label="Recolher sidebar"]')
+                collapse?.click()
+                const started = Date.now()
+                const check = () => {
+                  const library = document.querySelector('.sidebar--compact button[aria-label^="Biblioteca"]')
+                  if (library) {
+                    library.focus()
+                    library.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+                    library.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+                    const tooltipStarted = Date.now()
+                    const waitTooltip = () => document.querySelector('.sidebar-tooltip')
+                      ? resolve(true)
+                      : Date.now() - tooltipStarted > 2000 ? reject(new Error('Tooltip da sidebar compacta não apareceu.')) : setTimeout(waitTooltip, 50)
+                    waitTooltip()
+                  } else if (Date.now() - started > 5000) reject(new Error('Sidebar não compactou.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-sidebar-tooltip-compact.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise(async (resolve, reject) => {
+                document.querySelector('button[aria-label="Expandir sidebar"]')?.click()
+                const works = await window.lumi.library.query({ search: 'Eleceed' })
+                if (!works[0]) return reject(new Error('Obra para a Lixeira não encontrada.'))
+                await window.lumi.works.trash({ workId: works[0].id })
+                window.location.hash = '/trash'
+                const started = Date.now()
+                const check = () => document.querySelector('.trash-item .button--danger-ghost')
+                  ? resolve(true)
+                  : Date.now() - started > 5000 ? reject(new Error('Lixeira não terminou de renderizar.')) : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-trash-compact.png'), image.toPNG()))
             .then(() => {
               console.log('LUMI_SCREENSHOT_TEST_OK')
               app.quit()

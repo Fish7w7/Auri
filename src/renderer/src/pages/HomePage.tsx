@@ -15,7 +15,8 @@ import { useToast } from '../components/ui/Toast'
 const EMPTY_HOME: HomeData = { continueReading: [], staleReading: [], waiting: [], recentlyAdded: [] }
 
 function HomeSection({ section, actions, onContinue }: { section: HomeSectionModel; actions: ReturnType<typeof useWorkActions>['handlers']; onContinue(work: Work): void }) {
-  return <section className="home-section"><div className="section-heading"><div><h2>{section.title}</h2>{section.subtitle && <p>{section.subtitle}</p>}</div>{section.viewAllPath && <Button variant="ghost" onClick={() => navigate(section.viewAllPath!)}>Ver todas</Button>}</div><div className="home-work-grid">{section.works.map((work) => <HomeWorkCard key={work.id} work={work} showLastReadNote={section.key === 'continueReading' || section.key === 'staleReading'} onOpen={actions.onOpen} onIncrement={actions.onIncrement} onContinue={onContinue} />)}</div></section>
+  const columnCount = Math.min(section.works.length, 4)
+  return <section className={`home-section home-section--${columnCount}-columns`}><div className="section-heading"><div><h2>{section.title}</h2>{section.subtitle && <p>{section.subtitle}</p>}</div>{section.viewAllPath && <Button variant="ghost" onClick={() => navigate(section.viewAllPath!)}>Ver todas</Button>}</div><div className="home-work-grid">{section.works.map((work) => <HomeWorkCard key={work.id} work={work} showLastReadNote={section.key === 'continueReading' || section.key === 'staleReading'} onOpen={actions.onOpen} onIncrement={actions.onIncrement} onContinue={onContinue} />)}</div></section>
 }
 
 export function HomePage() {

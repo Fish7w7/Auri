@@ -117,6 +117,7 @@ export interface Collection {
   description: string | null
   createdAt: string
   updatedAt: string
+  workCount?: number
 }
 
 export interface Source {
