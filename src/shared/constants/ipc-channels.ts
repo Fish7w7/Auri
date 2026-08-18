@@ -9,7 +9,15 @@ export const IPC_CHANNELS = {
     moveToTrash: 'lumi:bulk:move-to-trash'
   },
   system: {
-    getStatus: 'lumi:system:get-status'
+    getStatus: 'lumi:system:get-status',
+    getDiagnostics: 'lumi:system:get-diagnostics',
+    checkIntegrity: 'lumi:system:check-integrity',
+    clearCoverCache: 'lumi:system:clear-cover-cache',
+    openDataFolder: 'lumi:system:open-data-folder',
+    openBackupsFolder: 'lumi:system:open-backups-folder',
+    openLogsFolder: 'lumi:system:open-logs-folder',
+    copySystemInfo: 'lumi:system:copy-info',
+    exportDiagnostic: 'lumi:system:export-diagnostic'
   },
   works: {
     create: 'lumi:works:create',

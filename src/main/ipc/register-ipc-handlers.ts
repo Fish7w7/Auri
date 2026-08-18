@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
 import { DomainError, type ApiResult } from '@shared/errors/domain-error'
 import type { Logger } from '../logging/logger'
@@ -44,6 +44,7 @@ export interface IpcHandlerOptions {
   selectRestoreFile?(event: IpcMainInvokeEvent): Promise<string | null>
   selectExportFile?(event: IpcMainInvokeEvent, kind: 'json' | 'csv'): Promise<string | null>
   selectImportFile?(event: IpcMainInvokeEvent): Promise<string | null>
+  selectDiagnosticFile?(event: IpcMainInvokeEvent): Promise<string | null>
 }
 
 export function registerIpcHandlers(services: IpcServices, logger: Logger, options: IpcHandlerOptions = {}): () => void {
@@ -53,6 +54,26 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
   })
 
   const domainHandlers: Array<[string, (request: unknown, event: IpcMainInvokeEvent) => unknown]> = [
+    [IPC_CHANNELS.system.getDiagnostics, () => services.system.getDiagnostics()],
+    [IPC_CHANNELS.system.checkIntegrity, () => services.system.checkIntegrity()],
+    [IPC_CHANNELS.system.clearCoverCache, () => services.system.clearCoverCache()],
+    [IPC_CHANNELS.system.openDataFolder, () => openSystemDirectory(services.system.getStatus().paths.root)],
+    [IPC_CHANNELS.system.openBackupsFolder, () => {
+      const state = services.backups.getState()
+      return openSystemDirectory(state.directoryAvailable ? state.directory : services.system.getStatus().paths.backups)
+    }],
+    [IPC_CHANNELS.system.openLogsFolder, () => openSystemDirectory(services.system.getStatus().paths.logs)],
+    [IPC_CHANNELS.system.copySystemInfo, () => { clipboard.writeText(services.system.getSystemInformationText()) }],
+    [IPC_CHANNELS.system.exportDiagnostic, async (_request, event) => {
+      let destination = options.selectDiagnosticFile ? await options.selectDiagnosticFile(event) : null
+      if (!options.selectDiagnosticFile) {
+        const owner = BrowserWindow.fromWebContents(event.sender)
+        const picker = { title: 'Exportar diagnóstico do Lumi', defaultPath: 'lumi-diagnostic.json', filters: [{ name: 'Diagnóstico JSON', extensions: ['json'] }] }
+        const result = owner ? await dialog.showSaveDialog(owner, picker) : await dialog.showSaveDialog(picker)
+        destination = result.canceled ? null : result.filePath ?? null
+      }
+      return destination ? services.system.exportDiagnostic(destination) : null
+    }],
     [IPC_CHANNELS.bulk.setStatus, (request) => services.bulk.setStatus(request)],
     [IPC_CHANNELS.bulk.setFavorite, (request) => services.bulk.setFavorite(request)],
     [IPC_CHANNELS.bulk.addTag, (request) => services.bulk.addTag(request)],
@@ -237,4 +258,9 @@ async function selectExportPath(event: IpcMainInvokeEvent, kind: 'json' | 'csv',
   const picker = { title: kind === 'json' ? 'Exportar biblioteca completa' : 'Exportar resumo CSV', defaultPath: `lumi-biblioteca.${kind}`, filters: [{ name: kind === 'json' ? 'JSON' : 'CSV', extensions: [kind] }] }
   const result = owner ? await dialog.showSaveDialog(owner, picker) : await dialog.showSaveDialog(picker)
   return result.canceled ? null : result.filePath ?? null
+}
+
+async function openSystemDirectory(path: string): Promise<void> {
+  const error = await shell.openPath(path)
+  if (error) throw new DomainError('SYSTEM_FOLDER_UNAVAILABLE', 'Não foi possível abrir esta pasta.')
 }

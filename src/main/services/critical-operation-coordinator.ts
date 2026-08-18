@@ -1,6 +1,6 @@
 import { DomainError } from '@shared/errors/domain-error'
 
-export type CriticalOperation = 'backup' | 'restore' | 'import' | 'migration'
+export type CriticalOperation = 'backup' | 'restore' | 'import' | 'migration' | 'diagnostic' | 'maintenance'
 
 export class CriticalOperationCoordinator {
   private active: CriticalOperation | null = null

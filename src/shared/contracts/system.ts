@@ -19,6 +19,17 @@ export const dataPathsSchema = z.object({
 
 export const systemStatusSchema = z.object({
   appVersion: z.string(),
+  backupFormatVersion: z.number().int().positive(),
+  platform: z.object({
+    name: z.string(),
+    architecture: z.string(),
+    label: z.string()
+  }),
+  runtime: z.object({
+    electron: z.string(),
+    node: z.string(),
+    chrome: z.string()
+  }),
   database: z.object({
     state: z.literal('ready'),
     schemaVersion: z.number().int().nonnegative(),
@@ -30,8 +41,37 @@ export const systemStatusSchema = z.object({
 export type DataPaths = z.infer<typeof dataPathsSchema>
 export type SystemStatus = z.infer<typeof systemStatusSchema>
 
+export interface StorageUsage {
+  databaseBytes: number
+  customCoversBytes: number
+  coverCacheBytes: number
+  backupsBytes: number
+}
+
+export interface LibraryIntegrityResult {
+  healthy: boolean
+  checkedAt: string
+  summary: string
+  quickCheck: string[]
+  foreignKeyIssues: Array<{ table: string; parent: string; foreignKeyId: number }>
+}
+
+export interface SystemDiagnostics {
+  status: SystemStatus
+  storage: StorageUsage
+  integrity: LibraryIntegrityResult | null
+}
+
 export interface LumiApi extends DomainApi, SettingsApi, MetadataApi, CoverApi, DataManagementApi, UpdatesApi, UrlMetadataApi {
   system: {
     getStatus(): Promise<SystemStatus>
+    getDiagnostics(): Promise<SystemDiagnostics>
+    checkIntegrity(): Promise<LibraryIntegrityResult>
+    clearCoverCache(): Promise<StorageUsage>
+    openDataFolder(): Promise<void>
+    openBackupsFolder(): Promise<void>
+    openLogsFolder(): Promise<void>
+    copySystemInfo(): Promise<void>
+    exportDiagnostic(): Promise<string | null>
   }
 }

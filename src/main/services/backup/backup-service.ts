@@ -16,7 +16,7 @@ import { createMigrations } from '../../database/migrations'
 import { MigrationRunner } from '../../database/migrations/migration-runner'
 import { CriticalOperationCoordinator, type CriticalOperation } from '../critical-operation-coordinator'
 
-const BACKUP_FORMAT_VERSION = 1 as const
+export const BACKUP_FORMAT_VERSION = 1 as const
 const MAX_MANIFEST_BYTES = 1024 * 1024
 const MAX_CHECKSUMS_BYTES = 5 * 1024 * 1024
 
@@ -25,6 +25,7 @@ export interface BackupServiceOptions {
   restartApplication?: () => void
   now?: () => Date
   criticalOperations?: CriticalOperationCoordinator
+  recoveryMode?: boolean
 }
 
 export class BackupService {
@@ -104,7 +105,8 @@ export class BackupService {
         const entries = await extractZip(path, extracted)
         const manifest = this.validateExtracted(extracted)
         if (manifest.schemaVersion < this.schemaVersion) this.migrateStagedDatabase(join(extracted, 'library.db'))
-        await this.createBackupInternal('before_restore')
+        if (this.options.recoveryMode) this.preserveFailedDatabase()
+        else await this.createBackupInternal('before_restore')
         this.installRestore(extracted, entries)
         this.logger.info('backup', 'Backup restaurado.', { event: 'backup.restored', schemaVersion: manifest.schemaVersion, durationMs: Date.now() - startedAt })
       } catch (error) {
@@ -262,6 +264,14 @@ export class BackupService {
     } finally {
       for (const target of cleanup) rmSync(target, { recursive: true, force: true })
     }
+  }
+
+  private preserveFailedDatabase(): void {
+    if (!existsSync(this.paths.database)) return
+    const directory = this.effectiveDirectory()
+    mkdirSync(directory, { recursive: true })
+    const stamp = this.now().toISOString().replace(/[:.]/g, '-')
+    copyFileSync(this.paths.database, join(directory, `lumi-failed-database-${stamp}.sqlite`))
   }
 
   private effectiveDirectory(): string {
