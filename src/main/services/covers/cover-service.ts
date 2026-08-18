@@ -18,6 +18,7 @@ export class CoverService {
   private readonly queue: QueueJob[] = []
   private readonly inflight = new Map<string, Promise<PreparedCover>>()
   private active = 0
+  private maintenance: Promise<void> | null = null
 
   constructor(private readonly cacheDirectory: string, private readonly works: WorkRepository, private readonly assets: AssetService, private readonly client: CoverDownloadClient) {
     mkdirSync(cacheDirectory, { recursive: true })
@@ -90,8 +91,16 @@ export class CoverService {
   }
 
   clearWorkCache(input: unknown): void { const { workId } = parseDomainInput(coverWorkSchema, input); this.removeIfExists(this.cachePath(workId)); this.removeIfExists(this.metadataPath(workId)) }
-  clearAllCache(): CoverCacheUsage {
-    for (const entry of readdirSync(this.cacheDirectory)) if (/\.(webp|json|tmp|bak)$/i.test(entry)) this.removeIfExists(join(this.cacheDirectory, entry))
+  async clearAllCache(): Promise<CoverCacheUsage> {
+    if (this.maintenance) {
+      await this.maintenance
+      return this.getCacheUsage()
+    }
+    const maintenance = this.waitUntilIdle().then(() => {
+      for (const entry of readdirSync(this.cacheDirectory)) if (/\.(webp|json|tmp|bak)$/i.test(entry)) this.removeIfExists(join(this.cacheDirectory, entry))
+    })
+    this.maintenance = maintenance
+    try { await maintenance } finally { if (this.maintenance === maintenance) this.maintenance = null }
     return this.getCacheUsage()
   }
   getCacheUsage(): CoverCacheUsage {
@@ -101,6 +110,7 @@ export class CoverService {
   }
 
   private enqueue(workId: string, sourceUrl: string, force = false): Promise<PreparedCover> {
+    if (this.maintenance) return this.maintenance.then(() => this.enqueue(workId, sourceUrl, force))
     this.validateUrl(sourceUrl)
     const key = `${workId}:${sourceUrl}`
     const existing = this.inflight.get(key)
@@ -143,4 +153,7 @@ export class CoverService {
   private readCacheSource(workId: string): string | null { try { return (JSON.parse(readFileSync(this.metadataPath(workId), 'utf8')) as { sourceUrl?: string }).sourceUrl ?? null } catch { return null } }
   private cachedResult(workId: string): CoverResult { return { state: 'ready', dataUrl: `data:image/webp;base64,${readFileSync(this.cachePath(workId)).toString('base64')}`, source: 'cache', cached: true } }
   private removeIfExists(path: string): void { if (existsSync(path)) rmSync(path, { force: true }) }
+  private async waitUntilIdle(): Promise<void> {
+    while (this.active > 0 || this.queue.length > 0) await new Promise((resolve) => setTimeout(resolve, 10))
+  }
 }

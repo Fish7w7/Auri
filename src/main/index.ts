@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, shell } from 'electron'
 import { createAppContext, type AppContext } from './app/create-app-context'
 import { registerIpcHandlers } from './ipc/register-ipc-handlers'
 import { createMainWindow } from './windows/create-main-window'
@@ -8,6 +8,9 @@ import type { MetadataProvider } from './services/metadata/types'
 import type { CoverDownloadClient } from './services/covers/types'
 import type { MetadataWork } from '@shared/contracts'
 import { DomainError } from '@shared/errors/domain-error'
+import { resolveDataPaths } from './app/data-paths'
+import { JsonLogger } from './logging/logger'
+import { classifyDatabaseOpenFailure, createRecoveryBackupService } from './services/database-recovery-service'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
@@ -513,6 +516,43 @@ if (!singleInstanceLock) {
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'lumi-settings-updates.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const advanced = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Avançado')
+                advanced?.click()
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .storage-value')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Diagnóstico avançado não terminou de renderizar.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const verify = Array.from(document.querySelectorAll('.settings-panel button')).find((button) => button.textContent.trim() === 'Verificar integridade')
+                verify?.click()
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .integrity-result')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Verificação de integridade não terminou.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-advanced.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              const page = document.querySelector('.settings-page')
+              if (page) page.scrollTop = page.scrollHeight
+              new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-maintenance.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
               window.location.hash = '/library'
               new Promise((resolve, reject) => {
                 const started = Date.now()
@@ -549,14 +589,7 @@ if (!singleInstanceLock) {
         })
       }
     } catch (error) {
-      const details = error instanceof Error ? error.message : 'Erro desconhecido.'
-      void dialog.showMessageBox({
-        type: 'error',
-        title: 'Não foi possível abrir sua biblioteca',
-        message: 'Não foi possível abrir sua biblioteca.',
-        detail: `O Lumi não alterou seus dados.\n\n${details}`,
-        buttons: ['Fechar Lumi']
-      }).finally(() => app.quit())
+      await showStartupRecovery(error)
     }
 
     app.on('activate', () => {
@@ -575,3 +608,73 @@ app.on('before-quit', () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+async function showStartupRecovery(error: unknown): Promise<void> {
+  const failure = classifyDatabaseOpenFailure(error)
+  const paths = resolveDataPaths(app.getPath('userData'))
+  const logger = new JsonLogger(join(paths.logs, 'lumi.jsonl'), !app.isPackaged)
+  logger.error('database', 'Inicialização entrou no fluxo de recuperação.', { event: 'database.recovery_opened', errorCode: failure.kind })
+  while (true) {
+    const result = await dialog.showMessageBox({
+      type: 'error',
+      title: 'Não foi possível abrir sua biblioteca',
+      message: failure.title,
+      detail: `${failure.explanation}\n\nNenhum dado foi alterado automaticamente.`,
+      buttons: ['Tentar novamente', 'Restaurar backup', 'Abrir pasta de dados', 'Ver detalhes', 'Fechar Lumi'],
+      defaultId: 0,
+      cancelId: 4,
+      noLink: true
+    })
+    if (result.response === 0) {
+      app.relaunch()
+      app.exit(0)
+      return
+    }
+    if (result.response === 1) {
+      const selected = await dialog.showOpenDialog({ title: 'Restaurar backup do Lumi', properties: ['openFile'], filters: [{ name: 'Backup do Lumi', extensions: ['lumi-backup'] }] })
+      if (selected.canceled || !selected.filePaths[0]) continue
+      const recovery = createRecoveryBackupService(app, logger)
+      try {
+        const preview = await recovery.backups.previewBackup(selected.filePaths[0])
+        const confirmation = await dialog.showMessageBox({
+          type: 'warning',
+          title: 'Confirmar restauração',
+          message: 'Restaurar esta biblioteca?',
+          detail: `Backup de ${new Date(preview.createdAt).toLocaleString('pt-BR')}, com ${preview.workCount} obras. O arquivo atual será preservado separadamente para recuperação.`,
+          buttons: ['Cancelar', 'Restaurar e reiniciar'],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true
+        })
+        if (confirmation.response === 1) {
+          await recovery.backups.restoreBackup(selected.filePaths[0])
+          return
+        }
+      } catch (restoreError) {
+        await dialog.showMessageBox({ type: 'error', title: 'Restauração não concluída', message: 'Não foi possível restaurar este backup com segurança.', detail: restoreError instanceof Error ? restoreError.message : 'Erro desconhecido.', buttons: ['Voltar'], noLink: true })
+      } finally { recovery.dispose() }
+      continue
+    }
+    if (result.response === 2) {
+      const openError = await shell.openPath(paths.root)
+      if (openError) await dialog.showMessageBox({ type: 'error', message: 'Não foi possível abrir a pasta de dados.', detail: openError, buttons: ['Voltar'] })
+      continue
+    }
+    if (result.response === 3) {
+      const detailResult = await dialog.showMessageBox({
+        type: 'info',
+        title: 'Detalhes técnicos',
+        message: failure.title,
+        detail: failure.technicalDetails,
+        buttons: ['Copiar detalhes', 'Voltar'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true
+      })
+      if (detailResult.response === 0) clipboard.writeText(`Lumi ${app.getVersion()}\n${failure.technicalDetails}`)
+      continue
+    }
+    app.quit()
+    return
+  }
+}

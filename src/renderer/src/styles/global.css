@@ -292,6 +292,17 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .diagnostic-card dl, .about-details { margin: 0; }
 .diagnostic-card dl > div, .about-details > div { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 18px; padding: 12px 15px; border-bottom: 1px solid var(--border); font-size: .76rem; }
 .diagnostic-card dl > div:last-child, .about-details > div:last-child { border: 0; }
+.diagnostic-path { display: block; max-width: 480px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-value { color: var(--text-secondary); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.storage-value--cache { color: var(--accent); }
+.integrity-result { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.integrity-result.is-healthy { border-color: color-mix(in srgb, var(--success) 36%, var(--border)); }
+.integrity-result.has-issues { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.integrity-result strong { color: var(--text-primary); font-size: .82rem; }
+.integrity-result p { margin: 5px 0 0; color: var(--text-muted); font-size: .73rem; }
+.integrity-result details { margin-top: 12px; color: var(--text-secondary); font-size: .73rem; }
+.integrity-result summary { cursor: pointer; }
+.integrity-result ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
 dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
 .about-brand { display: flex; align-items: center; gap: 15px; margin-bottom: 24px; }
 .about-brand strong { font-size: 1.25rem; }
