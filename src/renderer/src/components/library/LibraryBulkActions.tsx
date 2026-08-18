@@ -71,9 +71,7 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
       <Button disabled={disabled} onClick={() => setDialog('status')}>Status</Button>
       <Button disabled={disabled} onClick={() => setDialog('tag')}>Tags</Button>
       <Button disabled={disabled} onClick={() => setDialog('collection')}>Coleções</Button>
-      <Button disabled={disabled} icon="star" onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: true }), `${countLabel} como favorita.`)}>Favoritar</Button>
-      <Button disabled={disabled} onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: false }), `Favorito removido de ${countLabel}.`)}>Desfavoritar</Button>
-      <KeyboardMenu className="bulk-overflow" label="Mais ações"><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></KeyboardMenu>
+      <KeyboardMenu className="bulk-overflow" label="Mais ações"><button disabled={disabled} onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: true }), `${countLabel} como favorita.`)}>Favoritar</button><button disabled={disabled} onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: false }), `Favorito removido de ${countLabel}.`)}>Remover dos favoritos</button><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></KeyboardMenu>
       <Button variant="ghost" disabled={busy} onClick={onExit}>Sair da seleção</Button>
     </div>
 

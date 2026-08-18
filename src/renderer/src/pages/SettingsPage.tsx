@@ -69,7 +69,7 @@ export function SettingsPage() {
         {section === 'Aparência' && <>
           <SettingsHeading title="Aparência" description="Ajuste a densidade visual da sua Biblioteca." />
           <SettingRow title="Tamanho dos cards" description="Define quantas obras cabem por linha na visualização em grade.">
-            <Select label="Tamanho dos cards" value={settings.cardSize} onChange={(cardSize) => void updateSettings({ cardSize: cardSize as 'small' | 'medium' | 'large' })} options={[{ value: 'small', label: 'Pequeno' }, { value: 'medium', label: 'Médio' }, { value: 'large', label: 'Grande' }]} />
+            <div className="size-segmented" role="group" aria-label="Tamanho dos cards">{([['small', 'Pequeno'], ['medium', 'Médio'], ['large', 'Grande']] as const).map(([cardSize, label]) => <button key={cardSize} className={settings.cardSize === cardSize ? 'is-active' : ''} aria-pressed={settings.cardSize === cardSize} onClick={() => void updateSettings({ cardSize })}>{label}</button>)}</div>
           </SettingRow>
         </>}
 

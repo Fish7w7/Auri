@@ -63,6 +63,19 @@ describe('LibraryService — filtros, resumo e Home', () => {
     expect(fixture.repositories.works.findById(outside.id)).not.toBeNull()
   })
 
+  it('informa a quantidade de obras ativas em cada coleção', () => {
+    fixture = createDomainFixture()
+    const active = create({ title: 'Ativa' })
+    const removed = create({ title: 'Na lixeira' })
+    const collection = fixture.services.details.createCollection({ workId: active.id, name: 'Favoritas' })
+    fixture.repositories.collections.addWork(collection.id, removed.id, fixture.clock())
+    fixture.services.works.moveToTrash({ workId: removed.id })
+
+    expect(fixture.services.details.listCollections()).toEqual([
+      expect.objectContaining({ id: collection.id, workCount: 1 })
+    ])
+  })
+
   it('encontra localmente alias em português adicionado pelo usuário', () => {
     fixture = createDomainFixture()
     const work = create({ title: 'The Shepherd Wizard' })
