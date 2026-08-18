@@ -39,16 +39,13 @@ export class LibraryService {
   }
 
   getHome(now = new Date()): HomeData {
-    const staleBefore = now.getTime() - 30 * 24 * 60 * 60 * 1000
-    const reading = this.works.queryActive({ userStatuses: ['reading'], sort: 'last_read_desc' })
+    const staleBefore = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const limit = 6
     return {
-      continueReading: reading.slice(0, 8),
-      staleReading: reading
-        .filter((work) => work.lastReadAt && Date.parse(work.lastReadAt) < staleBefore)
-        .sort((a, b) => Date.parse(a.lastReadAt!) - Date.parse(b.lastReadAt!))
-        .slice(0, 8),
-      waiting: this.works.queryActive({ userStatuses: ['waiting'], sort: 'last_read_desc' }).slice(0, 8),
-      recentlyAdded: this.works.queryActive({ sort: 'created_desc' }).slice(0, 8)
+      continueReading: this.works.listHomeReading(staleBefore, false, limit),
+      staleReading: this.works.listHomeReading(staleBefore, true, limit),
+      waiting: this.works.listHomeWaiting(limit),
+      recentlyAdded: this.works.listHomeRecentlyAdded(limit)
     }
   }
 

@@ -16,11 +16,11 @@ const SORT_LABELS: Record<LibrarySort, string> = {
   last_read_desc: 'Última leitura', last_read_asc: 'Mais tempo sem ler', title_asc: 'Título A–Z', title_desc: 'Título Z–A', created_desc: 'Adicionado recentemente', updated_desc: 'Atualizado recentemente', chapter_desc: 'Capítulo', rating_desc: 'Nota'
 }
 
-export function LibraryPage({ initialStatus, initialFavorite }: { initialStatus?: UserStatus; initialFavorite?: boolean }) {
+export function LibraryPage({ initialStatus, initialFavorite, initialSort }: { initialStatus?: UserStatus; initialFavorite?: boolean; initialSort?: LibrarySort }) {
   const { settings, summary, updateSettings, refreshData, openAddWork } = useAppContext()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
-  const [query, setQuery] = useState<LibraryQuery>(() => ({ userStatuses: initialStatus ? [initialStatus] : undefined, favorite: initialFavorite, sort: settings.librarySort }))
+  const [query, setQuery] = useState<LibraryQuery>(() => ({ userStatuses: initialStatus ? [initialStatus] : undefined, favorite: initialFavorite, sort: initialSort ?? settings.librarySort }))
   const [works, setWorks] = useState<Work[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [filtersOpen, setFiltersOpen] = useState(false)

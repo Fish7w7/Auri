@@ -49,7 +49,7 @@ function AppShell() {
     <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />
     <main className="app-content" id="main-content">
       {route.page === 'home' && <HomePage />}
-      {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}`} initialStatus={route.status} initialFavorite={route.favorite} />}
+      {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}:${route.sort ?? 'default'}`} initialStatus={route.status} initialFavorite={route.favorite} initialSort={route.sort} />}
       {route.page === 'trash' && <TrashPage />}
       {route.page === 'settings' && <SettingsPage />}
       {route.page === 'collections' && <CollectionsPage />}
