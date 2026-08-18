@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { UserStatus } from '@shared/contracts'
+import type { LibrarySort, UserStatus } from '@shared/contracts'
 
 export type AppRoute =
   | { page: 'home' }
-  | { page: 'library'; status?: UserStatus; favorite?: boolean }
+  | { page: 'library'; status?: UserStatus; favorite?: boolean; sort?: LibrarySort }
   | { page: 'trash' }
   | { page: 'settings' }
   | { page: 'collections' }
@@ -14,6 +14,7 @@ export function parseRoute(hash = window.location.hash): AppRoute {
   if (path[0] === 'library') {
     if (path[1] === 'status' && path[2]) return { page: 'library', status: path[2] as UserStatus }
     if (path[1] === 'favorites') return { page: 'library', favorite: true }
+    if (path[1] === 'sort' && path[2]) return { page: 'library', sort: path[2] as LibrarySort }
     return { page: 'library' }
   }
   if (path[0] === 'trash') return { page: 'trash' }
@@ -36,4 +37,3 @@ export function useRoute(): AppRoute {
   }, [])
   return route
 }
-

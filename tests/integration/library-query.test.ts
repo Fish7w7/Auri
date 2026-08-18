@@ -6,14 +6,16 @@ describe('LibraryService — filtros, resumo e Home', () => {
   let fixture: ReturnType<typeof createDomainFixture> | undefined
   afterEach(() => fixture?.db.close())
 
-  function create(input: Partial<{ title: string; mediaType: Work['mediaType']; userStatus: Work['userStatus']; publicationStatus: Work['publicationStatus']; favorite: boolean; chapter: string }>) {
+  function create(input: Partial<{ title: string; mediaType: Work['mediaType']; userStatus: Work['userStatus']; publicationStatus: Work['publicationStatus']; favorite: boolean; chapter: string; notes: string; lastReadNote: string }>) {
     return fixture!.services.works.createWork({
       title: input.title ?? 'Obra',
       mediaType: input.mediaType ?? 'manhwa',
       userStatus: input.userStatus ?? 'reading',
       publicationStatus: input.publicationStatus,
       favorite: input.favorite,
-      chapter: input.chapter
+      chapter: input.chapter,
+      notes: input.notes,
+      lastReadNote: input.lastReadNote
     })
   }
 
@@ -69,22 +71,45 @@ describe('LibraryService — filtros, resumo e Home', () => {
     expect(fixture.services.library.queryWorks({ sort: 'chapter_desc' }).map((work) => work.id)).toEqual([newer.id, older.id, never.id])
   })
 
-  it('produz resumo e seções testáveis da Home sem Lixeira', () => {
+  it('classifica a Home por continuidade sem repetir obras entre seções', () => {
     fixture = createDomainFixture()
-    const recent = create({ title: 'Recente', userStatus: 'reading', favorite: true, chapter: '2' })
+    const recent = create({ title: 'Recente', userStatus: 'reading', favorite: true, chapter: '2', notes: 'Nota geral', lastReadNote: 'Chegaram à seita do norte.' })
     const stale = create({ title: 'Antiga', userStatus: 'reading', chapter: '4' })
+    const neverRead = create({ title: 'Nunca lida', userStatus: 'reading' })
     const waiting = create({ title: 'Esperando', userStatus: 'waiting', chapter: '8' })
+    const added = create({ title: 'Adicionada', userStatus: 'want_to_read' })
     const trash = create({ title: 'Oculta', userStatus: 'reading' })
     fixture.repositories.works.updateProgress(recent.id, recent.lastReadChapter, '2026-08-16T00:00:00.000Z', fixture.clock())
-    fixture.repositories.works.updateProgress(stale.id, stale.lastReadChapter, '2026-01-01T00:00:00.000Z', fixture.clock())
+    fixture.repositories.works.updateProgress(stale.id, stale.lastReadChapter, '2026-07-18T00:00:00.000Z', fixture.clock())
     fixture.services.works.moveToTrash({ workId: trash.id })
 
     const summary = fixture.services.library.getSummary()
-    expect(summary).toMatchObject({ total: 3, favorite: 1, byStatus: { reading: 2, waiting: 1 } })
+    expect(summary).toMatchObject({ total: 5, favorite: 1, byStatus: { reading: 3, waiting: 1, want_to_read: 1 } })
     const home = fixture.services.library.getHome(new Date('2026-08-17T00:00:00.000Z'))
-    expect(home.continueReading.map((work) => work.id)).toEqual([recent.id, stale.id])
+    expect(home.continueReading.map((work) => work.id)).toEqual([recent.id, neverRead.id])
     expect(home.staleReading.map((work) => work.id)).toEqual([stale.id])
     expect(home.waiting.map((work) => work.id)).toEqual([waiting.id])
-    expect(home.recentlyAdded.some((work) => work.id === trash.id)).toBe(false)
+    expect(home.recentlyAdded.map((work) => work.id)).toEqual([added.id])
+    expect(home.continueReading[0]).toMatchObject({ lastReadNote: 'Chegaram à seita do norte.', notes: 'Nota geral' })
+    expect(new Set(Object.values(home).flat().map((work) => work.id)).size).toBe(Object.values(home).flat().length)
+    expect(Object.values(home).flat().some((work) => work.id === trash.id)).toBe(false)
+  })
+
+  it('reflete mudanças de progresso e status na próxima leitura da Home', () => {
+    fixture = createDomainFixture()
+    const work = create({ title: 'Retomada', userStatus: 'reading', chapter: '10' })
+    fixture.repositories.works.updateProgress(work.id, work.lastReadChapter, '2026-01-01T00:00:00.000Z', fixture.clock())
+    let home = fixture.services.library.getHome(new Date('2026-08-17T00:00:00.000Z'))
+    expect(home.staleReading.map((item) => item.id)).toEqual([work.id])
+
+    fixture.services.progress.incrementProgress({ workId: work.id })
+    home = fixture.services.library.getHome(new Date('2026-08-17T23:59:59.000Z'))
+    expect(home.continueReading[0]).toMatchObject({ id: work.id, lastReadChapter: { label: '11', number: 11 } })
+    expect(home.staleReading).toEqual([])
+
+    fixture.services.works.updateWork({ id: work.id, userStatus: 'waiting' })
+    home = fixture.services.library.getHome(new Date('2026-08-17T23:59:59.000Z'))
+    expect(home.continueReading).toEqual([])
+    expect(home.waiting.map((item) => item.id)).toEqual([work.id])
   })
 })

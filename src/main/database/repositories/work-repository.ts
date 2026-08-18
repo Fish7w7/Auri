@@ -199,6 +199,40 @@ export class WorkRepository {
     )
   }
 
+  listHomeReading(staleBefore: string, stale: boolean, limit: number): Work[] {
+    const dateClause = stale
+      ? 'last_read_at IS NOT NULL AND last_read_at <= ?'
+      : '(last_read_at IS NULL OR last_read_at > ?)'
+    const orderBy = stale
+      ? 'last_read_at ASC'
+      : 'last_read_at IS NULL ASC, last_read_at DESC, created_at DESC'
+    return this.findMany(
+      `SELECT ${WORK_COLUMNS} FROM works
+       WHERE deleted_at IS NULL AND user_status = 'reading' AND ${dateClause}
+       ORDER BY ${orderBy} LIMIT ?`,
+      staleBefore,
+      limit
+    )
+  }
+
+  listHomeWaiting(limit: number): Work[] {
+    return this.findMany(
+      `SELECT ${WORK_COLUMNS} FROM works
+       WHERE deleted_at IS NULL AND user_status = 'waiting'
+       ORDER BY last_read_at IS NULL ASC, last_read_at ASC, created_at DESC LIMIT ?`,
+      limit
+    )
+  }
+
+  listHomeRecentlyAdded(limit: number): Work[] {
+    return this.findMany(
+      `SELECT ${WORK_COLUMNS} FROM works
+       WHERE deleted_at IS NULL AND user_status NOT IN ('reading', 'waiting')
+       ORDER BY created_at DESC LIMIT ?`,
+      limit
+    )
+  }
+
   searchActive(normalizedQuery: string, query: LibraryQuery = {}): Work[] {
     return this.queryActive({ ...query, search: normalizedQuery })
   }

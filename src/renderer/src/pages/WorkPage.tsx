@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReadingHistory, Source, UserStatus, Work, WorkDetails } from '@shared/contracts'
 import { useAppContext } from '../app/app-context'
 import { navigate } from '../app/navigation'
@@ -15,6 +15,7 @@ import { ErrorState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
 import { Select } from '../components/ui/Select'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../lib/format'
+import { selectBestReadingSource } from '../lib/source-selection'
 
 const SOURCE_STATUS = { active: 'Ativa', unavailable: 'Indisponível', archived: 'Arquivada' }
 const LANGUAGES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Português', en: 'Inglês', es: 'Espanhol', ja: 'Japonês', ko: 'Coreano', zh: 'Chinês', other: 'Outro' }
@@ -43,10 +44,7 @@ export function WorkPage({ id }: { id: string }) {
   const reload = useCallback(() => { void loadDetails(); void loadHistory(); refreshData() }, [loadDetails, loadHistory, refreshData])
   useEffect(() => { setPageState('loading'); void loadDetails(); void loadHistory() }, [loadDetails, loadHistory])
 
-  const bestSource = useMemo(() => details?.sources.filter((source) => source.status === 'active' && (source.lastReadUrl || source.seriesUrl)).sort((a, b) => {
-    if (a.lastUsedAt || b.lastUsedAt) return (b.lastUsedAt ? Date.parse(b.lastUsedAt) : 0) - (a.lastUsedAt ? Date.parse(a.lastUsedAt) : 0)
-    return Number(b.isPreferred) - Number(a.isPreferred)
-  })[0] ?? null, [details?.sources])
+  const bestSource = selectBestReadingSource(details?.sources ?? [])
 
   if (pageState === 'loading') return <WorkSkeleton />
   if (pageState === 'not-found') return <div className="page"><ErrorState title="Esta obra não foi encontrada." description="O endereço pode estar antigo ou a obra pode ter sido excluída permanentemente." onRetry={() => navigate('/library')} /></div>

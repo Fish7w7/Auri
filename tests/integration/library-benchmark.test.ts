@@ -27,4 +27,15 @@ describe('LibraryService com 1.000 obras temporárias', () => {
     expect(results.every((work) => work.mediaType === 'manhwa' && work.favorite)).toBe(true)
     expect(duration).toBeLessThan(2000)
   })
+
+  it('monta a Home com consultas limitadas', () => {
+    const started = performance.now()
+    const home = fixture.services.library.getHome(new Date('2026-08-18T00:00:00.000Z'))
+    const duration = performance.now() - started
+    expect(home.continueReading.length).toBeLessThanOrEqual(6)
+    expect(home.staleReading.length).toBeLessThanOrEqual(6)
+    expect(home.waiting.length).toBeLessThanOrEqual(6)
+    expect(home.recentlyAdded.length).toBeLessThanOrEqual(6)
+    expect(duration).toBeLessThan(2000)
+  })
 })
