@@ -1,6 +1,6 @@
 {
   "name": "lumi-desktop",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "description": "Biblioteca local-first para obras seriadas",
   "author": "Lumi",
   "repository": {
@@ -63,12 +63,28 @@
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/better-sqlite3/deps/**/*",
+      "!node_modules/better-sqlite3/src/**/*",
+      "!node_modules/better-sqlite3/binding.gyp",
+      "!node_modules/better-sqlite3/prebuilds/darwin-*.node",
+      "!node_modules/better-sqlite3/prebuilds/linux-*.node",
+      "!node_modules/better-sqlite3/prebuilds/linuxmusl-*.node",
+      "!node_modules/better-sqlite3/prebuilds/win32-arm64.node",
+      "!node_modules/sharp/install/**/*",
+      "!node_modules/sharp/src/**/*",
+      "!node_modules/**/*.d.ts",
+      "!node_modules/**/*.d.cts",
+      "!node_modules/**/*.d.mts",
+      "!node_modules/**/*.map"
     ],
     "asarUnpack": [
-      "node_modules/better-sqlite3/**/*",
-      "node_modules/sharp/**/*",
-      "node_modules/@img/**/*"
+      "node_modules/better-sqlite3/prebuilds/win32-x64.node",
+      "node_modules/@img/sharp-win32-x64/lib/**/*"
+    ],
+    "electronLanguages": [
+      "pt-BR",
+      "en-US"
     ],
     "win": {
       "target": [
