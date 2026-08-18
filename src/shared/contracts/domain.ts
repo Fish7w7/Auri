@@ -17,6 +17,11 @@ import type {
   tagWorkSchema,
   collectionWorkSchema,
   collectionIdSchema,
+  bulkStatusSchema,
+  bulkFavoriteSchema,
+  bulkTagSchema,
+  bulkCollectionSchema,
+  bulkTrashSchema,
   remoteCoverSchema,
   openExternalSchema,
   createWorkSchema,
@@ -76,6 +81,15 @@ export type CollectionWorkRequest = z.infer<typeof collectionWorkSchema>
 export type CollectionIdRequest = z.infer<typeof collectionIdSchema>
 export type RemoteCoverRequest = z.infer<typeof remoteCoverSchema>
 export type OpenExternalRequest = z.infer<typeof openExternalSchema>
+export type BulkStatusRequest = z.infer<typeof bulkStatusSchema>
+export type BulkFavoriteRequest = z.infer<typeof bulkFavoriteSchema>
+export type BulkTagRequest = z.infer<typeof bulkTagSchema>
+export type BulkCollectionRequest = z.infer<typeof bulkCollectionSchema>
+export type BulkTrashRequest = z.infer<typeof bulkTrashSchema>
+
+export interface BulkOperationResult {
+  affectedIds: string[]
+}
 
 export interface WorkDetails {
   work: Work
@@ -125,6 +139,15 @@ export type ProgressUpdateResult =
     }
 
 export interface DomainApi {
+  bulk: {
+    setStatus(request: BulkStatusRequest): Promise<BulkOperationResult>
+    setFavorite(request: BulkFavoriteRequest): Promise<BulkOperationResult>
+    addTag(request: BulkTagRequest): Promise<BulkOperationResult>
+    removeTag(request: BulkTagRequest): Promise<BulkOperationResult>
+    addCollection(request: BulkCollectionRequest): Promise<BulkOperationResult>
+    removeCollection(request: BulkCollectionRequest): Promise<BulkOperationResult>
+    moveToTrash(request: BulkTrashRequest): Promise<BulkOperationResult>
+  }
   works: {
     create(request: CreateWorkRequest): Promise<Work>
     createDetailed(request: DetailedCreateWorkRequest): Promise<WorkDetails>

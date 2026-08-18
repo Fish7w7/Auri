@@ -11,6 +11,9 @@ interface Props {
   onFavorite(work: Work): void
   onIncrement(work: Work): void
   onTrash(work: Work): void
+  selectionMode?: boolean
+  selectedIds?: ReadonlySet<string>
+  onSelect?(work: Work): void
 }
 
 const CARD_WIDTH: Record<CardSize, number> = { small: 142, medium: 178, large: 216 }
@@ -54,10 +57,14 @@ export function VirtualLibrary(props: Props) {
       {props.view === 'list' && <div className="library-list-header" aria-hidden="true"><span>Título</span><span>Progresso</span><span>Status</span><span>Última leitura</span><span /></div>}
       <div className="virtual-library__space" style={{ height: virtual.totalHeight }}>
         <div className="virtual-library__window" style={{ transform: `translateY(${firstRow * virtual.rowHeight}px)`, gridTemplateColumns: props.view === 'grid' ? `repeat(${virtual.columns}, minmax(0, 1fr))` : undefined }}>
-          {visible.map((work) => props.view === 'grid' ? <WorkCard key={work.id} work={work} {...props} /> : <WorkListRow key={work.id} work={work} {...props} />)}
+          {visible.map((work) => {
+            const selection = { selectionMode: props.selectionMode, selected: props.selectedIds?.has(work.id), onSelect: props.onSelect }
+            return props.view === 'grid'
+              ? <WorkCard key={work.id} work={work} {...props} {...selection} />
+              : <WorkListRow key={work.id} work={work} {...props} {...selection} />
+          })}
         </div>
       </div>
     </div>
   )
 }
-

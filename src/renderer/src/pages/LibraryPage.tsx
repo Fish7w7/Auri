@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { LibraryQuery, LibrarySort, UserStatus, Work } from '@shared/contracts'
 import { useAppContext } from '../app/app-context'
 import { FilterPanel } from '../components/library/FilterPanel'
 import { VirtualLibrary } from '../components/library/VirtualLibrary'
+import { LibraryBulkActions } from '../components/library/LibraryBulkActions'
 import { Button, IconButton } from '../components/ui/Button'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/States'
 import { Select } from '../components/ui/Select'
 import { useDebouncedValue } from '../hooks/use-debounced-value'
 import { useWorkActions } from '../hooks/use-work-actions'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS } from '../lib/format'
+import { EMPTY_LIBRARY_SELECTION, librarySelectionReducer } from '../lib/library-selection'
 
 const SORT_LABELS: Record<LibrarySort, string> = {
   last_read_desc: 'Última leitura', last_read_asc: 'Mais tempo sem ler', title_asc: 'Título A–Z', title_desc: 'Título Z–A', created_desc: 'Adicionado recentemente', updated_desc: 'Atualizado recentemente', chapter_desc: 'Capítulo', rating_desc: 'Nota'
@@ -22,10 +24,27 @@ export function LibraryPage({ initialStatus, initialFavorite }: { initialStatus?
   const [works, setWorks] = useState<Work[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selection, dispatchSelection] = useReducer(librarySelectionReducer, EMPTY_LIBRARY_SELECTION)
   const searchRef = useRef<HTMLInputElement>(null)
+  const previousSelectionContext = useRef('')
 
   useEffect(() => setQuery((current) => ({ ...current, userStatuses: initialStatus ? [initialStatus] : undefined, favorite: initialFavorite })), [initialFavorite, initialStatus])
   const effectiveQuery = useMemo(() => ({ ...query, search: debouncedSearch || undefined }), [debouncedSearch, query])
+  const selectionContext = JSON.stringify({
+    search,
+    userStatuses: query.userStatuses,
+    mediaTypes: query.mediaTypes,
+    publicationStatuses: query.publicationStatuses,
+    favorite: query.favorite,
+    hasProgress: query.hasProgress
+  })
+
+  useEffect(() => {
+    if (previousSelectionContext.current && previousSelectionContext.current !== selectionContext) {
+      dispatchSelection({ type: 'exit' })
+    }
+    previousSelectionContext.current = selectionContext
+  }, [selectionContext])
 
   const load = useCallback(async () => {
     try { setState((current) => current === 'ready' ? current : 'loading'); setWorks(await window.lumi.library.query(effectiveQuery)); setState('ready') }
@@ -39,7 +58,7 @@ export function LibraryPage({ initialStatus, initialFavorite }: { initialStatus?
     window.addEventListener('lumi:focus-search', focus); window.addEventListener('keydown', key)
     return () => { window.removeEventListener('lumi:focus-search', focus); window.removeEventListener('keydown', key) }
   }, [])
-  const refresh = useCallback(() => { refreshData(); void load() }, [load, refreshData])
+  const refresh = useCallback(() => { refreshData() }, [refreshData])
   const actions = useWorkActions(refresh)
 
   const chips = [
@@ -51,7 +70,7 @@ export function LibraryPage({ initialStatus, initialFavorite }: { initialStatus?
   ]
 
   return <div className="page library-page">
-    <header className="page-header"><div><span className="page-kicker">Sua coleção</span><h1>Biblioteca</h1><p>{chips.length || search ? `${works.length} de ${summary.total} obras` : `${summary.total} ${summary.total === 1 ? 'obra' : 'obras'}`}</p></div><Button variant="primary" icon="plus" onClick={openAddWork}>Adicionar obra</Button></header>
+    <header className="page-header"><div><span className="page-kicker">Sua coleção</span><h1>Biblioteca</h1><p>{chips.length || search ? `${works.length} de ${summary.total} obras` : `${summary.total} ${summary.total === 1 ? 'obra' : 'obras'}`}</p></div><div className="page-header__actions">{!selection.active && <Button onClick={() => dispatchSelection({ type: 'enter' })}>Selecionar</Button>}<Button variant="primary" icon="plus" onClick={openAddWork}>Adicionar obra</Button></div></header>
     <div className="library-toolbar">
       <label className="search-field"><span className="sr-only">Pesquisar Biblioteca</span><span aria-hidden="true">⌕</span><input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar títulos, aliases ou autores…" /><kbd>Ctrl K</kbd></label>
       <div className="filter-anchor"><Button icon="filter" className={chips.length ? 'has-indicator' : ''} onClick={() => setFiltersOpen((open) => !open)}>Filtros</Button>{filtersOpen && <FilterPanel query={query} onChange={setQuery} onClose={() => setFiltersOpen(false)} />}</div>
@@ -59,11 +78,12 @@ export function LibraryPage({ initialStatus, initialFavorite }: { initialStatus?
       <div className="segmented" aria-label="Visualização"><IconButton icon="grid" label="Visualização em grade" className={settings.libraryView === 'grid' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'grid' })} /><IconButton icon="list" label="Visualização em lista" className={settings.libraryView === 'list' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'list' })} /></div>
     </div>
     {chips.length > 0 && <div className="active-filters">{chips.map((chip) => <button key={chip.key} onClick={chip.clear}>{chip.label}<span>×</span></button>)}<button className="clear-all" onClick={() => setQuery({ sort: query.sort })}>Limpar todos</button></div>}
+    {selection.active && <LibraryBulkActions selectedIds={selection.selectedIds} resultIds={works.map((work) => work.id)} onSelectAll={() => dispatchSelection({ type: 'select-all', workIds: works.map((work) => work.id) })} onClear={() => dispatchSelection({ type: 'clear' })} onExit={() => dispatchSelection({ type: 'exit' })} onApplied={(trashedIds) => { if (trashedIds) dispatchSelection({ type: 'remove', workIds: trashedIds }); refreshData() }} />}
     <div className="library-content">
       {state === 'loading' && <LoadingState label="Abrindo sua biblioteca…" />}
       {state === 'error' && <ErrorState onRetry={() => void load()} />}
       {state === 'ready' && works.length === 0 && (search ? <EmptyState title={`Nenhuma obra encontrada para “${search}”.`} description="Tente outro termo ou limpe sua pesquisa." action={<Button onClick={() => setSearch('')}>Limpar pesquisa</Button>} /> : chips.length ? <EmptyState title="Nenhuma obra corresponde aos filtros." description="Remova alguns filtros para ampliar os resultados." action={<Button onClick={() => setQuery({ sort: query.sort })}>Limpar filtros</Button>} /> : <EmptyState title="Sua biblioteca ainda está vazia." description="Adicione sua primeira obra para começar a acompanhar suas leituras." action={<Button variant="primary" icon="plus" onClick={openAddWork}>Adicionar obra</Button>} />)}
-      {state === 'ready' && works.length > 0 && <VirtualLibrary works={works} view={settings.libraryView} cardSize={settings.cardSize} {...actions.handlers} />}
+      {state === 'ready' && works.length > 0 && <VirtualLibrary works={works} view={settings.libraryView} cardSize={settings.cardSize} {...actions.handlers} selectionMode={selection.active} selectedIds={selection.selectedIds} onSelect={(work) => dispatchSelection({ type: 'toggle', workId: work.id })} />}
     </div>
     {actions.dialog}
   </div>

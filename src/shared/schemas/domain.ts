@@ -107,6 +107,13 @@ export const tagWorkSchema = z.object({ workId: z.string().uuid(), tagId: z.stri
 export const collectionWorkSchema = z.object({ workId: z.string().uuid(), collectionId: z.string().uuid() })
 export const collectionIdSchema = z.object({ collectionId: z.string().uuid() })
 
+const bulkWorkIdsSchema = z.array(z.string().uuid()).min(1)
+export const bulkStatusSchema = z.object({ workIds: bulkWorkIdsSchema, userStatus: userStatusSchema })
+export const bulkFavoriteSchema = z.object({ workIds: bulkWorkIdsSchema, favorite: z.boolean() })
+export const bulkTagSchema = z.object({ workIds: bulkWorkIdsSchema, tagId: z.string().uuid() })
+export const bulkCollectionSchema = z.object({ workIds: bulkWorkIdsSchema, collectionId: z.string().uuid() })
+export const bulkTrashSchema = z.object({ workIds: bulkWorkIdsSchema })
+
 export const creatorInputSchema = z.object({
   name: z.string().trim().min(1),
   role: z.enum(['author', 'artist', 'story', 'original_creator', 'other']),
