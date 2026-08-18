@@ -35,7 +35,7 @@ function setup(repository?: SystemRepositoryReader) {
   const logger = new TestLogger()
   const service = new SystemService(
     repository,
-    '0.3.0',
+    '0.4.1',
     paths,
     { getState: () => ({ directory: paths.backups, directoryAvailable: true, automatic: true, frequency: 'daily', retention: 10, backups: [] }) },
     { clearAllCache: async () => ({ files: 0, bytes: 0, queue: 0, active: 0 }) },
@@ -49,7 +49,7 @@ describe('SystemService', () => {
   it('retorna ambiente real e integridade saudável', async () => {
     const { service } = setup()
     const status = service.getStatus()
-    expect(status).toMatchObject({ appVersion: '0.3.0', backupFormatVersion: 1, database: { state: 'ready', schemaVersion: 1 } })
+    expect(status).toMatchObject({ appVersion: '0.4.1', backupFormatVersion: 1, database: { state: 'ready', schemaVersion: 1 } })
     expect(status.database.sqliteVersion).toMatch(/^3\./)
     await expect(service.checkIntegrity()).resolves.toMatchObject({ healthy: true, summary: 'Nenhum problema encontrado.', quickCheck: ['ok'], foreignKeyIssues: [] })
   })

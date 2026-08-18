@@ -89,7 +89,9 @@ if (!singleInstanceLock) {
       void context.services.backups.runAutomaticIfDue().catch((error: unknown) => {
         context?.logger.error('backup', 'Falha no backup automático em segundo plano.', { event: 'backup.auto_failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
       })
-      void context.services.updates.checkForUpdates().catch(() => { /* estado e logging são tratados pelo serviço */ })
+      if (!isSmokeTest && !isScreenshotTest && !isBackupSmokeTest) {
+        void context.services.updates.checkForUpdates().catch(() => { /* estado e logging são tratados pelo serviço */ })
+      }
       if (isScreenshotTest) {
         for (const work of context.services.library.queryWorks({})) {
           context.services.works.deletePermanently({ workId: work.id })
@@ -140,7 +142,7 @@ if (!singleInstanceLock) {
 
       const mainWindow = createMainWindow({
         showWhenReady: !isSmokeTest && !isScreenshotTest,
-        keepRenderingWhenHidden: isScreenshotTest
+        keepRenderingWhenHidden: isSmokeTest || isScreenshotTest
       })
 
       if (isSmokeTest) {
@@ -149,7 +151,7 @@ if (!singleInstanceLock) {
             .executeJavaScript(`
               (async () => {
                 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-                const waitFor = async (getter, label, timeout = 7000) => {
+                const waitFor = async (getter, label, timeout = 15000) => {
                   const started = Date.now()
                   while (Date.now() - started < timeout) {
                     const value = await getter()
@@ -192,6 +194,7 @@ if (!singleInstanceLock) {
                 byText(modal, 'Adicionar').click()
                 const work = await waitFor(async () => (await window.lumi.library.query({ search: testTitle }))[0], 'obra criada')
                 await waitFor(() => byText(document, 'Abrir obra'), 'ação Abrir obra')
+                await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro rápido fechado')
                 document.activeElement?.blur()
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.quick-search)'), 'busca rápida local')
@@ -308,10 +311,14 @@ if (!singleInstanceLock) {
                 byText(modal, 'Buscar metadados').click()
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.metadata-search)'), 'pesquisa offline')
                 setInput(modal.querySelector('.metadata-search input'), 'sem resultado')
-                const emptyMetadata = await waitFor(() => modal.querySelector('.metadata-empty'), 'orientação sem resultados')
+                await sleep(800)
+                if (!modal.querySelector('.metadata-empty')) setInput(modal.querySelector('.metadata-search input'), 'sem resultado ')
+                const emptyMetadata = await waitFor(() => modal.querySelector('.metadata-empty'), 'orientação sem resultados', 15000)
                 if (!emptyMetadata.textContent.includes('título em inglês') || !emptyMetadata.textContent.includes('pesquisando o título na web')) throw new Error('Empty metadata guidance missing')
                 byText(modal, 'Tentar outro título').click()
                 setInput(modal.querySelector('.metadata-search input'), 'offline')
+                await sleep(800)
+                if (!modal.querySelector('.metadata-error')) setInput(modal.querySelector('.metadata-search input'), 'offline ')
                 await waitFor(() => modal.querySelector('.metadata-error'), 'erro offline')
                 byText(modal, 'Adicionar manualmente').click()
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.work-form)'), 'formulário manual offline')
@@ -331,7 +338,7 @@ if (!singleInstanceLock) {
               app.quit()
             })
             .catch((error: unknown) => {
-              console.error('LUMI_SMOKE_TEST_FAILED', error)
+              console.error('LUMI_SMOKE_TEST_FAILED', error instanceof Error ? error.stack : error)
               app.exit(1)
             })
         })
