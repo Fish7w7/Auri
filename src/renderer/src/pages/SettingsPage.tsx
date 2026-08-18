@@ -10,7 +10,7 @@ import { ErrorState, LoadingState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
 import { applyLibraryImport } from '../lib/apply-library-import'
 
-const sections = ['Aparência', 'Biblioteca', 'Backup', 'Atualizações', 'Avançado', 'Sobre'] as const
+const sections = ['Aparência', 'Biblioteca', 'Backup', 'Atualizações', 'Atalhos', 'Avançado', 'Sobre'] as const
 type Section = (typeof sections)[number]
 
 const sortLabels: Record<LibrarySort, string> = {
@@ -115,6 +115,7 @@ export function SettingsPage() {
         </>}
 
         {section === 'Atualizações' && <UpdatesSettings />}
+        {section === 'Atalhos' && <><SettingsHeading title="Atalhos" description="Comandos de teclado para navegar e editar com mais rapidez." /><dl className="shortcut-list"><div><dt><kbd>Ctrl</kbd> + <kbd>K</kbd></dt><dd>Abrir a busca rápida da Biblioteca</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>N</kbd></dt><dd>Adicionar uma nova obra</dd></div><div><dt><kbd>/</kbd></dt><dd>Focar a pesquisa da página atual</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Fechar o elemento atual ou sair da seleção</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Salvar o formulário em edição</dd></div></dl></>}
         {section === 'Avançado' && <AdvancedSettings diagnostics={diagnostics} loadError={diagnosticError} busy={busy} onBusy={setBusy} reload={loadDiagnostics} showToast={showToast} />}
         {section === 'Sobre' && <><SettingsHeading title="Sobre" description="Informações desta instalação do Lumi." /><div className="about-brand"><div className="brand-mark brand-mark--large">L</div><div><strong>Lumi</strong><p>Sua biblioteca pessoal, preservada localmente.</p></div></div>{system && <dl className="about-details"><div><dt>Versão do app</dt><dd>{system.appVersion}</dd></div><div><dt>Database schema</dt><dd>{system.database.schemaVersion}</dd></div></dl>}</>}
       </section>

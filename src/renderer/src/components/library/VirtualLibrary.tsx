@@ -13,7 +13,7 @@ interface Props {
   onTrash(work: Work): void
   selectionMode?: boolean
   selectedIds?: ReadonlySet<string>
-  onSelect?(work: Work): void
+  onSelect?(work: Work, extendRange: boolean): void
 }
 
 const CARD_WIDTH: Record<CardSize, number> = { small: 142, medium: 178, large: 216 }

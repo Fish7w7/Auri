@@ -5,6 +5,7 @@ import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { useToast } from '../ui/Toast'
 import { WorkForm, splitNames, type WorkFormState } from './WorkForm'
+import { useShortcutScope } from '../../app/keyboard-shortcuts'
 
 function fromDetails(details: WorkDetails): WorkFormState {
   const { work } = details
@@ -72,6 +73,8 @@ export function WorkEditorDialog({ open, details, onClose, onSaved }: { open: bo
       onSaved(); onClose()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }
+
+  useShortcutScope({ save: () => void save(), canSave: open && dirty && !busy && !confirmClose && Boolean(form.title.trim()) })
 
   return <><Dialog open={open} title={`Editar ${details.work.title}`} description="Os metadados editados manualmente ficarão protegidos de futuras sincronizações." onClose={requestClose} footer={<><Button onClick={requestClose}>Cancelar</Button><Button variant="primary" disabled={busy || !dirty || !form.title.trim()} onClick={() => void save()}>{busy ? 'Salvando…' : 'Salvar alterações'}</Button></>}><WorkForm value={form} onChange={setForm} collections={details.allCollections} includeProgress={false} includeSource={false} /></Dialog>
     <Dialog open={confirmClose} title="Você possui alterações não salvas." onClose={() => setConfirmClose(false)} footer={<><Button variant="danger" onClick={onClose}>Descartar</Button><Button onClick={() => setConfirmClose(false)}>Continuar editando</Button><Button variant="primary" disabled={busy} onClick={() => { setConfirmClose(false); void save() }}>Salvar</Button></>} /></>

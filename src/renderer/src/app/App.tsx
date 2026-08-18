@@ -11,6 +11,8 @@ import { TrashPage } from '../pages/TrashPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { WorkPage } from '../pages/WorkPage'
 import { CollectionsPage } from '../pages/CollectionsPage'
+import { KeyboardShortcutsProvider } from './keyboard-shortcuts'
+import { QuickSearchDialog } from '../components/library/QuickSearchDialog'
 
 const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
@@ -25,6 +27,7 @@ function AppShell() {
   const [summary, setSummary] = useState(EMPTY_SUMMARY)
   const [ready, setReady] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false)
 
   const loadSummary = useCallback(async () => {
     try { setSummary(await window.lumi.library.summary()) } catch { /* páginas mostram o erro de dados */ }
@@ -45,16 +48,17 @@ function AppShell() {
 
   if (!ready) return <div className="app-loading"><div className="brand-mark brand-mark--large">L</div><span>Preparando sua biblioteca…</span></div>
 
-  return <AppContext.Provider value={context}><div className="app-shell">
-    <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />
-    <main className="app-content" id="main-content">
-      {route.page === 'home' && <HomePage />}
-      {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}:${route.sort ?? 'default'}`} initialStatus={route.status} initialFavorite={route.favorite} initialSort={route.sort} />}
-      {route.page === 'trash' && <TrashPage />}
-      {route.page === 'settings' && <SettingsPage />}
-      {route.page === 'collections' && <CollectionsPage />}
-      {route.page === 'work' && <WorkPage id={route.id} />}
-    </main>
-    <AddWorkDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={refreshData} />
-  </div></AppContext.Provider>
+  return <AppContext.Provider value={context}><KeyboardShortcutsProvider onQuickSearch={() => setQuickSearchOpen(true)} onAddWork={() => setAddOpen(true)} canAddWork={route.page !== 'settings'}><div className="app-shell">
+      <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />
+      <main className="app-content" id="main-content">
+        {route.page === 'home' && <HomePage />}
+        {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}:${route.sort ?? 'default'}`} initialStatus={route.status} initialFavorite={route.favorite} initialSort={route.sort} />}
+        {route.page === 'trash' && <TrashPage />}
+        {route.page === 'settings' && <SettingsPage />}
+        {route.page === 'collections' && <CollectionsPage />}
+        {route.page === 'work' && <WorkPage id={route.id} />}
+      </main>
+      <AddWorkDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={refreshData} />
+      <QuickSearchDialog open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
+    </div></KeyboardShortcutsProvider></AppContext.Provider>
 }
