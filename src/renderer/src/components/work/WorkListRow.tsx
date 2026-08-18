@@ -12,13 +12,13 @@ interface Props {
   onTrash(work: Work): void
   selectionMode?: boolean
   selected?: boolean
-  onSelect?(work: Work): void
+  onSelect?(work: Work, extendRange: boolean): void
 }
 
 export function WorkListRow({ work, onOpen, onFavorite, onIncrement, onTrash, selectionMode = false, selected = false, onSelect }: Props) {
   const activate = () => { if (!selectionMode) onOpen(work) }
   return (
-    <article className={`work-list-row ${selectionMode ? 'is-selection-mode' : ''} ${selected ? 'is-selected' : ''}`} onClick={selectionMode ? () => onSelect?.(work) : undefined}>
+    <article className={`work-list-row ${selectionMode ? 'is-selection-mode' : ''} ${selected ? 'is-selected' : ''}`} onClick={selectionMode ? (event) => onSelect?.(work, event.shiftKey) : undefined}>
       <button className="work-list-row__open" onClick={activate} aria-pressed={selectionMode ? selected : undefined} aria-label={selectionMode ? `${selected ? 'Desmarcar' : 'Selecionar'} ${work.title}` : `Abrir ${work.title}`}>
         {selectionMode && <span className="work-selection-indicator" aria-hidden="true">{selected ? '✓' : ''}</span>}
         <WorkCover work={work} compact /><span><strong>{work.title}</strong><small>{work.mediaType.replace('_', ' ')}</small></span>

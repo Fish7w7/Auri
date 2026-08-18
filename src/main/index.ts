@@ -175,8 +175,14 @@ if (!singleInstanceLock) {
                 window.location.hash = '/library'
                 await waitFor(() => document.querySelector('.library-page'), 'Biblioteca inicial')
 
+                // Atalhos contextuais não interferem com campos e Ctrl+N reutiliza o cadastro existente.
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
+                const librarySearch = document.querySelector('.library-page .search-field input')
+                if (document.activeElement !== librarySearch) throw new Error('Atalho / não focou a pesquisa da Biblioteca.')
+                librarySearch.blur()
+
                 // A — cadastro rápido e abertura da rota interna.
-                byText(document, 'Adicionar obra').click()
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
                 let modal = await waitFor(latestDialog, 'escolha de cadastro')
                 byText(modal, 'Adicionar rapidamente').click()
                 await sleep(60)
@@ -185,8 +191,14 @@ if (!singleInstanceLock) {
                 setInput(modal.querySelector('input[placeholder="183, 10A ou Prólogo"]'), '183')
                 byText(modal, 'Adicionar').click()
                 const work = await waitFor(async () => (await window.lumi.library.query({ search: testTitle }))[0], 'obra criada')
-                const openToast = await waitFor(() => byText(document, 'Abrir obra'), 'ação Abrir obra')
-                openToast.click()
+                await waitFor(() => byText(document, 'Abrir obra'), 'ação Abrir obra')
+                document.activeElement?.blur()
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.quick-search)'), 'busca rápida local')
+                const quickSearch = modal.querySelector('.quick-search input')
+                setInput(quickSearch, testTitle)
+                await waitFor(() => modal.querySelector('.quick-search__results button'), 'resultado da busca rápida')
+                quickSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
                 await waitFor(() => document.querySelector('.work-page h1')?.textContent === testTitle, 'página da obra')
 
                 // B — edição atômica com descrição, alias e tag.
@@ -201,7 +213,7 @@ if (!singleInstanceLock) {
                 setInput(tagInput, 'Murim E2E')
                 tagInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
                 await waitFor(() => Array.from(modal.querySelectorAll('.tag-input button')).some((item) => item.textContent.includes('Murim E2E')), 'tag no formulário')
-                byText(modal, 'Salvar alterações').click()
+                modal.querySelector('textarea[placeholder="Sinopse ou contexto da obra…"]').dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true }))
                 await waitFor(() => document.querySelector('.work-description')?.textContent.includes('Descrição persistida'), 'descrição salva')
                 await waitFor(() => Array.from(document.querySelectorAll('.detail-chips span')).some((item) => item.textContent.includes('E2E Alternative')), 'alias salvo')
 

@@ -12,13 +12,13 @@ interface Props {
   onTrash(work: Work): void
   selectionMode?: boolean
   selected?: boolean
-  onSelect?(work: Work): void
+  onSelect?(work: Work, extendRange: boolean): void
 }
 
 export function WorkCard({ work, onOpen, onFavorite, onIncrement, onTrash, selectionMode = false, selected = false, onSelect }: Props) {
   const activate = () => { if (!selectionMode) onOpen(work) }
   return (
-    <article className={`work-card ${selectionMode ? 'is-selection-mode' : ''} ${selected ? 'is-selected' : ''}`} onClick={selectionMode ? () => onSelect?.(work) : undefined}>
+    <article className={`work-card ${selectionMode ? 'is-selection-mode' : ''} ${selected ? 'is-selected' : ''}`} onClick={selectionMode ? (event) => onSelect?.(work, event.shiftKey) : undefined}>
       <button className="work-card__open" onClick={activate} aria-pressed={selectionMode ? selected : undefined} aria-label={selectionMode ? `${selected ? 'Desmarcar' : 'Selecionar'} ${work.title}` : `Abrir ${work.title}`}>
         <WorkCover work={work} />
       </button>

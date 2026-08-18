@@ -8,6 +8,7 @@ import { Dialog } from '../ui/Dialog'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 import { EMPTY_WORK_FORM, WorkForm, splitNames, type WorkFormState } from './WorkForm'
+import { useShortcutScope } from '../../app/keyboard-shortcuts'
 
 type Mode = 'choose' | 'url' | 'urlPreview' | 'search' | 'review' | 'quick' | 'manual'
 type SearchState = 'idle' | 'loading' | 'ready' | 'error'
@@ -53,7 +54,8 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     })
   }, [debouncedQuery, mode, open])
 
-  const dirty = (mode === 'manual' && JSON.stringify(manual) !== JSON.stringify(EMPTY_WORK_FORM)) ||
+  const quickDirty = mode === 'quick' && (Boolean(quick.title.trim()) || Boolean(quick.chapter.trim()) || quick.status !== 'reading')
+  const dirty = quickDirty || (mode === 'manual' && JSON.stringify(manual) !== JSON.stringify(EMPTY_WORK_FORM)) ||
     ((mode === 'url' || mode === 'urlPreview') && Boolean(urlInput.trim()))
   useEffect(() => { void window.lumi.updates.setDirty({ scope: 'add-work', dirty: open && dirty }) }, [dirty, open])
   useEffect(() => () => { void window.lumi.updates.setDirty({ scope: 'add-work', dirty: false }) }, [])
@@ -179,6 +181,10 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
       showToast({ kind: 'success', message: `✓ ${details.work.title} foi adicionada à biblioteca.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${details.work.id}`) } })
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }
+
+  const save = mode === 'quick' ? submitQuick : mode === 'manual' ? submitManual : undefined
+  const saveTitle = mode === 'quick' ? quick.title : manual.title
+  useShortcutScope({ save: save ? () => void save() : undefined, canSave: open && dirty && !busy && !confirmClose && Boolean(saveTitle.trim()) })
 
   const noResults = mode === 'search' && searchState === 'ready' && results.length === 0
   const retryTitle = () => { setQuery(''); setResults([]); setSearchState('idle'); window.setTimeout(() => searchInputRef.current?.focus(), 0) }
