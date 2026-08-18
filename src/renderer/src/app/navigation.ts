@@ -6,7 +6,7 @@ export type AppRoute =
   | { page: 'library'; status?: UserStatus; favorite?: boolean; sort?: LibrarySort }
   | { page: 'trash' }
   | { page: 'settings' }
-  | { page: 'collections' }
+  | { page: 'collections'; id?: string }
   | { page: 'work'; id: string }
 
 export function parseRoute(hash = window.location.hash): AppRoute {
@@ -19,7 +19,7 @@ export function parseRoute(hash = window.location.hash): AppRoute {
   }
   if (path[0] === 'trash') return { page: 'trash' }
   if (path[0] === 'settings') return { page: 'settings' }
-  if (path[0] === 'collections') return { page: 'collections' }
+  if (path[0] === 'collections') return { page: 'collections', id: path[1] }
   if (path[0] === 'work' && path[1]) return { page: 'work', id: path[1] }
   return { page: 'home' }
 }

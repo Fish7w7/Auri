@@ -93,7 +93,7 @@ export const createSourceSchema = z.object({
 })
 
 export const updateSourceSchema = createSourceSchema
-  .omit({ workId: true, isPreferred: true })
+  .omit({ workId: true })
   .partial()
   .extend({ id: z.string().uuid() })
   .refine((value) => Object.keys(value).some((key) => key !== 'id'), 'Nenhum campo para atualizar.')
@@ -209,6 +209,7 @@ export const libraryQuerySchema = z.object({
   publicationStatuses: z.array(publicationStatusSchema.nullable()).optional(),
   favorite: z.boolean().optional(),
   hasProgress: z.boolean().optional(),
+  collectionIds: z.array(z.string().uuid()).optional(),
   sort: librarySortSchema.optional()
 })
 

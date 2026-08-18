@@ -51,6 +51,18 @@ describe('LibraryService — filtros, resumo e Home', () => {
     expect(fixture.services.library.queryWorks({ search: 'vila', userStatuses: ['reading'] }).map((work) => work.id)).toEqual([reading.id])
   })
 
+  it('filtra obras pela coleção existente e preserva as obras ao excluí-la', () => {
+    fixture = createDomainFixture()
+    const included = create({ title: 'Na coleção' })
+    const outside = create({ title: 'Fora da coleção' })
+    const collection = fixture.services.details.createCollection({ workId: included.id, name: 'Favoritas' })
+
+    expect(fixture.services.library.queryWorks({ collectionIds: [collection.id] }).map((work) => work.id)).toEqual([included.id])
+    fixture.services.details.deleteCollection({ collectionId: collection.id })
+    expect(fixture.repositories.works.findById(included.id)).not.toBeNull()
+    expect(fixture.repositories.works.findById(outside.id)).not.toBeNull()
+  })
+
   it('encontra localmente alias em português adicionado pelo usuário', () => {
     fixture = createDomainFixture()
     const work = create({ title: 'The Shepherd Wizard' })

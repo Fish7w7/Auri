@@ -13,4 +13,14 @@ export const appSettingsSchema = z.object({
   backupDirectory: z.string().trim().min(1).nullable().default(null)
 })
 
-export const updateSettingsSchema = appSettingsSchema.partial()
+export const updateSettingsSchema = z.object({
+  libraryView: z.enum(['grid', 'list']).optional(),
+  librarySort: librarySortSchema.optional(),
+  cardSize: z.enum(['small', 'medium', 'large']).optional(),
+  sidebarCompact: z.boolean().optional(),
+  coverCacheMaxMb: z.number().int().min(100).max(5000).optional(),
+  backupAutomatic: z.boolean().optional(),
+  backupFrequency: z.enum(['daily', 'weekly']).optional(),
+  backupRetention: z.number().int().min(1).max(100).optional(),
+  backupDirectory: z.string().trim().min(1).nullable().optional()
+})

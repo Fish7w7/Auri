@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { BackupPreview, BackupState, CoverCacheUsage, ImportPreview, LibrarySort, LibraryView, SystemDiagnostics, SystemStatus } from '@shared/contracts'
 import { useAppContext } from '../app/app-context'
 import { SettingRow } from '../components/settings/SettingRow'
@@ -32,21 +32,24 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const { showToast } = useToast()
 
-  const loadCache = () => void window.lumi.covers.usage().then(setCache).catch(() => setCache(null))
+  const loadCache = useCallback(() => void window.lumi.covers.usage().then(setCache).catch(() => setCache(null)), [])
   const loadDiagnostics = async () => {
     const next = await window.lumi.system.getDiagnostics()
     setDiagnostics(next)
     setSystem(next.status)
     setDiagnosticError(false)
   }
-  useEffect(() => { void window.lumi.system.getStatus().then(setSystem); loadCache() }, [])
-  useEffect(() => { if (section === 'Backup') void window.lumi.backup.state().then(setBackup) }, [section, settings])
+  useEffect(() => { void window.lumi.system.getStatus().then(setSystem); loadCache() }, [loadCache])
+  useEffect(() => { const refresh = () => loadCache(); window.addEventListener('lumi:cover-cache-changed', refresh); return () => window.removeEventListener('lumi:cover-cache-changed', refresh) }, [loadCache])
+  useEffect(() => { if (section === 'Biblioteca') loadCache() }, [loadCache, section])
+  useEffect(() => { if (section === 'Backup') void window.lumi.backup.state().then(setBackup).catch((error) => showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível carregar os backups.' })) }, [section, settings, showToast])
   useEffect(() => { if (section === 'Avançado') void loadDiagnostics().catch(() => { setDiagnostics(null); setDiagnosticError(true) }) }, [section])
 
-  const dataAction = async (action: () => Promise<void>, success: string) => {
+  const dataAction = async (action: () => Promise<boolean | void>, success: string) => {
     setBusy(true)
     try {
-      await action()
+      const completed = await action()
+      if (completed === false) return
       setBackup(await window.lumi.backup.state())
       showToast({ kind: 'success', message: success })
     } catch (error) {
@@ -96,18 +99,18 @@ export function SettingsPage() {
               <Select label="Retenção" value={String(settings.backupRetention)} onChange={(backupRetention) => void updateSettings({ backupRetention: Number(backupRetention) })} options={[5, 10, 20, 30].map((value) => ({ value: String(value), label: `${value} backups` }))} />
             </SettingRow>
             <SettingRow title="Pasta dos backups" description={<span className={!backup?.directoryAvailable ? 'setting-warning' : ''}>{backup?.directory ?? 'Carregando…'}{backup && !backup.directoryAvailable ? ' · pasta indisponível; será usada a pasta padrão.' : ''}</span>}>
-              <div className="setting-inline"><Button disabled={busy} onClick={() => void window.lumi.backup.openFolder()}>Abrir pasta</Button><Button disabled={busy} onClick={async () => { const state = await window.lumi.backup.chooseDirectory(); if (state) setBackup(state) }}>Alterar</Button></div>
+              <div className="setting-inline"><Button disabled={busy} onClick={() => void dataAction(() => window.lumi.backup.openFolder(), 'Pasta de backups aberta.')}>Abrir pasta</Button><Button disabled={busy} onClick={() => void dataAction(async () => { const state = await window.lumi.backup.chooseDirectory(); if (!state) return false; setBackup(state) }, 'Pasta de backups atualizada.')}>Alterar</Button></div>
             </SettingRow>
           </SettingsGroup>
 
           <SettingsActionGroup title="Backup" description="Crie uma cópia agora ou restaure o Lumi a partir de um backup completo.">
             <Button variant="primary" disabled={busy} onClick={() => void dataAction(async () => { await window.lumi.backup.create() }, 'Backup criado com sucesso.')}>Fazer backup agora</Button>
-            <Button disabled={busy} onClick={async () => { const preview = await window.lumi.backup.chooseRestore(); if (preview) setRestorePreview(preview) }}>Restaurar backup</Button>
+            <Button disabled={busy} onClick={() => void dataAction(async () => { const preview = await window.lumi.backup.chooseRestore(); if (!preview) return false; setRestorePreview(preview); return false }, '')}>Restaurar backup</Button>
           </SettingsActionGroup>
 
           <SettingsActionGroup title="Portabilidade" description="Exporte dados portáveis ou mescle outra biblioteca JSON com a atual.">
-            <Button disabled={busy} onClick={() => void dataAction(async () => { const result = await window.lumi.transfer.exportJson(); if (!result) throw new Error('Exportação cancelada.') }, 'Biblioteca exportada em JSON.')}>Exportar JSON</Button>
-            <Button disabled={busy} onClick={() => void dataAction(async () => { const result = await window.lumi.transfer.exportCsv(); if (!result) throw new Error('Exportação cancelada.') }, 'Resumo exportado em CSV.')}>Exportar CSV</Button>
+            <Button disabled={busy} onClick={() => void dataAction(async () => Boolean(await window.lumi.transfer.exportJson()), 'Biblioteca exportada em JSON.')}>Exportar JSON</Button>
+            <Button disabled={busy} onClick={() => void dataAction(async () => Boolean(await window.lumi.transfer.exportCsv()), 'Resumo exportado em CSV.')}>Exportar CSV</Button>
             <Button disabled={busy} onClick={async () => { try { const preview = await window.lumi.transfer.chooseImport(); if (preview) setImportPreview(preview) } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Arquivo de importação inválido.' }) } }}>Importar JSON</Button>
           </SettingsActionGroup>
 

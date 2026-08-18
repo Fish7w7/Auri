@@ -28,7 +28,7 @@ export function UpdatesSettings() {
 
   if (!state) return <><div className="settings-heading"><h2>Atualizações</h2><p>Verifique e instale novas versões do Lumi.</p></div><LoadingState /></>
   const unavailableMessage = state.availability === 'development'
-    ? 'Atualizações estão disponíveis na versão instalada do Lumi.'
+    ? 'Atualizações não estão disponíveis nesta build de desenvolvimento do Lumi.'
     : 'Esta compilação não possui uma fonte de atualizações configurada.'
 
   return <><div className="settings-heading"><h2>Atualizações</h2><p>Verifique e instale novas versões do Lumi.</p></div><div className="update-card"><SettingRow title="Versão atual" description={state.currentVersion}><span className={`update-status update-status--${state.status}`}>{statusLabel(state)}</span></SettingRow>
