@@ -3,6 +3,7 @@ import type { UpdateState } from '@shared/contracts'
 import { Button } from '../ui/Button'
 import { LoadingState } from '../ui/States'
 import { useToast } from '../ui/Toast'
+import { SettingRow } from './SettingRow'
 
 export function UpdatesSettings() {
   const [state, setState] = useState<UpdateState | null>(null)
@@ -25,12 +26,12 @@ export function UpdatesSettings() {
     finally { setBusy(false) }
   }
 
-  if (!state) return <><h2>Atualizações</h2><LoadingState /></>
+  if (!state) return <><div className="settings-heading"><h2>Atualizações</h2><p>Verifique e instale novas versões do Lumi.</p></div><LoadingState /></>
   const unavailableMessage = state.availability === 'development'
     ? 'Atualizações estão disponíveis na versão instalada do Lumi.'
     : 'Esta compilação não possui uma fonte de atualizações configurada.'
 
-  return <><h2>Atualizações</h2><div className="update-card"><div className="setting-row"><div><strong>Versão atual</strong><p>{state.currentVersion}</p></div><span className={`update-status update-status--${state.status}`}>{statusLabel(state)}</span></div>
+  return <><div className="settings-heading"><h2>Atualizações</h2><p>Verifique e instale novas versões do Lumi.</p></div><div className="update-card"><SettingRow title="Versão atual" description={state.currentVersion}><span className={`update-status update-status--${state.status}`}>{statusLabel(state)}</span></SettingRow>
     {state.availability !== 'ready' ? <p className="update-message">{unavailableMessage}</p> : <>
       {state.status === 'downloading' && <div className="update-progress"><div style={{ width: `${state.progressPercent ?? 0}%` }} /><span>{Math.round(state.progressPercent ?? 0)}%</span></div>}
       {state.errorMessage && <p className="setting-warning">{state.errorMessage}</p>}

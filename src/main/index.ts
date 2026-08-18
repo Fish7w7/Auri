@@ -356,8 +356,14 @@ if (!singleInstanceLock) {
                 window.location.hash = '/library'
                 new Promise((resolve, reject) => {
                   const started = Date.now()
+                  let viewRequested = false
                   const check = () => {
-                    if (document.querySelector('.library-page .work-card, .library-page .empty-state, .library-page .error-state')) {
+                    const gridButton = document.querySelector('button[aria-label="Visualização em grade"]')
+                    if (gridButton && !gridButton.classList.contains('is-active') && !viewRequested) {
+                      viewRequested = true
+                      gridButton.click()
+                    }
+                    if ((gridButton?.classList.contains('is-active') && document.querySelector('.library-page .work-card') && !document.querySelector('.library-page .loading-state')) || document.querySelector('.library-page .empty-state, .library-page .error-state')) {
                       resolve(true)
                     } else if (Date.now() - started > 5000) {
                       reject(new Error('Biblioteca não terminou de renderizar.'))
@@ -369,7 +375,19 @@ if (!singleInstanceLock) {
                 })
               `)
             )
-            .then(() => new Promise((resolve) => setTimeout(resolve, 500)))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => document.querySelector('.library-page .work-card') && !document.querySelector('.library-page .loading-state')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Grade da Biblioteca não estabilizou.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'lumi-library.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
@@ -431,6 +449,96 @@ if (!singleInstanceLock) {
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => {
               writeFileSync(join(output, 'lumi-add-manual.png'), image.toPNG())
+            })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                document.querySelector('dialog[open]')?.close()
+                const check = () => {
+                  const discard = Array.from(document.querySelectorAll('dialog[open] button')).find((button) => button.textContent.includes('Descartar'))
+                  discard?.click()
+                  if (!document.querySelector('dialog[open]')) {
+                    window.location.hash = '/settings'
+                    resolve(true)
+                  } else if (Date.now() - started > 5000) reject(new Error('Formulário manual não fechou.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .settings-heading')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Configurações não terminou de renderizar.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-appearance.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup')
+                backup?.click()
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .backup-list')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Configuração de backup não terminou de renderizar.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-backup.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const updates = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Atualizações')
+                updates?.click()
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .update-card')
+                  ? resolve(true)
+                  : Date.now() - started > 5000
+                    ? reject(new Error('Configuração de atualizações não terminou de renderizar.'))
+                    : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-updates.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              window.location.hash = '/library'
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                let viewRequested = false
+                const check = () => {
+                  const listButton = document.querySelector('button[aria-label="Visualização em lista"]')
+                  if (listButton && !listButton.classList.contains('is-active') && !viewRequested) {
+                    viewRequested = true
+                    listButton.click()
+                  }
+                  if (listButton?.classList.contains('is-active') && document.querySelector('.library-page .work-list-row')) resolve(true)
+                  else if (Date.now() - started > 5000) reject(new Error('Biblioteca em lista não terminou de renderizar.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => { mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => {
+              writeFileSync(join(output, 'lumi-library-list-compact.png'), image.toPNG())
+              return mainWindow.webContents.executeJavaScript(`window.lumi.settings.update({ libraryView: 'grid' })`)
+            })
+            .then(() => {
               console.log('LUMI_SCREENSHOT_TEST_OK')
               app.quit()
             })
