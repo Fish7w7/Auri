@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type UIEventHandler } from 'react'
 import type { CardSize, LibraryView, Work } from '@shared/contracts'
 import { WorkCard } from '../work/WorkCard'
 import { WorkListRow } from '../work/WorkListRow'
@@ -26,7 +26,11 @@ export function VirtualLibrary(props: Props) {
   useEffect(() => {
     const element = viewportRef.current
     if (!element) return
-    const updateSize = () => setMetrics((current) => ({ ...current, width: element.clientWidth, height: element.clientHeight }))
+    const updateSize = () => {
+      const width = element.clientWidth
+      const height = element.clientHeight
+      setMetrics((current) => ({ ...current, width, height }))
+    }
     const observer = new ResizeObserver(updateSize)
     observer.observe(element)
     updateSize()
@@ -52,8 +56,13 @@ export function VirtualLibrary(props: Props) {
   const visible = props.works.slice(virtual.start, virtual.end)
   const firstRow = Math.floor(virtual.start / virtual.columns)
 
+  const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
+    const scrollTop = event.currentTarget.scrollTop
+    setMetrics((current) => ({ ...current, scrollTop }))
+  }
+
   return (
-    <div className={`virtual-library virtual-library--${props.view}`} ref={viewportRef} onScroll={(event) => setMetrics((current) => ({ ...current, scrollTop: event.currentTarget.scrollTop }))} tabIndex={-1}>
+    <div className={`virtual-library virtual-library--${props.view}`} ref={viewportRef} onScroll={handleScroll} tabIndex={-1}>
       {props.view === 'list' && <div className="library-list-header" aria-hidden="true"><span>Título</span><span>Progresso</span><span>Status</span><span>Última leitura</span><span /></div>}
       <div className="virtual-library__space" style={{ height: virtual.totalHeight }}>
         <div className="virtual-library__window" style={{ transform: `translateY(${firstRow * virtual.rowHeight}px)`, gridTemplateColumns: props.view === 'grid' ? `repeat(${virtual.columns}, minmax(0, 1fr))` : undefined }}>
