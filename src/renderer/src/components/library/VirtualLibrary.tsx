@@ -62,7 +62,7 @@ export function VirtualLibrary(props: Props) {
   }
 
   return (
-    <div className={`virtual-library virtual-library--${props.view}`} ref={viewportRef} onScroll={handleScroll} tabIndex={-1}>
+    <div className={`virtual-library virtual-library--${props.view}`} data-card-size={props.cardSize} data-columns={virtual.columns} ref={viewportRef} onScroll={handleScroll} tabIndex={-1}>
       {props.view === 'list' && <div className="library-list-header" aria-hidden="true"><span>Título</span><span>Progresso</span><span>Status</span><span>Última leitura</span><span /></div>}
       <div className="virtual-library__space" style={{ height: virtual.totalHeight }}>
         <div className="virtual-library__window" style={{ transform: `translateY(${firstRow * virtual.rowHeight}px)`, gridTemplateColumns: props.view === 'grid' ? `repeat(${virtual.columns}, minmax(0, 1fr))` : undefined }}>

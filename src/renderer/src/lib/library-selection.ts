@@ -10,6 +10,7 @@ export type LibrarySelectionAction =
   | { type: 'toggle'; workId: string }
   | { type: 'select-all'; workIds: string[] }
   | { type: 'remove'; workIds: string[] }
+  | { type: 'reconcile'; workIds: string[] }
 
 export const EMPTY_LIBRARY_SELECTION: LibrarySelectionState = {
   active: false,
@@ -39,6 +40,10 @@ export function librarySelectionReducer(
       const selectedIds = new Set(state.selectedIds)
       for (const workId of action.workIds) selectedIds.delete(workId)
       return { ...state, selectedIds }
+    }
+    case 'reconcile': {
+      const visibleIds = new Set(action.workIds)
+      return { ...state, selectedIds: new Set([...state.selectedIds].filter((workId) => visibleIds.has(workId))) }
     }
   }
 }

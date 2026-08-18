@@ -5,6 +5,7 @@ import { ConfirmDialog, Dialog } from '../ui/Dialog'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 import { mapDomainError, STATUS_LABELS } from '../../lib/format'
+import { KeyboardMenu } from '../ui/KeyboardMenu'
 
 type DialogKind = 'status' | 'tag' | 'collection' | 'trash' | null
 
@@ -14,7 +15,7 @@ interface Props {
   onSelectAll(): void
   onClear(): void
   onExit(): void
-  onApplied(trashedIds?: string[]): void
+  onApplied(affectedIds: string[]): void
 }
 
 export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClear, onExit, onApplied }: Props) {
@@ -45,12 +46,12 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
     return () => { active = false }
   }, [showToast])
 
-  async function run(operation: () => Promise<{ affectedIds: string[] }>, success: string, trash = false) {
+  async function run(operation: () => Promise<{ affectedIds: string[] }>, success: string) {
     setBusy(true)
     try {
       const result = await operation()
       setDialog(null)
-      onApplied(trash ? result.affectedIds : undefined)
+      onApplied(result.affectedIds)
       showToast({ kind: 'success', message: success })
     } catch (error) {
       showToast({ kind: 'error', message: mapDomainError(error) })
@@ -72,10 +73,7 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
       <Button disabled={disabled} onClick={() => setDialog('collection')}>Coleções</Button>
       <Button disabled={disabled} icon="star" onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: true }), `${countLabel} como favorita.`)}>Favoritar</Button>
       <Button disabled={disabled} onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: false }), `Favorito removido de ${countLabel}.`)}>Desfavoritar</Button>
-      <details className="bulk-overflow">
-        <summary aria-label="Mais ações">•••</summary>
-        <div><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></div>
-      </details>
+      <KeyboardMenu className="bulk-overflow" label="Mais ações"><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></KeyboardMenu>
       <Button variant="ghost" disabled={busy} onClick={onExit}>Sair da seleção</Button>
     </div>
 
@@ -91,6 +89,6 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
       {collections.length ? <Select label="Coleção" value={collectionId} onChange={setCollectionId} options={collections.map((collection) => ({ value: collection.id, label: collection.name }))} /> : <p className="inline-empty">Nenhuma coleção cadastrada.</p>}
     </Dialog>
 
-    <ConfirmDialog open={dialog === 'trash'} title={`Mover ${countLabel} para a Lixeira?`} description="As obras, progresso, histórico, fontes, notas, tags e coleções serão preservados e poderão ser restaurados." confirmLabel="Mover para a Lixeira" danger busy={busy} onClose={() => setDialog(null)} onConfirm={() => run(() => window.lumi.bulk.moveToTrash({ workIds }), `${countLabel} movida para a Lixeira.`, true)} />
+    <ConfirmDialog open={dialog === 'trash'} title={`Mover ${countLabel} para a Lixeira?`} description="As obras, progresso, histórico, fontes, notas, tags e coleções serão preservados e poderão ser restaurados." confirmLabel="Mover para a Lixeira" danger busy={busy} onClose={() => setDialog(null)} onConfirm={() => run(() => window.lumi.bulk.moveToTrash({ workIds }), `${countLabel} movida para a Lixeira.`)} />
   </>
 }

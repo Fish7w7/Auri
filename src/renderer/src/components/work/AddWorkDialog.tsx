@@ -15,6 +15,10 @@ type SearchState = 'idle' | 'loading' | 'ready' | 'error'
 type ImportForm = { title: string; mediaType: MediaType; userStatus: UserStatus; chapter: string; sourceName: string; sourceUrl: string; lastReadNote: string; allowProbable: boolean }
 type UrlDraft = { title: string; sourceName: string; sourceUrl: string; description: string; coverUrl: string }
 
+export function isImportReviewDirty(current: ImportForm, initial: ImportForm | null): boolean {
+  return initial !== null && JSON.stringify(current) !== JSON.stringify(initial)
+}
+
 export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onClose(): void; onCreated(): void }) {
   const [mode, setMode] = useState<Mode>('choose')
   const [quick, setQuick] = useState({ title: '', chapter: '', status: 'reading' as UserStatus })
@@ -29,6 +33,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   const [searchError, setSearchError] = useState('')
   const [review, setReview] = useState<MetadataReview | null>(null)
   const [importForm, setImportForm] = useState<ImportForm>({ title: '', mediaType: 'other', userStatus: 'want_to_read', chapter: '', sourceName: '', sourceUrl: '', lastReadNote: '', allowProbable: false })
+  const [initialImportForm, setInitialImportForm] = useState<ImportForm | null>(null)
   const [urlInput, setUrlInput] = useState('')
   const [urlError, setUrlError] = useState('')
   const [urlAnalysis, setUrlAnalysis] = useState<UrlMetadataAnalysis | null>(null)
@@ -55,11 +60,12 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   }, [debouncedQuery, mode, open])
 
   const quickDirty = mode === 'quick' && (Boolean(quick.title.trim()) || Boolean(quick.chapter.trim()) || quick.status !== 'reading')
+  const reviewDirty = mode === 'review' && isImportReviewDirty(importForm, initialImportForm)
   const dirty = quickDirty || (mode === 'manual' && JSON.stringify(manual) !== JSON.stringify(EMPTY_WORK_FORM)) ||
-    ((mode === 'url' || mode === 'urlPreview') && Boolean(urlInput.trim()))
+    ((mode === 'url' || mode === 'urlPreview') && Boolean(urlInput.trim())) || reviewDirty
   useEffect(() => { void window.lumi.updates.setDirty({ scope: 'add-work', dirty: open && dirty }) }, [dirty, open])
   useEffect(() => () => { void window.lumi.updates.setDirty({ scope: 'add-work', dirty: false }) }, [])
-  const reset = () => { setMode('choose'); setQuick({ title: '', chapter: '', status: 'reading' }); setManual(EMPTY_WORK_FORM); setQuery(''); setResults([]); setReview(null); setUrlInput(''); setUrlError(''); setUrlAnalysis(null); setUrlDraft(null); setConfirmClose(false) }
+  const reset = () => { setMode('choose'); setQuick({ title: '', chapter: '', status: 'reading' }); setManual(EMPTY_WORK_FORM); setQuery(''); setResults([]); setReview(null); setInitialImportForm(null); setUrlInput(''); setUrlError(''); setUrlAnalysis(null); setUrlDraft(null); setConfirmClose(false) }
   const close = () => { reset(); onClose() }
   const requestClose = () => { if (dirty) setConfirmClose(true); else close() }
 
@@ -134,7 +140,9 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     try {
       const next = await window.lumi.metadata.review({ provider: result.provider, externalId: result.externalId })
       setReview(next)
-      setImportForm({ title: next.metadata.title, mediaType: next.metadata.mediaType ?? 'other', userStatus: 'want_to_read', chapter: '', sourceName: urlDraft?.sourceName ?? '', sourceUrl: urlDraft?.sourceUrl ?? '', lastReadNote: '', allowProbable: false })
+      const nextForm: ImportForm = { title: next.metadata.title, mediaType: next.metadata.mediaType ?? 'other', userStatus: 'want_to_read', chapter: '', sourceName: urlDraft?.sourceName ?? '', sourceUrl: urlDraft?.sourceUrl ?? '', lastReadNote: '', allowProbable: false }
+      setImportForm(nextForm)
+      setInitialImportForm(nextForm)
       setMode('review')
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }
@@ -182,9 +190,10 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }
 
-  const save = mode === 'quick' ? submitQuick : mode === 'manual' ? submitManual : undefined
-  const saveTitle = mode === 'quick' ? quick.title : manual.title
-  useShortcutScope({ save: save ? () => void save() : undefined, canSave: open && dirty && !busy && !confirmClose && Boolean(saveTitle.trim()) })
+  const save = mode === 'quick' ? submitQuick : mode === 'manual' ? submitManual : mode === 'review' ? importMetadata : undefined
+  const saveTitle = mode === 'quick' ? quick.title : mode === 'review' ? importForm.title : manual.title
+  const reviewCanImport = mode !== 'review' || !review?.duplicate || review.duplicate.kind === 'probable' && importForm.allowProbable
+  useShortcutScope({ save: save ? () => void save() : undefined, canSave: open && dirty && !busy && !confirmClose && Boolean(saveTitle.trim()) && reviewCanImport })
 
   const noResults = mode === 'search' && searchState === 'ready' && results.length === 0
   const retryTitle = () => { setQuery(''); setResults([]); setSearchState('idle'); window.setTimeout(() => searchInputRef.current?.focus(), 0) }
@@ -205,7 +214,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
       {mode === 'quick' && <form className="quick-work-form" onSubmit={(event) => { event.preventDefault(); void submitQuick() }}><label className="field"><span>Título *</span><input autoFocus value={quick.title} onChange={(event) => setQuick({ ...quick, title: event.target.value })} placeholder="Ex.: Nano Machine" /></label><label className="field"><span>Último capítulo concluído</span><input value={quick.chapter} onChange={(event) => setQuick({ ...quick, chapter: event.target.value })} placeholder="183, 10A ou Prólogo" /></label><label className="field"><span>Status</span><Select label="Status pessoal" value={quick.status} onChange={(status) => setQuick({ ...quick, status: status as UserStatus })} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label></form>}
       {mode === 'manual' && <WorkForm value={manual} onChange={setManual} collections={collections} />}
     </Dialog>
-    <Dialog open={confirmClose} title="Você possui alterações não salvas." description={mode === 'manual' ? 'Salve a obra agora ou descarte o que foi preenchido.' : 'A análise atual será descartada.'} onClose={() => setConfirmClose(false)} footer={<><Button variant="danger" onClick={close}>Descartar</Button><Button onClick={() => setConfirmClose(false)}>Continuar editando</Button>{mode === 'manual' && <Button variant="primary" disabled={busy || !manual.title.trim()} onClick={() => { setConfirmClose(false); void submitManual() }}>Salvar</Button>}</>} />
+    <Dialog open={confirmClose} title="Você possui alterações não salvas." description={mode === 'manual' || mode === 'review' ? 'Salve agora ou descarte o que foi preenchido.' : 'A análise atual será descartada.'} onClose={() => setConfirmClose(false)} footer={<><Button variant="danger" onClick={close}>Descartar</Button><Button onClick={() => setConfirmClose(false)}>Continuar editando</Button>{mode === 'manual' && <Button variant="primary" disabled={busy || !manual.title.trim()} onClick={() => { setConfirmClose(false); void submitManual() }}>Salvar</Button>}{mode === 'review' && <Button variant="primary" disabled={busy || !importForm.title.trim() || !reviewCanImport} onClick={() => { setConfirmClose(false); void importMetadata() }}>Importar</Button>}</>} />
   </>
 }
 

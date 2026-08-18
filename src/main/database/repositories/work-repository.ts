@@ -187,6 +187,13 @@ export class WorkRepository {
     if (query.hasProgress !== undefined) {
       clauses.push(query.hasProgress ? 'w.last_read_chapter_label IS NOT NULL' : 'w.last_read_chapter_label IS NULL')
     }
+    if (query.collectionIds?.length) {
+      clauses.push(`EXISTS (
+        SELECT 1 FROM collection_items ci
+        WHERE ci.work_id = w.id AND ci.collection_id IN (${query.collectionIds.map(() => '?').join(', ')})
+      )`)
+      values.push(...query.collectionIds)
+    }
 
     return this.findMany(
       `

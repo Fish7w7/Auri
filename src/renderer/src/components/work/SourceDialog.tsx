@@ -18,9 +18,9 @@ export function SourceDialog({ open, work, source, onClose, onSaved }: { open: b
     if (!form.seriesUrl.trim() && !form.lastReadUrl.trim()) return
     setBusy(true)
     try {
-      const values = { name: form.name.trim() || null, language: form.language, seriesUrl: form.seriesUrl.trim() || null, lastReadUrl: form.lastReadUrl.trim() || null, translatorGroup: form.group.trim() || null }
-      const saved = source ? await window.lumi.sources.update({ id: source.id, ...values }) : await window.lumi.sources.create({ workId: work.id, ...values, isPreferred: form.preferred })
-      if (source && form.preferred && !source.isPreferred) await window.lumi.sources.setPreferred({ sourceId: saved.id })
+      const values = { name: form.name.trim() || null, language: form.language, seriesUrl: form.seriesUrl.trim() || null, lastReadUrl: form.lastReadUrl.trim() || null, translatorGroup: form.group.trim() || null, isPreferred: form.preferred }
+      if (source) await window.lumi.sources.update({ id: source.id, ...values })
+      else await window.lumi.sources.create({ workId: work.id, ...values, isPreferred: form.preferred })
       showToast({ kind: 'success', message: source ? 'Fonte atualizada.' : 'Fonte adicionada.' }); onSaved(); onClose()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }

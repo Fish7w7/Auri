@@ -45,6 +45,7 @@ export interface IpcHandlerOptions {
   selectExportFile?(event: IpcMainInvokeEvent, kind: 'json' | 'csv'): Promise<string | null>
   selectImportFile?(event: IpcMainInvokeEvent): Promise<string | null>
   selectDiagnosticFile?(event: IpcMainInvokeEvent): Promise<string | null>
+  searchLibrary?(request: unknown): unknown
 }
 
 export function registerIpcHandlers(services: IpcServices, logger: Logger, options: IpcHandlerOptions = {}): () => void {
@@ -157,7 +158,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.covers.clearAll, () => services.covers.clearAllCache()],
     [IPC_CHANNELS.covers.usage, () => services.covers.getCacheUsage()],
     [IPC_CHANNELS.shell.openExternal, (request) => services.externalNavigation.open(request)],
-    [IPC_CHANNELS.library.search, (request) => services.library.searchWorks(request)],
+    [IPC_CHANNELS.library.search, (request) => options.searchLibrary ? options.searchLibrary(request) : services.library.searchWorks(request)],
     [IPC_CHANNELS.library.query, (request) => services.library.queryWorks(request)],
     [IPC_CHANNELS.library.summary, () => services.library.getSummary()],
     [IPC_CHANNELS.library.home, () => services.library.getHome()],

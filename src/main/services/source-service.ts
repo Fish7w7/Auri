@@ -63,6 +63,9 @@ export class SourceService {
     const seriesUrl = request.seriesUrl === undefined ? current.seriesUrl : this.normalizeUrl(request.seriesUrl)
     const lastReadUrl = request.lastReadUrl === undefined ? current.lastReadUrl : this.normalizeUrl(request.lastReadUrl)
     this.assertUrlAvailable(current.workId, seriesUrl, lastReadUrl, current.id)
+    if (request.status === 'archived' && request.isPreferred) {
+      throw new DomainError('INVALID_STATUS', 'Uma fonte arquivada não pode ser preferida.')
+    }
     const updated: Source = {
       ...current,
       name: request.name === undefined ? current.name : request.name,
@@ -73,10 +76,14 @@ export class SourceService {
       translatorGroup:
         request.translatorGroup === undefined ? current.translatorGroup : request.translatorGroup,
       status: request.status ?? current.status,
-      isPreferred: request.status === 'archived' ? false : current.isPreferred,
+      isPreferred: request.status === 'archived' ? false : request.isPreferred ?? current.isPreferred,
       updatedAt: this.clock()
     }
-    return this.sources.update(updated)
+    const update = this.db.transaction(() => {
+      if (updated.isPreferred) this.sources.clearPreferred(updated.workId, updated.updatedAt)
+      return this.sources.update(updated)
+    })
+    return update.immediate()
   }
 
   listByWork(input: unknown): Source[] {

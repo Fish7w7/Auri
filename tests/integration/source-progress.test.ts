@@ -40,6 +40,19 @@ describe('SourceService', () => {
     ).toEqual({ count: 1 })
   })
 
+  it('define e remove preferência pela atualização sem permitir duas preferidas', () => {
+    fixture = createDomainFixture()
+    const work = createMinimalWork(fixture)
+    const first = fixture.services.sources.createSource({ workId: work.id, domain: 'a.example', isPreferred: true })
+    const second = fixture.services.sources.createSource({ workId: work.id, domain: 'b.example' })
+
+    expect(fixture.services.sources.updateSource({ id: first.id, isPreferred: false }).isPreferred).toBe(false)
+    expect(fixture.services.sources.updateSource({ id: second.id, isPreferred: true }).isPreferred).toBe(true)
+    expect(fixture.services.sources.updateSource({ id: first.id, isPreferred: true }).isPreferred).toBe(true)
+    expect(fixture.repositories.sources.findById(second.id)?.isPreferred).toBe(false)
+    expect(fixture.db.prepare('SELECT COUNT(*) AS count FROM sources WHERE work_id = ? AND is_preferred = 1').get(work.id)).toEqual({ count: 1 })
+  })
+
   it('arquiva, remove preferência e marca fonte indisponível', () => {
     fixture = createDomainFixture()
     const work = createMinimalWork(fixture)

@@ -29,4 +29,14 @@ describe('seleção da Biblioteca', () => {
     expect(state.active).toBe(true)
     expect(state.selectedIds.size).toBe(0)
   })
+
+  it('remove da seleção IDs que deixaram o resultado após um refresh', () => {
+    let state = librarySelectionReducer(EMPTY_LIBRARY_SELECTION, {
+      type: 'select-all',
+      workIds: ['work-reading', 'work-still-visible']
+    })
+    state = librarySelectionReducer(state, { type: 'reconcile', workIds: ['work-still-visible', 'work-new'] })
+    expect([...state.selectedIds]).toEqual(['work-still-visible'])
+    expect(state.active).toBe(true)
+  })
 })

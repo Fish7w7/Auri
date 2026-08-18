@@ -61,6 +61,7 @@ if (!singleInstanceLock) {
         return
       }
       const smokeCoverPath = isSmokeTest ? join(app.getPath('userData'), 'smoke-cover.png') : null
+      let smokeCoverSelectionCount = 0
       if (smokeCoverPath) {
         writeFileSync(smokeCoverPath, testCoverBytes)
       }
@@ -84,7 +85,16 @@ if (!singleInstanceLock) {
           bulk: context.services.bulk
         },
         context.logger,
-        smokeCoverPath ? { selectCoverFile: async () => smokeCoverPath } : undefined
+        smokeCoverPath ? {
+          selectCoverFile: async () => ++smokeCoverSelectionCount === 1 ? smokeCoverPath : null,
+          selectBackupDirectory: async () => null,
+          selectRestoreFile: async () => null,
+          selectExportFile: async () => null,
+          searchLibrary: (request) => {
+            if ((request as { query?: string })?.query === 'E2E IPC ERROR') throw new Error('Falha de busca injetada pelo smoke.')
+            return context!.services.library.searchWorks(request)
+          }
+        } : undefined
       )
       void context.services.backups.runAutomaticIfDue().catch((error: unknown) => {
         context?.logger.error('backup', 'Falha no backup automático em segundo plano.', { event: 'backup.auto_failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
@@ -169,13 +179,37 @@ if (!singleInstanceLock) {
                   Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, value)
                   input.dispatchEvent(new Event('input', { bubbles: true }))
                 }
+                const chooseSelect = async (label, optionText) => {
+                  const trigger = await waitFor(() => document.querySelector('button[aria-label="' + label + '"]'), 'select ' + label)
+                  trigger.click()
+                  const list = await waitFor(() => document.querySelector('[role="listbox"][aria-label="' + label + '"]'), 'opções ' + label)
+                  const option = Array.from(list.querySelectorAll('button')).find((button) => button.textContent.includes(optionText))
+                  if (!option) throw new Error('Opção ausente: ' + optionText)
+                  option.click()
+                  await sleep(80)
+                }
                 const testTitle = 'Lumi E2E Work'
                 const status = await window.lumi.system.getStatus()
                 for (const item of await window.lumi.library.query({ search: testTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
                 for (const cleanupTitle of ['Lumi Metadata Test', 'Meu título importado', 'Offline Manual E2E']) for (const item of await window.lumi.library.query({ search: cleanupTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
                 for (const item of await window.lumi.works.listTrash()) if (item.title === testTitle) await window.lumi.works.deletePermanently({ workId: item.id })
+                for (const collection of await window.lumi.collections.list()) if (collection.name === 'Murim favoritos E2E') await window.lumi.collections.delete({ collectionId: collection.id })
                 window.location.hash = '/library'
                 await waitFor(() => document.querySelector('.library-page'), 'Biblioteca inicial')
+
+                // Sidebar compacta mantém o controle acessível e suporta ciclos repetidos.
+                let sidebarToggle = document.querySelector('button[aria-label="Recolher sidebar"]')
+                if (!sidebarToggle) {
+                  document.querySelector('button[aria-label="Expandir sidebar"]').click()
+                  sidebarToggle = await waitFor(() => document.querySelector('button[aria-label="Recolher sidebar"]'), 'normalizar sidebar expandida')
+                }
+                sidebarToggle.click()
+                await waitFor(() => document.querySelector('.sidebar--compact button[aria-label="Expandir sidebar"]'), 'sidebar recolhida')
+                document.querySelector('button[aria-label="Expandir sidebar"]').click()
+                await waitFor(() => document.querySelector('.sidebar:not(.sidebar--compact) button[aria-label="Recolher sidebar"]'), 'sidebar expandida')
+                document.querySelector('button[aria-label="Recolher sidebar"]').click()
+                await waitFor(() => document.querySelector('.sidebar--compact button[aria-label="Expandir sidebar"]'), 'segundo recolhimento')
+                if (!(await window.lumi.settings.get()).sidebarCompact) throw new Error('Sidebar compacta não foi persistida após o ciclo.')
 
                 // Atalhos contextuais não interferem com campos e Ctrl+N reutiliza o cadastro existente.
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
@@ -195,6 +229,25 @@ if (!singleInstanceLock) {
                 const work = await waitFor(async () => (await window.lumi.library.query({ search: testTitle }))[0], 'obra criada')
                 await waitFor(() => byText(document, 'Abrir obra'), 'ação Abrir obra')
                 await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro rápido fechado')
+                if (!(await window.lumi.settings.get()).sidebarCompact) throw new Error('Cadastro resetou a preferência da sidebar.')
+
+                // Tamanhos de card mudam as colunas sem resetar a sidebar compacta.
+                const cardColumns = {}
+                for (const [value, label] of [['small', 'Pequeno'], ['medium', 'Médio'], ['large', 'Grande']]) {
+                  window.location.hash = '/settings'
+                  await waitFor(() => document.querySelector('.settings-page'), 'Configurações para tamanho ' + label)
+                  await chooseSelect('Tamanho dos cards', label)
+                  const persistedSidebar = (await window.lumi.settings.get()).sidebarCompact
+                  if (!document.querySelector('.sidebar--compact button[aria-label="Expandir sidebar"]') || !persistedSidebar) throw new Error('Sidebar foi resetada ao mudar tamanho dos cards: persistida=' + persistedSidebar)
+                  window.location.hash = '/library'
+                  const gridButton = await waitFor(() => document.querySelector('button[aria-label="Visualização em grade"]'), 'controle de grade')
+                  if (!gridButton.classList.contains('is-active')) gridButton.click()
+                  const library = await waitFor(() => document.querySelector('.virtual-library--grid[data-card-size="' + value + '"]'), 'grade ' + label)
+                  cardColumns[value] = Number(library.dataset.columns)
+                }
+                if (!(cardColumns.small > cardColumns.medium && cardColumns.medium > cardColumns.large)) throw new Error('Tamanhos de card não produziram colunas distintas: ' + JSON.stringify(cardColumns))
+                document.querySelector('button[aria-label="Expandir sidebar"]').click()
+                await waitFor(() => document.querySelector('.sidebar:not(.sidebar--compact)'), 'sidebar expandida após configurações')
                 document.activeElement?.blur()
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.quick-search)'), 'busca rápida local')
@@ -227,6 +280,20 @@ if (!singleInstanceLock) {
                 modal.querySelector('input[type="checkbox"]').click()
                 byText(modal, 'Adicionar').click()
                 await waitFor(() => document.querySelector('.source-row strong')?.textContent.includes('★'), 'fonte preferida')
+                let sourceMenu = document.querySelector('.source-menu')
+                sourceMenu.open = true
+                byText(sourceMenu, 'Editar').click()
+                modal = await waitFor(latestDialog, 'editar fonte preferida')
+                modal.querySelector('input[type="checkbox"]').click()
+                byText(modal, 'Salvar').click()
+                await waitFor(() => !document.querySelector('.source-row strong')?.textContent.includes('★'), 'preferência removida')
+                sourceMenu = document.querySelector('.source-menu')
+                sourceMenu.open = true
+                byText(sourceMenu, 'Editar').click()
+                modal = await waitFor(latestDialog, 'redefinir fonte preferida')
+                modal.querySelector('input[type="checkbox"]').click()
+                byText(modal, 'Salvar').click()
+                await waitFor(() => document.querySelector('.source-row strong')?.textContent.includes('★'), 'preferência redefinida')
 
                 // D — edição de progresso, histórico e undo.
                 byText(document.querySelector('.progress-controls'), 'Editar').click()
@@ -244,6 +311,45 @@ if (!singleInstanceLock) {
                 setInput(modal.querySelector('input'), 'Murim favoritos E2E')
                 byText(modal, 'Criar').click()
                 await waitFor(() => Array.from(document.querySelectorAll('.collection-checklist label')).some((label) => label.textContent.includes('Murim favoritos E2E') && label.querySelector('input').checked), 'coleção associada')
+
+                // Página de Coleções lista e abre suas obras usando a Biblioteca existente.
+                window.location.hash = '/collections'
+                const collectionRow = await waitFor(() => Array.from(document.querySelectorAll('.collection-row')).find((row) => row.textContent.includes('Murim favoritos E2E')), 'coleção na página')
+                collectionRow.querySelector('.collection-row__main').click()
+                await waitFor(() => document.querySelector('.library-page h1')?.textContent === 'Murim favoritos E2E', 'coleção aberta')
+                await waitFor(() => Array.from(document.querySelectorAll('.work-card h3')).some((title) => title.textContent === testTitle), 'obra da coleção')
+
+                // Bulk em rota filtrada remove imediatamente IDs que deixam o resultado.
+                window.location.hash = '/library/status/reading'
+                await waitFor(() => document.querySelector('.library-page h1')?.textContent === 'Biblioteca', 'rota Lendo montada')
+                await waitFor(() => document.querySelector('button[aria-label="Abrir ' + testTitle + '"]'), 'obra na rota Lendo')
+                byText(document.querySelector('.page-header__actions'), 'Selecionar').click()
+                await waitFor(() => document.querySelector('.bulk-toolbar'), 'modo de seleção')
+                ;(await waitFor(() => Array.from(document.querySelectorAll('.work-card')).find((card) => card.querySelector('h3')?.textContent === testTitle), 'card selecionável')).click()
+                await waitFor(() => document.querySelector('button[aria-label="Desmarcar ' + testTitle + '"]'), 'primeira seleção aplicada')
+                let bulkMenu = document.querySelector('.bulk-overflow')
+                bulkMenu.querySelector('summary').click()
+                await waitFor(() => bulkMenu.open, 'menu bulk aberto')
+                bulkMenu.querySelector('summary').focus()
+                bulkMenu.querySelector('summary').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+                await waitFor(() => document.activeElement?.textContent.trim() === 'Mover para a Lixeira', 'seta no menu bulk')
+                document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+                if (bulkMenu.open || !document.querySelector('.bulk-toolbar')) throw new Error('Esc não fechou primeiro o menu bulk.')
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+                await waitFor(() => !document.querySelector('.bulk-toolbar'), 'segundo Esc sai da seleção')
+                byText(document.querySelector('.page-header__actions'), 'Selecionar').click()
+                await waitFor(() => document.querySelector('.bulk-toolbar'), 'novo modo de seleção')
+                ;(await waitFor(() => Array.from(document.querySelectorAll('.work-card')).find((card) => card.querySelector('h3')?.textContent === testTitle), 'novo card selecionável')).click()
+                await waitFor(() => document.querySelector('button[aria-label="Desmarcar ' + testTitle + '"]'), 'segunda seleção aplicada')
+                byText(document.querySelector('.bulk-toolbar'), 'Status').click()
+                modal = await waitFor(latestDialog, 'status em lote')
+                await chooseSelect('Novo status', 'Esperando')
+                byText(modal, 'Aplicar status').click()
+                await waitFor(() => !document.querySelector('button[aria-label="Desmarcar ' + testTitle + '"]'), 'obra removida do filtro')
+                await waitFor(() => document.querySelector('.bulk-toolbar strong')?.textContent.startsWith('0 '), 'seleção reconciliada')
+                byText(document.querySelector('.bulk-toolbar'), 'Sair da seleção').click()
+                window.location.hash = '/work/' + work.id
+                await waitFor(() => document.querySelector('.work-page h1')?.textContent === testTitle, 'obra após bulk')
 
                 // F — capa customizada pelo seletor seguro injetado somente no smoke.
                 byText(openWorkMenu(), 'Alterar capa').click()
@@ -290,6 +396,13 @@ if (!singleInstanceLock) {
                 await waitFor(() => document.querySelector('.work-page h1')?.textContent === 'Lumi Metadata Test', 'obra importada aberta')
                 byText(openWorkMenu(), 'Editar obra').click()
                 modal = await waitFor(latestDialog, 'editar obra importada')
+                const customCoverOption = Array.from(modal.querySelectorAll('.cover-options label')).find((label) => label.textContent.includes('Arquivo local'))
+                customCoverOption.querySelector('input').click()
+                byText(modal, 'Salvar alterações').click()
+                await sleep(150)
+                if (!modal.open || (await window.lumi.works.get({ workId: imported.work.id })).cover.type !== 'remote') throw new Error('Cancelamento da capa encerrou o editor ou alterou a capa.')
+                const remoteCoverOption = Array.from(modal.querySelectorAll('.cover-options label')).find((label) => label.textContent.trim() === 'URL')
+                remoteCoverOption.querySelector('input').click()
                 setInput(modal.querySelector('input[placeholder="Ex.: Nano Machine"]'), 'Meu título importado')
                 byText(modal, 'Salvar alterações').click()
                 await waitFor(() => document.querySelector('.work-page h1')?.textContent === 'Meu título importado', 'override de título')
@@ -325,6 +438,34 @@ if (!singleInstanceLock) {
                 setInput(modal.querySelector('input[placeholder="Ex.: Nano Machine"]'), 'Offline Manual E2E')
                 byText(modal, 'Adicionar obra').click()
                 const offlineWork = await waitFor(async () => (await window.lumi.library.query({ search: 'Offline Manual E2E' }))[0], 'cadastro manual offline')
+                await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro manual offline fechado')
+
+                // Busca rápida diferencia vazio de falha técnica e oferece retry.
+                window.location.hash = '/library'
+                await waitFor(() => document.querySelector('.library-page'), 'biblioteca para busca rápida vazia')
+                document.activeElement?.blur()
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.quick-search)'), 'busca rápida para estados')
+                setInput(modal.querySelector('.quick-search input'), 'zzzz-local-none')
+                await waitFor(() => modal.querySelector('.quick-search__state')?.textContent.includes('Nenhuma obra encontrada'), 'busca rápida vazia')
+                setInput(modal.querySelector('.quick-search input'), 'E2E IPC ERROR')
+                await waitFor(() => modal.querySelector('.quick-search__state[role="alert"]'), 'erro tratado da busca rápida')
+                if (!byText(modal, 'Tentar novamente')) throw new Error('Retry ausente na busca rápida.')
+                modal.dispatchEvent(new Event('cancel', { bubbles: true, cancelable: true }))
+                await waitFor(() => !document.querySelector('dialog[open]'), 'busca rápida fechada')
+
+                // Cancelamentos normais de backup/exportação não geram erro.
+                window.location.hash = '/settings'
+                await waitFor(() => document.querySelector('.settings-page'), 'Configurações para cancelamentos')
+                byText(document, 'Backup').click()
+                await waitFor(() => byText(document, 'Exportar JSON'), 'ações de portabilidade')
+                const errorsBeforeCancel = document.querySelectorAll('.toast--error').length
+                byText(document, 'Exportar JSON').click()
+                await sleep(120)
+                byText(document, 'Restaurar backup').click()
+                await sleep(120)
+                if (document.querySelectorAll('.toast--error').length !== errorsBeforeCancel || document.querySelector('dialog[open]')) throw new Error('Cancelamento de backup/export foi tratado como erro.')
+
                 await window.lumi.works.deletePermanently({ workId: imported.work.id })
                 await window.lumi.works.deletePermanently({ workId: offlineWork.id })
                 await window.lumi.works.deletePermanently({ workId: work.id })

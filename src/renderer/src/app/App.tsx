@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppSettings, LibrarySummary, UpdateSettingsRequest } from '@shared/contracts'
 import { AppContext } from './app-context'
 import { useRoute } from './navigation'
@@ -28,6 +28,7 @@ function AppShell() {
   const [ready, setReady] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
+  const settingsUpdateQueue = useRef<Promise<void>>(Promise.resolve())
 
   const loadSummary = useCallback(async () => {
     try { setSummary(await window.lumi.library.summary()) } catch { /* páginas mostram o erro de dados */ }
@@ -41,8 +42,12 @@ function AppShell() {
     window.dispatchEvent(new Event('lumi:data-changed'))
   }, [loadSummary])
   const updateSettings = useCallback(async (patch: UpdateSettingsRequest) => {
-    const next = await window.lumi.settings.update(patch)
-    setSettings(next)
+    const operation = settingsUpdateQueue.current.then(async () => {
+      const next = await window.lumi.settings.update(patch)
+      setSettings(next)
+    })
+    settingsUpdateQueue.current = operation.catch(() => undefined)
+    await operation
   }, [])
   const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => setAddOpen(true) }), [refreshData, settings, summary, updateSettings])
 
@@ -55,7 +60,7 @@ function AppShell() {
         {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}:${route.sort ?? 'default'}`} initialStatus={route.status} initialFavorite={route.favorite} initialSort={route.sort} />}
         {route.page === 'trash' && <TrashPage />}
         {route.page === 'settings' && <SettingsPage />}
-        {route.page === 'collections' && <CollectionsPage />}
+        {route.page === 'collections' && <CollectionsPage collectionId={route.id} />}
         {route.page === 'work' && <WorkPage id={route.id} />}
       </main>
       <AddWorkDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={refreshData} />
