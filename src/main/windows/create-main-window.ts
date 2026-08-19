@@ -20,8 +20,7 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#15141a',
-      symbolColor: '#f2f0f5',
-      height: 38
+      symbolColor: '#f2f0f5'
     },
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
