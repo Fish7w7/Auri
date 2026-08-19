@@ -5,10 +5,10 @@ import { classifyDatabaseOpenFailure } from '@main/services/database-recovery-se
 import { DomainError } from '@shared/errors/domain-error'
 
 describe('classifyDatabaseOpenFailure', () => {
-  it('mantém manifests sincronizados na versão 0.6.2', () => {
+  it('mantém manifests sincronizados na versão 1.0.0', () => {
     const manifest = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as { version: string }
     const lock = JSON.parse(readFileSync(join(process.cwd(), 'package-lock.json'), 'utf8')) as { version: string; packages: Record<string, { version?: string }> }
-    expect(manifest.version).toBe('0.6.2')
+    expect(manifest.version).toBe('1.0.0')
     expect(lock.version).toBe(manifest.version)
     expect(lock.packages[''].version).toBe(manifest.version)
   })

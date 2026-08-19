@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { app, BrowserWindow, clipboard, dialog, shell } from 'electron'
 import { createAppContext, type AppContext } from './app/create-app-context'
 import { registerIpcHandlers } from './ipc/register-ipc-handlers'
@@ -11,6 +11,7 @@ import { DomainError } from '@shared/errors/domain-error'
 import { resolveDataPaths } from './app/data-paths'
 import { JsonLogger } from './logging/logger'
 import { classifyDatabaseOpenFailure, createRecoveryBackupService } from './services/database-recovery-service'
+import type { SafePageFetcher } from './services/url-metadata/safe-page-fetcher'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
@@ -18,18 +19,22 @@ const isSmokeTest = process.argv.includes('--smoke-test')
 const isScreenshotTest = process.argv.includes('--screenshot-test')
 const isSettingsScrollTest = process.argv.includes('--settings-scroll-test')
 const isBackupSmokeTest = process.argv.includes('--backup-smoke-test')
+const isReleasePersistenceSmokeTest = process.argv.includes('--release-persistence-smoke-test')
+const isReleaseBackupRestoreTest = process.argv.includes('--release-backup-restore-test')
+const isReleaseDataSmokeTest = isReleasePersistenceSmokeTest || isReleaseBackupRestoreTest
 const testCoverBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const testMetadata: MetadataWork = { provider: 'anilist', externalId: '987654', title: 'Lumi Metadata Test', originalTitle: 'ルミテスト', aliases: [{ name: 'Lumi Test', kind: 'synonym' }], description: 'Metadados determinísticos para validar a integração completa.', mediaType: 'manga', publicationStatus: 'ongoing', countryCode: 'JP', startDate: '2026-08', endDate: null, creators: [{ name: 'Lumi Author', role: 'author' }], genres: ['Teste', 'Fantasia'], coverUrl: 'https://fixtures.lumi.invalid/cover.png', canonicalUrl: 'https://anilist.co/manga/987654' }
 let testMetadataReads = 0
 const testMetadataProvider: MetadataProvider = { id: 'anilist', search: async (query) => { const normalized = query.trim().toLowerCase(); if (normalized === 'offline') throw new DomainError('METADATA_PROVIDER_UNAVAILABLE', 'Fixture offline.'); if (normalized === 'sem resultado') return []; return [{ provider: testMetadata.provider, externalId: testMetadata.externalId, title: testMetadata.title, originalTitle: testMetadata.originalTitle, mediaType: testMetadata.mediaType, publicationStatus: testMetadata.publicationStatus, countryCode: testMetadata.countryCode, startDate: testMetadata.startDate, coverUrl: testMetadata.coverUrl, canonicalUrl: testMetadata.canonicalUrl }] }, getById: async (id) => { if (id !== testMetadata.externalId) return null; testMetadataReads += 1; return testMetadataReads > 1 ? { ...testMetadata, description: 'Descrição atualizada pela fixture de refresh.' } : testMetadata } }
 const testCoverClient: CoverDownloadClient = { isOnline: () => true, download: async () => testCoverBytes }
+const testPageFetcher = { fetch: async (requestedUrl: string) => ({ requestedUrl, finalUrl: 'https://reader.e2e.example/series/url-smoke-work', contentType: 'text/html', html: '<html><head><meta property="og:title" content="URL Smoke Work"><meta property="og:description" content="Descrição segura detectada no fixture."><meta property="og:site_name" content="Reader E2E"><link rel="canonical" href="https://reader.e2e.example/series/url-smoke-work"></head><body><h1>URL Smoke Work</h1></body></html>' }) } as SafePageFetcher
 
 app.setName('Lumi')
-if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest) app.disableHardwareAcceleration()
-if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest) {
+if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) app.disableHardwareAcceleration()
+if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) {
   app.setPath(
     'userData',
-    join(app.getPath('temp'), isScreenshotTest ? 'lumi-screenshot-test' : isSettingsScrollTest ? 'lumi-settings-scroll-test' : isBackupSmokeTest ? 'lumi-backup-smoke-test' : 'lumi-smoke-test')
+    join(app.getPath('temp'), isScreenshotTest ? 'lumi-screenshot-test' : isSettingsScrollTest ? 'lumi-settings-scroll-test' : isBackupSmokeTest ? 'lumi-backup-smoke-test' : isReleasePersistenceSmokeTest ? 'lumi-release-persistence-test' : isReleaseBackupRestoreTest ? 'lumi-release-backup-restore-test' : 'lumi-smoke-test')
   )
 }
 
@@ -47,7 +52,15 @@ if (!singleInstanceLock) {
 
   app.whenReady().then(async () => {
     try {
-      context = await createAppContext(app, isSmokeTest || isScreenshotTest ? { metadataProviders: [testMetadataProvider], coverClient: testCoverClient } : {})
+      context = await createAppContext(app, isSmokeTest || isScreenshotTest ? { metadataProviders: [testMetadataProvider], coverClient: testCoverClient, pageFetcher: testPageFetcher } : {})
+      if (isReleasePersistenceSmokeTest) {
+        try { await runReleasePersistenceSmoke(context) } catch (error) { console.error('LUMI_RELEASE_PERSISTENCE_TEST_FAILED', error); app.exit(1) }
+        return
+      }
+      if (isReleaseBackupRestoreTest) {
+        try { await runReleaseBackupRestoreSmoke(context) } catch (error) { console.error('LUMI_RELEASE_BACKUP_RESTORE_TEST_FAILED', error); app.exit(1) }
+        return
+      }
       if (isBackupSmokeTest) {
         const marker = `Packaged Backup ${Date.now()}`
         context.services.works.createWork({ title: marker, mediaType: 'other', userStatus: 'want_to_read' })
@@ -100,7 +113,7 @@ if (!singleInstanceLock) {
       void context.services.backups.runAutomaticIfDue().catch((error: unknown) => {
         context?.logger.error('backup', 'Falha no backup automático em segundo plano.', { event: 'backup.auto_failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
       })
-      if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest) {
+      if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest && !isReleaseDataSmokeTest) {
         void context.services.updates.checkForUpdates().catch(() => { /* estado e logging são tratados pelo serviço */ })
       }
       if (isScreenshotTest) {
@@ -196,7 +209,7 @@ if (!singleInstanceLock) {
                 const testTitle = 'Lumi E2E Work'
                 const status = await window.lumi.system.getStatus()
                 for (const item of await window.lumi.library.query({ search: testTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
-                for (const cleanupTitle of ['Lumi Metadata Test', 'Meu título importado', 'Offline Manual E2E']) for (const item of await window.lumi.library.query({ search: cleanupTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
+                for (const cleanupTitle of ['Lumi Metadata Test', 'Meu título importado', 'Offline Manual E2E', 'URL Smoke Work']) for (const item of await window.lumi.library.query({ search: cleanupTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
                 for (const item of await window.lumi.works.listTrash()) if (item.title === testTitle) await window.lumi.works.deletePermanently({ workId: item.id })
                 for (const collection of await window.lumi.collections.list()) if (collection.name === 'Murim favoritos E2E') await window.lumi.collections.delete({ collectionId: collection.id })
                 window.location.hash = '/library'
@@ -447,6 +460,23 @@ if (!singleInstanceLock) {
                 const offlineWork = await waitFor(async () => (await window.lumi.library.query({ search: 'Offline Manual E2E' }))[0], 'cadastro manual offline')
                 await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro manual offline fechado')
 
+                // Fluxo seguro de URL usa HTML determinístico e confirma a fonte antes do cadastro.
+                byText(document, 'Adicionar obra').click()
+                modal = await waitFor(latestDialog, 'escolha de cadastro por URL')
+                byText(modal, 'Adicionar por URL').click()
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.url-analyze-form)'), 'formulário de URL')
+                setInput(modal.querySelector('input[type="url"]'), 'https://reader.e2e.example/original')
+                byText(modal, 'Analisar URL').click()
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.url-metadata-preview)'), 'preview de URL')
+                if (!modal.querySelector('h3')?.textContent.includes('URL Smoke Work')) throw new Error('Metadata segura da URL não foi exibida.')
+                byText(modal, 'Continuar com dados detectados').click()
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.work-form)'), 'cadastro manual vindo da URL')
+                byText(modal, 'Adicionar obra').click()
+                const urlWork = await waitFor(async () => (await window.lumi.library.query({ search: 'URL Smoke Work' }))[0], 'obra cadastrada por URL')
+                const urlDetails = await window.lumi.works.getDetails({ workId: urlWork.id })
+                if (urlDetails.sources[0]?.domain !== 'reader.e2e.example' || !urlDetails.sources[0]?.isPreferred) throw new Error('Fonte da URL não foi preservada no cadastro.')
+                await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro por URL fechado')
+
                 // Busca rápida diferencia vazio de falha técnica e oferece retry.
                 window.location.hash = '/library'
                 await waitFor(() => document.querySelector('.library-page'), 'biblioteca para busca rápida vazia')
@@ -475,6 +505,7 @@ if (!singleInstanceLock) {
 
                 await window.lumi.works.deletePermanently({ workId: imported.work.id })
                 await window.lumi.works.deletePermanently({ workId: offlineWork.id })
+                await window.lumi.works.deletePermanently({ workId: urlWork.id })
                 await window.lumi.works.deletePermanently({ workId: work.id })
                 return { schemaVersion: status.database.schemaVersion, domainReady: domainReady && !!metadataReady }
               })()
@@ -1029,6 +1060,81 @@ app.on('before-quit', () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+async function runReleasePersistenceSmoke(appContext: AppContext): Promise<void> {
+  const markerPath = join(app.getPath('userData'), 'release-persistence-smoke.json')
+  if (!existsSync(markerPath)) {
+    const collection = appContext.services.details.createCollection({ name: 'Coleção persistente', description: 'Validação da v1.' })
+    const details = appContext.services.details.createDetailed({
+      title: 'Obra persistente da v1', mediaType: 'webtoon', userStatus: 'reading', chapter: '42', favorite: true,
+      notes: 'Metadados manuais preservados.', lastReadNote: 'Onde parei na validação.',
+      aliases: [{ name: 'Alias persistente', kind: 'alternative', source: 'user' }],
+      creators: [{ name: 'Autora persistente', role: 'author', source: 'user' }],
+      genres: ['Fantasia'], tags: ['Validação'], collectionIds: [collection.id],
+      source: { name: 'Fonte persistente', seriesUrl: 'https://example.com/obra-persistente', language: 'pt-BR', isPreferred: true }
+    })
+    appContext.services.progress.incrementProgress({ workId: details.work.id })
+    appContext.services.settings.updateSettings({ libraryView: 'list', librarySort: 'title_asc', cardSize: 'large', sidebarCompact: true, backupAutomatic: false })
+    writeFileSync(markerPath, JSON.stringify({ workId: details.work.id }), 'utf8')
+    console.log('LUMI_RELEASE_PERSISTENCE_TEST_SEEDED')
+    app.quit()
+    return
+  }
+
+  const marker = JSON.parse(readFileSync(markerPath, 'utf8')) as { workId?: string }
+  assertRelease(typeof marker.workId === 'string', 'Marcador de persistência inválido.')
+  const details = appContext.services.details.getDetails({ workId: marker.workId })
+  const settings = appContext.services.settings.getSettings()
+  const summary = appContext.services.library.getSummary()
+  const home = appContext.services.library.getHome()
+  assertRelease(details.work.title === 'Obra persistente da v1', 'Obra não persistiu após reiniciar.')
+  assertRelease(details.work.lastReadChapter?.label === '43' && details.work.userStatus === 'reading', 'Progresso ou status não persistiu.')
+  assertRelease(details.work.favorite && details.work.notes === 'Metadados manuais preservados.' && details.work.lastReadNote === 'Onde parei na validação.', 'Favorito, notas ou Onde parei não persistiu.')
+  assertRelease(details.aliases.some((item) => item.name === 'Alias persistente' && item.source === 'user'), 'Alias manual não persistiu.')
+  assertRelease(details.collections.some((item) => item.name === 'Coleção persistente') && details.sources.some((item) => item.name === 'Fonte persistente' && item.isPreferred), 'Coleção ou fonte não persistiu.')
+  assertRelease(settings.libraryView === 'list' && settings.librarySort === 'title_asc' && settings.cardSize === 'large' && settings.sidebarCompact && !settings.backupAutomatic, 'Preferências não persistiram.')
+  assertRelease(summary.total === 1 && summary.favorite === 1 && summary.byStatus.reading === 1 && home.continueReading.some((item) => item.id === marker.workId), 'Agregados ou Home não refletiram os dados persistidos.')
+  rmSync(markerPath, { force: true })
+  console.log('LUMI_RELEASE_PERSISTENCE_TEST_OK')
+  app.quit()
+}
+
+async function runReleaseBackupRestoreSmoke(appContext: AppContext): Promise<void> {
+  const markerPath = join(app.getPath('userData'), 'release-backup-restore-smoke.json')
+  if (!existsSync(markerPath)) {
+    const details = appContext.services.details.createDetailed({
+      title: 'Estado original do backup', mediaType: 'manhwa', userStatus: 'waiting', chapter: '18', favorite: true,
+      aliases: [{ name: 'Original preservado', source: 'user' }],
+      source: { name: 'Fonte do backup', seriesUrl: 'https://example.com/backup-original', isPreferred: true }
+    })
+    appContext.services.settings.updateSettings({ libraryView: 'list', cardSize: 'large', sidebarCompact: true, backupAutomatic: false })
+    const backup = await appContext.services.backups.createBackup('manual')
+    writeFileSync(markerPath, JSON.stringify({ workId: details.work.id, backupPath: backup.path }), 'utf8')
+    appContext.services.works.updateWork({ id: details.work.id, title: 'Estado alterado depois do backup', favorite: false, userStatus: 'dropped' })
+    appContext.services.works.createWork({ title: 'Obra criada depois do backup', mediaType: 'other', userStatus: 'want_to_read' })
+    appContext.services.settings.updateSettings({ libraryView: 'grid', cardSize: 'small', sidebarCompact: false })
+    await appContext.services.backups.restoreBackup(backup.path)
+    return
+  }
+
+  const marker = JSON.parse(readFileSync(markerPath, 'utf8')) as { workId?: string; backupPath?: string }
+  assertRelease(typeof marker.workId === 'string' && typeof marker.backupPath === 'string', 'Marcador de restore inválido.')
+  const works = appContext.services.library.queryWorks({})
+  const details = appContext.services.details.getDetails({ workId: marker.workId })
+  const settings = appContext.services.settings.getSettings()
+  const backups = appContext.services.backups.getState().backups
+  assertRelease(works.length === 1 && details.work.title === 'Estado original do backup' && details.work.favorite && details.work.userStatus === 'waiting', 'Banco não retornou ao estado do backup.')
+  assertRelease(details.aliases.some((item) => item.name === 'Original preservado') && details.sources.some((item) => item.name === 'Fonte do backup'), 'Dados relacionais não retornaram após restore.')
+  assertRelease(settings.libraryView === 'list' && settings.cardSize === 'large' && settings.sidebarCompact && !settings.backupAutomatic, 'Preferências não retornaram após restore.')
+  assertRelease(backups.some((item) => item.type === 'before_restore'), 'Backup de segurança before_restore não foi preservado.')
+  rmSync(markerPath, { force: true })
+  console.log('LUMI_RELEASE_BACKUP_RESTORE_TEST_OK')
+  app.quit()
+}
+
+function assertRelease(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message)
+}
 
 async function showStartupRecovery(error: unknown): Promise<void> {
   const failure = classifyDatabaseOpenFailure(error)
