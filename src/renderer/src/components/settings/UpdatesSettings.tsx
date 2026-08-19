@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { LoadingState } from '../ui/States'
 import { useToast } from '../ui/Toast'
 import { SettingRow } from './SettingRow'
+import { ReleaseNotes } from './ReleaseNotes'
 
 export function UpdatesSettings() {
   const [state, setState] = useState<UpdateState | null>(null)
@@ -35,7 +36,8 @@ export function UpdatesSettings() {
     {state.availability !== 'ready' ? <p className="update-message">{unavailableMessage}</p> : <>
       {state.status === 'downloading' && <div className="update-progress"><div style={{ width: `${state.progressPercent ?? 0}%` }} /><span>{Math.round(state.progressPercent ?? 0)}%</span></div>}
       {state.errorMessage && <p className="setting-warning">{state.errorMessage}</p>}
-      {state.releaseNotes && <div className="release-notes"><strong>Notas da versão {state.availableVersion}</strong><pre>{state.releaseNotes}</pre></div>}
+      {state.availableVersion && ['available', 'downloading', 'ready'].includes(state.status) && <div className="update-version"><span>Nova versão disponível</span><strong>{state.availableVersion}</strong></div>}
+      {state.releaseNotes && <ReleaseNotes notes={state.releaseNotes} />}
       <div className="data-actions">
         {(state.status === 'idle' || state.status === 'up_to_date' || state.status === 'error') && <Button disabled={busy} onClick={() => void run(() => window.lumi.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Verificar atualizações</Button>}
         {state.status === 'checking' && <Button disabled>Verificando…</Button>}
@@ -53,5 +55,5 @@ export function shouldPollUpdateState(status: UpdateState['status']): boolean {
 
 function statusLabel(state: UpdateState): string {
   if (state.status === 'unavailable') return 'Indisponível nesta build'
-  return ({ idle: 'Pronto para verificar', checking: 'Verificando…', up_to_date: 'Atualizado', available: 'Atualização disponível', downloading: 'Baixando…', ready: 'Pronta para instalar', error: 'Erro ao verificar' } as const)[state.status]
+  return ({ idle: 'Pronto para verificar', checking: 'Verificando…', up_to_date: 'Atualizado', available: 'Disponível', downloading: 'Baixando…', ready: 'Pronta para instalar', error: 'Erro ao verificar' } as const)[state.status]
 }

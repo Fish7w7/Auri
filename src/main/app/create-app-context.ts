@@ -21,7 +21,7 @@ import { ProgressService } from '../services/progress-service'
 import { SourceService } from '../services/source-service'
 import { SettingsService } from '../services/settings-service'
 import { SystemService } from '../services/system-service'
-import { UpdateService } from '../services/update-service'
+import { UpdateService, type UpdaterAdapter } from '../services/update-service'
 import { WorkService } from '../services/work-service'
 import { WorkDetailsService } from '../services/work-details-service'
 import { AssetService } from '../services/asset-service'
@@ -72,6 +72,8 @@ export interface CreateAppContextOptions {
   metadataProviders?: MetadataProvider[]
   coverClient?: CoverDownloadClient
   pageFetcher?: SafePageFetcher
+  updater?: UpdaterAdapter
+  updaterEnvironment?: { isPackaged: boolean; isConfigured: boolean }
 }
 
 export async function createAppContext(app: App, options: CreateAppContextOptions = {}): Promise<AppContext> {
@@ -154,10 +156,13 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,
       sources: sourcesRepository, history: historyRepository, externalRefs: externalRefsRepository
     }, details, backups, logger)
+    const updateEnvironment = options.updaterEnvironment ?? {
+      isPackaged: app.isPackaged,
+      isConfigured: app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))
+    }
     const updates = new UpdateService(logger, {
-      currentVersion: app.getVersion(), isPackaged: app.isPackaged,
-      isConfigured: app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml')),
-      criticalOperations
+      currentVersion: app.getVersion(), ...updateEnvironment,
+      criticalOperations, updater: options.updater
     })
     updates.configure('stable')
 

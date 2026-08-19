@@ -1,6 +1,6 @@
 {
   "name": "lumi-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Biblioteca local-first para obras seriadas",
   "author": "Lumi",
   "repository": {
@@ -87,6 +87,7 @@
       "en-US"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -95,6 +96,14 @@
           ]
         }
       ]
+    },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Lumi"
     },
     "publish": [
       {

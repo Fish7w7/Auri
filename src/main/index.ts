@@ -12,6 +12,7 @@ import { resolveDataPaths } from './app/data-paths'
 import { JsonLogger } from './logging/logger'
 import { classifyDatabaseOpenFailure, createRecoveryBackupService } from './services/database-recovery-service'
 import type { SafePageFetcher } from './services/url-metadata/safe-page-fetcher'
+import type { UpdaterAdapter } from './services/update-service'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
@@ -28,9 +29,21 @@ let testMetadataReads = 0
 const testMetadataProvider: MetadataProvider = { id: 'anilist', search: async (query) => { const normalized = query.trim().toLowerCase(); if (normalized === 'offline') throw new DomainError('METADATA_PROVIDER_UNAVAILABLE', 'Fixture offline.'); if (normalized === 'sem resultado') return []; return [{ provider: testMetadata.provider, externalId: testMetadata.externalId, title: testMetadata.title, originalTitle: testMetadata.originalTitle, mediaType: testMetadata.mediaType, publicationStatus: testMetadata.publicationStatus, countryCode: testMetadata.countryCode, startDate: testMetadata.startDate, coverUrl: testMetadata.coverUrl, canonicalUrl: testMetadata.canonicalUrl }] }, getById: async (id) => { if (id !== testMetadata.externalId) return null; testMetadataReads += 1; return testMetadataReads > 1 ? { ...testMetadata, description: 'Descrição atualizada pela fixture de refresh.' } : testMetadata } }
 const testCoverClient: CoverDownloadClient = { isOnline: () => true, download: async () => testCoverBytes }
 const testPageFetcher = { fetch: async (requestedUrl: string) => ({ requestedUrl, finalUrl: 'https://reader.e2e.example/series/url-smoke-work', contentType: 'text/html', html: '<html><head><meta property="og:title" content="URL Smoke Work"><meta property="og:description" content="Descrição segura detectada no fixture."><meta property="og:site_name" content="Reader E2E"><link rel="canonical" href="https://reader.e2e.example/series/url-smoke-work"></head><body><h1>URL Smoke Work</h1></body></html>' }) } as SafePageFetcher
+const testUpdateHandlers = new Map<string, Array<(...args: unknown[]) => void>>()
+const testUpdaterAdapter = {
+  autoDownload: false, autoInstallOnAppQuit: false, channel: null,
+  on(event: string, listener: (...args: unknown[]) => void) { testUpdateHandlers.set(event, [...(testUpdateHandlers.get(event) ?? []), listener]) },
+  checkForUpdates: async () => null, downloadUpdate: async () => [], quitAndInstall: () => undefined
+} as UpdaterAdapter
+const testReleaseNotes = '<h1>Lumi v1.2.0</h1><p>Uma atualização com <strong>melhorias importantes</strong> e <em>mais clareza</em>.</p><h2>Novidades</h2><ul><li>Janela integrada ao Lumi</li><li>Ícone oficial no Windows</li><li>Notas de versão legíveis</li><li>Links externos seguros</li><li>Melhor apresentação do progresso</li><li>Controles nativos preservados</li><li>Atalhos do instalador atualizados</li><li>Compatibilidade com bibliotecas existentes</li></ul><p>Consulte os <a href="https://example.com/lumi-release">detalhes completos</a> ou use <code>Ctrl+K</code>.</p><script>window.__lumiUnsafeReleaseNote = true</script><iframe src="https://example.com"></iframe>'
+
+function emitTestUpdate(event: string, value: unknown): void {
+  for (const handler of testUpdateHandlers.get(event) ?? []) handler(value)
+}
 
 app.setName('Lumi')
 if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) app.disableHardwareAcceleration()
+if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) app.commandLine.appendSwitch('in-process-gpu')
 if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) {
   app.setPath(
     'userData',
@@ -52,7 +65,11 @@ if (!singleInstanceLock) {
 
   app.whenReady().then(async () => {
     try {
-      context = await createAppContext(app, isSmokeTest || isScreenshotTest ? { metadataProviders: [testMetadataProvider], coverClient: testCoverClient, pageFetcher: testPageFetcher } : {})
+      context = await createAppContext(app, isSmokeTest || isScreenshotTest ? {
+        metadataProviders: [testMetadataProvider], coverClient: testCoverClient, pageFetcher: testPageFetcher,
+        ...(isScreenshotTest ? { updater: testUpdaterAdapter, updaterEnvironment: { isPackaged: true, isConfigured: true } } : {})
+      } : {})
+      if (isScreenshotTest) emitTestUpdate('update-available', { version: '1.2.0', releaseNotes: testReleaseNotes })
       if (isReleasePersistenceSmokeTest) {
         try { await runReleasePersistenceSmoke(context) } catch (error) { console.error('LUMI_RELEASE_PERSISTENCE_TEST_FAILED', error); app.exit(1) }
         return
@@ -169,13 +186,13 @@ if (!singleInstanceLock) {
       }
 
       const mainWindow = createMainWindow({
-        showWhenReady: !isSmokeTest && !isScreenshotTest && !isSettingsScrollTest,
+        showWhenReady: !isSmokeTest && !isSettingsScrollTest,
         keepRenderingWhenHidden: isSmokeTest || isScreenshotTest || isSettingsScrollTest
       })
 
       if (isSmokeTest) {
         mainWindow.webContents.once('did-finish-load', () => {
-          mainWindow.webContents
+          void runNativeWindowStateSmoke(mainWindow).then(() => mainWindow.webContents
             .executeJavaScript(`
               (async () => {
                 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -509,7 +526,7 @@ if (!singleInstanceLock) {
                 await window.lumi.works.deletePermanently({ workId: work.id })
                 return { schemaVersion: status.database.schemaVersion, domainReady: domainReady && !!metadataReady }
               })()
-            `)
+            `))
             .then((result: { schemaVersion: number; domainReady: boolean }) => {
               console.log(
                 `LUMI_SMOKE_TEST_OK schema=${result.schemaVersion} domain=${result.domainReady}`
@@ -671,6 +688,13 @@ if (!singleInstanceLock) {
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'lumi-home.png'), image.toPNG()))
+            .then(() => { mainWindow.blur(); return new Promise((resolve) => setTimeout(resolve, 200)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              document.querySelector('.window-titlebar.is-inactive') ? true : Promise.reject(new Error('Estado inativo da title bar não foi aplicado.'))
+            `))
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-window-inactive.png'), image.toPNG()))
+            .then(() => { mainWindow.focus(); return new Promise((resolve) => setTimeout(resolve, 200)) })
             .then(() =>
               mainWindow.webContents.executeJavaScript(`
                 window.location.hash = '/library'
@@ -821,15 +845,31 @@ if (!singleInstanceLock) {
                 const updates = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Atualizações')
                 updates?.click()
                 const started = Date.now()
-                const check = () => document.querySelector('.settings-panel .update-card')
-                  ? resolve(true)
-                  : Date.now() - started > 5000
-                    ? reject(new Error('Configuração de atualizações não terminou de renderizar.'))
-                    : setTimeout(check, 50)
+                const check = () => {
+                  const card = document.querySelector('.settings-panel .update-card')
+                  const notes = document.querySelector('.release-notes__content')
+                  if (card && notes) {
+                      if (notes.textContent.includes('<h1>') || window.__lumiUnsafeReleaseNote) return reject(new Error('HTML remoto inseguro foi executado ou exibido cru.'))
+                      if (notes.querySelector('script, iframe, style, object, embed')) return reject(new Error('Elemento remoto inseguro permaneceu no Renderer.'))
+                      if (!notes.querySelector('h1, h2') || !notes.querySelector('ul li') || !notes.querySelector('strong') || !notes.querySelector('a[href^="https://"]')) return reject(new Error('Estrutura das release notes ficou incompleta.'))
+                      if (notes.scrollHeight <= notes.clientHeight) return reject(new Error('Release notes extensas não ativaram o scroll interno.'))
+                      return resolve(true)
+                  }
+                  if (Date.now() - started > 5000) return reject(new Error('Configuração de atualizações não terminou de renderizar.'))
+                  setTimeout(check, 50)
+                }
                 check()
               })
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              (() => {
+                const notes = document.querySelector('.release-notes__content')
+                if (!notes || !notes.textContent.includes('Janela integrada ao Lumi')) throw new Error('Release notes não permaneceram estáveis antes da captura.')
+                return true
+              })()
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 250)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'lumi-settings-updates.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
@@ -1134,6 +1174,27 @@ async function runReleaseBackupRestoreSmoke(appContext: AppContext): Promise<voi
 
 function assertRelease(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
+}
+
+async function runNativeWindowStateSmoke(window: BrowserWindow): Promise<void> {
+  const originalBounds = window.getBounds()
+  window.maximize()
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  assertRelease(window.isMaximized(), 'A janela não maximizou pelo controle nativo.')
+  window.unmaximize()
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  assertRelease(!window.isMaximized(), 'A janela não restaurou após maximizar.')
+  window.minimize()
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  assertRelease(window.isMinimized(), 'A janela não minimizou pelo controle nativo.')
+  window.restore()
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  assertRelease(!window.isMinimized(), 'A janela não restaurou após minimizar.')
+  window.setBounds({ ...originalBounds, width: originalBounds.width + 20, height: originalBounds.height + 20 })
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  const resized = window.getBounds()
+  assertRelease(resized.width === originalBounds.width + 20 && resized.height === originalBounds.height + 20, 'A janela não respondeu ao redimensionamento.')
+  window.setBounds(originalBounds)
 }
 
 async function showStartupRecovery(error: unknown): Promise<void> {

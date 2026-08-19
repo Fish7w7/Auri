@@ -8,6 +8,7 @@ export interface MainWindowOptions {
 
 export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden = false }: MainWindowOptions = {}): BrowserWindow {
   const window = new BrowserWindow({
+    title: 'Lumi',
     width: 1200,
     height: 780,
     minWidth: 900,
@@ -15,6 +16,13 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     show: false,
     backgroundColor: '#111016',
     autoHideMenuBar: true,
+    icon: resolveWindowIcon(),
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#15141a',
+      symbolColor: '#f2f0f5',
+      height: 38
+    },
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       nodeIntegration: false,
@@ -46,4 +54,10 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
   }
 
   return window
+}
+
+function resolveWindowIcon(): string {
+  return process.env.ELECTRON_RENDERER_URL
+    ? join(process.cwd(), 'src/renderer/public/lumi-icon.png')
+    : join(__dirname, '../renderer/lumi-icon.png')
 }

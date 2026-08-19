@@ -43,4 +43,22 @@ describe('UpdateService', () => {
     service.installUpdate()
     expect(updater.adapter.quitAndInstall).toHaveBeenCalledOnce()
   })
+
+  it('normaliza o formato real de release notes acumuladas do electron-updater', () => {
+    const updater = createUpdater()
+    const service = new UpdateService(new TestLogger(), { currentVersion: '1.0.0', isPackaged: true, isConfigured: true, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter })
+    updater.emit('update-available', {
+      version: '1.2.0',
+      releaseNotes: [
+        { version: '1.2.0', note: '<h2>Novidades</h2><ul><li>Leitura melhor</li></ul>' },
+        { version: '1.1.0', note: '<p>Janela integrada.</p>' }
+      ]
+    })
+
+    expect(service.getState()).toMatchObject({
+      status: 'available',
+      availableVersion: '1.2.0',
+      releaseNotes: '1.2.0\n<h2>Novidades</h2><ul><li>Leitura melhor</li></ul>\n\n1.1.0\n<p>Janela integrada.</p>'
+    })
+  })
 })
