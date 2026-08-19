@@ -16,6 +16,7 @@ let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
 const isSmokeTest = process.argv.includes('--smoke-test')
 const isScreenshotTest = process.argv.includes('--screenshot-test')
+const isSettingsScrollTest = process.argv.includes('--settings-scroll-test')
 const isBackupSmokeTest = process.argv.includes('--backup-smoke-test')
 const testCoverBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const testMetadata: MetadataWork = { provider: 'anilist', externalId: '987654', title: 'Lumi Metadata Test', originalTitle: 'ルミテスト', aliases: [{ name: 'Lumi Test', kind: 'synonym' }], description: 'Metadados determinísticos para validar a integração completa.', mediaType: 'manga', publicationStatus: 'ongoing', countryCode: 'JP', startDate: '2026-08', endDate: null, creators: [{ name: 'Lumi Author', role: 'author' }], genres: ['Teste', 'Fantasia'], coverUrl: 'https://fixtures.lumi.invalid/cover.png', canonicalUrl: 'https://anilist.co/manga/987654' }
@@ -24,11 +25,11 @@ const testMetadataProvider: MetadataProvider = { id: 'anilist', search: async (q
 const testCoverClient: CoverDownloadClient = { isOnline: () => true, download: async () => testCoverBytes }
 
 app.setName('Lumi')
-if (isSmokeTest || isScreenshotTest || isBackupSmokeTest) app.disableHardwareAcceleration()
-if (isSmokeTest || isScreenshotTest || isBackupSmokeTest) {
+if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest) app.disableHardwareAcceleration()
+if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest) {
   app.setPath(
     'userData',
-    join(app.getPath('temp'), isScreenshotTest ? 'lumi-screenshot-test' : isBackupSmokeTest ? 'lumi-backup-smoke-test' : 'lumi-smoke-test')
+    join(app.getPath('temp'), isScreenshotTest ? 'lumi-screenshot-test' : isSettingsScrollTest ? 'lumi-settings-scroll-test' : isBackupSmokeTest ? 'lumi-backup-smoke-test' : 'lumi-smoke-test')
   )
 }
 
@@ -99,7 +100,7 @@ if (!singleInstanceLock) {
       void context.services.backups.runAutomaticIfDue().catch((error: unknown) => {
         context?.logger.error('backup', 'Falha no backup automático em segundo plano.', { event: 'backup.auto_failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
       })
-      if (!isSmokeTest && !isScreenshotTest && !isBackupSmokeTest) {
+      if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest) {
         void context.services.updates.checkForUpdates().catch(() => { /* estado e logging são tratados pelo serviço */ })
       }
       if (isScreenshotTest) {
@@ -155,8 +156,8 @@ if (!singleInstanceLock) {
       }
 
       const mainWindow = createMainWindow({
-        showWhenReady: !isSmokeTest && !isScreenshotTest,
-        keepRenderingWhenHidden: isSmokeTest || isScreenshotTest
+        showWhenReady: !isSmokeTest && !isScreenshotTest && !isSettingsScrollTest,
+        keepRenderingWhenHidden: isSmokeTest || isScreenshotTest || isSettingsScrollTest
       })
 
       if (isSmokeTest) {
@@ -493,6 +494,124 @@ if (!singleInstanceLock) {
         mainWindow.webContents.once('did-fail-load', (_event, code, description) => {
           console.error(`LUMI_SMOKE_TEST_FAILED load=${code} ${description}`)
           app.exit(1)
+        })
+      }
+
+      if (isSettingsScrollTest) {
+        mainWindow.setSize(1440, 900)
+        mainWindow.webContents.once('did-finish-load', () => {
+          const output = join(process.cwd(), 'artifacts', 'settings-scroll')
+          mkdirSync(output, { recursive: true })
+          void mainWindow.webContents
+            .executeJavaScript(`
+              window.location.hash = '/settings'
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .settings-heading')
+                  ? resolve(true)
+                  : Date.now() - started > 5000 ? reject(new Error('Configurações não abriu.')) : setTimeout(check, 50)
+                check()
+              })
+            `)
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup')
+                backup?.click()
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .backup-list')
+                  ? resolve(true)
+                  : Date.now() - started > 5000 ? reject(new Error('Backup não abriu.')) : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const page = document.querySelector('.settings-page')
+                const header = page?.querySelector('.page-header')
+                const nav = page?.querySelector('.settings-layout > nav')
+                const panel = page?.querySelector('.settings-panel')
+                if (!page || !header || !nav || !panel) return reject(new Error('Estrutura de Configurações incompleta.'))
+                if (getComputedStyle(page).overflowY !== 'hidden' || getComputedStyle(panel).overflowY !== 'auto') return reject(new Error('Overflow não está isolado no painel.'))
+                if (panel.scrollHeight <= panel.clientHeight) return reject(new Error('Backup não possui conteúdo rolável para o smoke.'))
+                const before = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+                panel.scrollTop = panel.scrollHeight
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  const after = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+                  if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.header !== after.header || before.nav !== after.nav) reject(new Error('Cabeçalho ou menu se moveu durante a rolagem de Backup.'))
+                  else resolve(true)
+                }))
+              })
+            `))
+            .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-backup-1440x900-bottom.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const appearance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Aparência')
+                appearance?.click()
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  const panel = document.querySelector('.settings-panel')
+                  if (panel?.querySelector('h2')?.textContent === 'Aparência' && panel.scrollTop === 0) resolve(true)
+                  else reject(new Error('Aparência não voltou ao topo após Backup.'))
+                }))
+              })
+            `))
+            .then(() => { mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const advanced = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Avançado')
+                advanced?.click()
+                const started = Date.now()
+                const check = () => document.querySelector('.settings-panel .storage-value')
+                  ? resolve(true)
+                  : Date.now() - started > 5000 ? reject(new Error('Avançado não abriu.')) : setTimeout(check, 50)
+                check()
+              })
+            `))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const page = document.querySelector('.settings-page')
+                const header = page?.querySelector('.page-header')
+                const nav = page?.querySelector('.settings-layout > nav')
+                const panel = page?.querySelector('.settings-panel')
+                if (!page || !header || !nav || !panel) return reject(new Error('Estrutura compacta de Configurações incompleta.'))
+                const scrollables = [page, ...page.querySelectorAll('*')].filter((element) => element.scrollHeight > element.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(element).overflowY))
+                if (scrollables.length !== 1 || scrollables[0] !== panel) return reject(new Error('Configurações possui mais de uma área rolável: ' + scrollables.map((item) => item.className).join(', ')))
+                if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) return reject(new Error('Overflow horizontal global em 1100x720.'))
+                const before = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+                panel.scrollTop = panel.scrollHeight
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  const after = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+                  if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.header !== after.header || before.nav !== after.nav) reject(new Error('Cabeçalho ou menu se moveu durante a rolagem de Avançado.'))
+                  else resolve(true)
+                }))
+              })
+            `))
+            .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-advanced-1100x720-bottom.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const appearance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Aparência')
+                appearance?.click()
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  const panel = document.querySelector('.settings-panel')
+                  if (panel?.querySelector('h2')?.textContent === 'Aparência' && panel.scrollTop === 0) resolve(true)
+                  else reject(new Error('Aparência não voltou ao topo após Avançado.'))
+                }))
+              })
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 300)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'lumi-settings-appearance-1100x720-top.png'), image.toPNG()))
+            .then(() => {
+              console.log('LUMI_SETTINGS_SCROLL_TEST_OK resolutions=1440x900,1100x720')
+              app.quit()
+            })
+            .catch((error: unknown) => {
+              console.error('LUMI_SETTINGS_SCROLL_TEST_FAILED', error)
+              app.exit(1)
+            })
         })
       }
 

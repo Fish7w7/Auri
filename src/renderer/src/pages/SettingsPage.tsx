@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { BackupPreview, BackupState, CoverCacheUsage, ImportPreview, LibrarySort, LibraryView, SystemDiagnostics, SystemStatus } from '@shared/contracts'
 import { useAppContext } from '../app/app-context'
 import { SettingRow } from '../components/settings/SettingRow'
@@ -30,6 +30,7 @@ export function SettingsPage() {
   const [restorePreview, setRestorePreview] = useState<BackupPreview | null>(null)
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [busy, setBusy] = useState(false)
+  const panelRef = useRef<HTMLElement>(null)
   const { showToast } = useToast()
 
   const loadCache = useCallback(() => void window.lumi.covers.usage().then(setCache).catch(() => setCache(null)), [])
@@ -44,6 +45,7 @@ export function SettingsPage() {
   useEffect(() => { if (section === 'Biblioteca') loadCache() }, [loadCache, section])
   useEffect(() => { if (section === 'Backup') void window.lumi.backup.state().then(setBackup).catch((error) => showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível carregar os backups.' })) }, [section, settings, showToast])
   useEffect(() => { if (section === 'Avançado') void loadDiagnostics().catch(() => { setDiagnostics(null); setDiagnosticError(true) }) }, [section])
+  useLayoutEffect(() => { if (panelRef.current) panelRef.current.scrollTop = 0 }, [section])
 
   const dataAction = async (action: () => Promise<boolean | void>, success: string) => {
     setBusy(true)
@@ -65,7 +67,7 @@ export function SettingsPage() {
       <nav aria-label="Seções de Configurações">
         {sections.map((item) => <button key={item} aria-current={section === item ? 'page' : undefined} className={section === item ? 'is-active' : ''} onClick={() => setSection(item)}>{item}</button>)}
       </nav>
-      <section className="settings-panel">
+      <section ref={panelRef} className="settings-panel">
         {section === 'Aparência' && <>
           <SettingsHeading title="Aparência" description="Ajuste a densidade visual da sua Biblioteca." />
           <SettingRow title="Tamanho dos cards" description="Define quantas obras cabem por linha na visualização em grade.">
