@@ -227,9 +227,9 @@ if (!singleInstanceLock) {
                   await sleep(80)
                 }
                 const testTitle = 'Auri E2E Work'
+                const quickActionsTitle = 'Auri Quick Actions E2E'
                 const status = await window.auri.system.getStatus()
-                for (const item of await window.auri.library.query({ search: testTitle })) await window.auri.works.deletePermanently({ workId: item.id })
-                for (const cleanupTitle of ['Auri Metadata Test', 'Meu título importado', 'Offline Manual E2E', 'URL Smoke Work']) for (const item of await window.auri.library.query({ search: cleanupTitle })) await window.auri.works.deletePermanently({ workId: item.id })
+                for (const cleanupTitle of [testTitle, quickActionsTitle, 'Auri Metadata Test', 'Meu título importado', 'Offline Manual E2E', 'URL Smoke Work']) for (const item of await window.auri.library.query({ search: cleanupTitle })) await window.auri.works.deletePermanently({ workId: item.id })
                 for (const item of await window.auri.works.listTrash()) if (item.title === testTitle) await window.auri.works.deletePermanently({ workId: item.id })
                 for (const collection of await window.auri.collections.list()) if (collection.name === 'Murim favoritos E2E') await window.auri.collections.delete({ collectionId: collection.id })
                 window.location.hash = '/library'
@@ -268,6 +268,59 @@ if (!singleInstanceLock) {
                 await waitFor(() => byText(document, 'Abrir obra'), 'ação Abrir obra')
                 await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro rápido fechado')
                 if (!(await window.auri.settings.get()).sidebarCompact) throw new Error('Cadastro resetou a preferência da sidebar.')
+
+                // Ações rápidas permanecem acima da capa, funcionam no primeiro clique e não navegam.
+                const quickWork = await window.auri.works.create({ title: quickActionsTitle, mediaType: 'manhwa', userStatus: 'reading', chapter: '10' })
+                window.dispatchEvent(new Event('auri:data-changed'))
+                const findQuickCard = (selector = '.work-card') => Array.from(document.querySelectorAll(selector)).find((card) => card.querySelector('h3, strong')?.textContent === quickActionsTitle)
+                const assertActionLayer = async (card, label) => {
+                  const overlay = card?.querySelector('.work-actions')
+                  const openControl = card?.querySelector('.work-card__open, .work-list-row__open')
+                  const action = card?.querySelector('button[aria-label="' + label + '"]')
+                  if (!overlay || !openControl || !action) throw new Error('Ação rápida ausente: ' + label)
+                  openControl.focus()
+                  await sleep(180)
+                  action.focus()
+                  const style = getComputedStyle(overlay)
+                  if (!card.matches(':focus-within') || style.visibility !== 'visible' || style.pointerEvents !== 'auto' || Number(style.opacity) !== 1) throw new Error('Overlay instável ao focar ' + label + '.')
+                  const rect = action.getBoundingClientRect()
+                  const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('button')
+                  if (hit !== action) throw new Error('A capa interceptou a ação rápida: ' + label)
+                  return action
+                }
+                let gridControl = document.querySelector('button[aria-label="Visualização em grade"]')
+                if (!gridControl.classList.contains('is-active')) gridControl.click()
+                await waitFor(() => document.querySelector('.virtual-library--grid'), 'grade para ações rápidas')
+                let quickCard = await waitFor(() => findQuickCard(), 'card de ações rápidas')
+                quickCard.querySelector('.work-card__open').click()
+                await waitFor(() => document.querySelector('.work-page h1')?.textContent === quickActionsTitle, 'abertura normal do card')
+                window.location.hash = '/library'
+                await waitFor(() => document.querySelector('.virtual-library--grid'), 'retorno à grade após abertura normal')
+                quickCard = await waitFor(() => findQuickCard(), 'card para favoritar')
+                ;(await assertActionLayer(quickCard, 'Adicionar aos favoritos')).click()
+                await waitFor(async () => (await window.auri.works.get({ workId: quickWork.id })).favorite, 'favorito no primeiro clique')
+                if (document.querySelector('.work-page')) throw new Error('Favoritar abriu a obra.')
+                quickCard = await waitFor(() => findQuickCard(), 'card para +1')
+                ;(await assertActionLayer(quickCard, 'Avançar um capítulo')).click()
+                await waitFor(async () => (await window.auri.works.get({ workId: quickWork.id })).lastReadChapter?.label === '11', '+1 exato no primeiro clique')
+                if (document.querySelector('.work-page')) throw new Error('+1 abriu a obra.')
+                const listControl = document.querySelector('button[aria-label="Visualização em lista"]')
+                listControl.click()
+                await waitFor(() => document.querySelector('.virtual-library--list'), 'lista para ações rápidas')
+                let quickRow = await waitFor(() => findQuickCard('.work-list-row'), 'linha para desfavoritar')
+                ;(await assertActionLayer(quickRow, 'Remover dos favoritos')).click()
+                await waitFor(async () => !(await window.auri.works.get({ workId: quickWork.id })).favorite, 'desfavoritar na lista')
+                if (document.querySelector('.work-page')) throw new Error('Desfavoritar abriu a obra.')
+                gridControl = document.querySelector('button[aria-label="Visualização em grade"]')
+                gridControl.click()
+                await waitFor(() => document.querySelector('.virtual-library--grid'), 'grade para Lixeira')
+                quickCard = await waitFor(() => findQuickCard(), 'card para Lixeira')
+                ;(await assertActionLayer(quickCard, 'Mover para a Lixeira')).click()
+                modal = await waitFor(latestDialog, 'confirmação da ação rápida Lixeira')
+                if (document.querySelector('.work-page')) throw new Error('Lixeira abriu a obra antes da confirmação.')
+                byText(modal, 'Mover para a Lixeira').click()
+                await waitFor(async () => !(await window.auri.library.query({ search: quickActionsTitle }))[0], 'remoção pela ação rápida')
+                if (document.querySelector('.work-page')) throw new Error('Lixeira abriu a obra após a confirmação.')
 
                 // Tamanhos de card mudam as colunas sem resetar a sidebar compacta.
                 const cardColumns = {}
@@ -526,6 +579,7 @@ if (!singleInstanceLock) {
                 await window.auri.works.deletePermanently({ workId: imported.work.id })
                 await window.auri.works.deletePermanently({ workId: offlineWork.id })
                 await window.auri.works.deletePermanently({ workId: urlWork.id })
+                await window.auri.works.deletePermanently({ workId: quickWork.id })
                 await window.auri.works.deletePermanently({ workId: work.id })
                 return { schemaVersion: status.database.schemaVersion, domainReady: domainReady && !!metadataReady }
               })()
