@@ -3,9 +3,10 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
 import type {
-  ImportPreview, ImportResult, ImportStrategy, LumiExportWork, LumiLibraryExport, WorkDetails
+  ImportPreview, ImportResult, ImportStrategy, AuriExportWork, AuriLibraryExport, WorkDetails
 } from '@shared/contracts'
 import { DomainError } from '@shared/errors/domain-error'
+import { APP_BRAND } from '@shared/constants/app-branding'
 import type { Alias, Collection, Creator, ExternalRef, Genre, ReadingHistory, Source, Tag, Work } from '@shared/types/domain'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import type { AliasRepository } from '../database/repositories/alias-repository'
@@ -43,7 +44,7 @@ const exportedWorkSchema = z.object({
   history: z.array(z.object({ id: z.string(), workId: z.string(), sourceId: z.string().nullable(), eventType: z.enum(['initial_progress', 'progress_update', 'correction', 'undo']), oldChapter: z.object({ label: z.string(), number: z.number().nullable() }).nullable(), newChapter: z.object({ label: z.string(), number: z.number().nullable() }).nullable(), sourceNameSnapshot: z.string().nullable(), sourceDomainSnapshot: z.string().nullable(), note: z.string().nullable(), revertsHistoryId: z.string().nullable(), occurredAt: z.string(), createdAt: z.string() })),
   externalRefs: z.array(z.object({ id: z.string(), workId: z.string(), provider: z.string(), externalId: z.string(), canonicalUrl: z.string().nullable(), lastSyncedAt: z.string().nullable(), createdAt: z.string() }))
 })
-const libraryExportSchema = z.object({ format: z.literal('lumi-library'), version: z.literal(1), exportedAt: z.string(), works: z.array(exportedWorkSchema).max(100_000) })
+const libraryExportSchema = z.object({ format: z.literal('auri-library'), version: z.literal(1), exportedAt: z.string(), works: z.array(exportedWorkSchema).max(100_000) })
 
 export interface TransferRepositories {
   works: WorkRepository
@@ -70,7 +71,7 @@ export class TransferService {
   exportJson(destination: string): { path: string } {
     const startedAt = Date.now()
     try {
-      const payload: LumiLibraryExport = { format: 'lumi-library', version: 1, exportedAt: this.now(), works: this.collectWorks() }
+      const payload: AuriLibraryExport = { format: 'auri-library', version: 1, exportedAt: this.now(), works: this.collectWorks() }
       writeFileSync(destination, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
       this.logger.info('backup', 'Exportação JSON concluída.', { event: 'export.json_completed', workCount: payload.works.length, size: statSync(destination).size, durationMs: Date.now() - startedAt })
       return { path: destination }
@@ -138,7 +139,7 @@ export class TransferService {
     }
   }
 
-  private collectWorks(): LumiExportWork[] {
+  private collectWorks(): AuriExportWork[] {
     const works = [...this.repositories.works.listActive(), ...this.repositories.works.listTrash()]
     return works.map((work) => {
       const details: WorkDetails = this.details.getDetails({ workId: work.id })
@@ -146,21 +147,21 @@ export class TransferService {
     })
   }
 
-  private readImport(path: string): LumiLibraryExport {
+  private readImport(path: string): AuriLibraryExport {
     try {
       if (statSync(path).size > MAX_IMPORT_BYTES) throw new Error('too large')
       const raw: unknown = JSON.parse(readFileSync(path, 'utf8'))
       const header = raw as { format?: unknown; version?: unknown }
-      if (header?.format !== 'lumi-library') throw new DomainError('IMPORT_INVALID', 'Este arquivo não é uma exportação do Lumi.')
+      if (header?.format !== 'auri-library') throw new DomainError('IMPORT_INVALID', `Este arquivo não é uma exportação do ${APP_BRAND.name}.`)
       if (header.version !== 1) throw new DomainError('IMPORT_UNSUPPORTED_VERSION', 'Esta versão de exportação ainda não é suportada.')
-      return libraryExportSchema.parse(raw) as LumiLibraryExport
+      return libraryExportSchema.parse(raw) as AuriLibraryExport
     } catch (error) {
       if (error instanceof DomainError) throw error
       throw new DomainError('IMPORT_INVALID', 'O arquivo de importação está corrompido ou incompleto.')
     }
   }
 
-  private findExisting(item: LumiExportWork): Work | null {
+  private findExisting(item: AuriExportWork): Work | null {
     for (const reference of item.externalRefs) {
       const found = this.repositories.externalRefs.findByProviderExternalId(reference.provider, reference.externalId)
       if (found) return this.repositories.works.findById(found.workId)
@@ -168,7 +169,7 @@ export class TransferService {
     return null
   }
 
-  private findProbable(item: LumiExportWork): Work | null {
+  private findProbable(item: AuriExportWork): Work | null {
     for (const title of [item.work.title, ...item.aliases.map((alias) => alias.name)]) {
       const found = this.repositories.works.findByNormalizedTitleOrAlias(normalizeSearchText(title))
       if (found) return found
@@ -180,7 +181,7 @@ export class TransferService {
     return current.userStatus !== imported.userStatus || current.rating !== imported.rating || current.favorite !== imported.favorite || current.notes !== imported.notes || current.lastReadChapter?.label !== imported.lastReadChapter?.label
   }
 
-  private insertWork(item: LumiExportWork): string {
+  private insertWork(item: AuriExportWork): string {
     const workId = randomUUID()
     const cover = item.work.cover.type === 'custom' ? { type: 'none' as const, sourceUrl: null, customPath: null, updatedAt: null } : { ...item.work.cover, customPath: null }
     this.repositories.works.create({ ...item.work, id: workId, normalizedTitle: normalizeSearchText(item.work.title), cover })
@@ -188,7 +189,7 @@ export class TransferService {
     return workId
   }
 
-  private mergeWork(workId: string, item: LumiExportWork, strategy: ImportStrategy): void {
+  private mergeWork(workId: string, item: AuriExportWork, strategy: ImportStrategy): void {
     const current = this.repositories.works.findById(workId)!
     if (strategy === 'use_imported') {
       const cover = item.work.cover.type === 'custom' ? current.cover : { ...item.work.cover, customPath: null }
@@ -202,7 +203,7 @@ export class TransferService {
     this.insertRelated(workId, item, true)
   }
 
-  private insertRelated(workId: string, item: LumiExportWork, merging: boolean): void {
+  private insertRelated(workId: string, item: AuriExportWork, merging: boolean): void {
     for (const alias of item.aliases) {
       const normalizedName = normalizeSearchText(alias.name)
       if (normalizedName !== this.repositories.works.findById(workId)!.normalizedTitle && !this.repositories.aliases.findByWorkAndNormalizedName(workId, normalizedName)) {

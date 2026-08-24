@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { DataPaths, LumiLibraryExport } from '@shared/contracts'
+import type { DataPaths, AuriLibraryExport } from '@shared/contracts'
 import { BackupService } from '@main/services/backup/backup-service'
 import { SettingsService } from '@main/services/settings-service'
 import { TransferService } from '@main/services/transfer-service'
@@ -15,7 +15,7 @@ const databases: Database.Database[] = []
 afterEach(() => { for (const db of databases.splice(0)) if (db.open) db.close(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 function setup(name: string) {
-  const root = mkdtempSync(join(tmpdir(), `lumi-transfer-${name}-`)); roots.push(root)
+  const root = mkdtempSync(join(tmpdir(), `auri-transfer-${name}-`)); roots.push(root)
   const paths: DataPaths = { root, database: join(root, 'data', 'library.sqlite'), assets: join(root, 'assets'), coverCache: join(root, 'cache', 'covers'), backups: join(root, 'backups'), logs: join(root, 'logs'), settings: join(root, 'settings.json') }
   for (const path of [join(root, 'data'), paths.assets, paths.coverCache, paths.backups, paths.logs]) mkdirSync(path, { recursive: true })
   const fixture = createDomainFixture(paths.database)
@@ -69,7 +69,7 @@ describe('TransferService', () => {
     const target = setup('invalid')
     const corrupt = join(target.root, 'corrupt.json'); writeFileSync(corrupt, '{')
     expect(() => target.transfer.analyzeImport(corrupt)).toThrowError(expect.objectContaining({ code: 'IMPORT_INVALID' }))
-    const future = join(target.root, 'future.json'); writeFileSync(future, JSON.stringify({ format: 'lumi-library', version: 99, exportedAt: '', works: [] }))
+    const future = join(target.root, 'future.json'); writeFileSync(future, JSON.stringify({ format: 'auri-library', version: 99, exportedAt: '', works: [] }))
     expect(() => target.transfer.analyzeImport(future)).toThrowError(expect.objectContaining({ code: 'IMPORT_UNSUPPORTED_VERSION' }))
     expect(target.fixture.services.library.queryWorks({})).toHaveLength(0)
   })
@@ -103,7 +103,7 @@ describe('TransferService', () => {
   it('não mescla correspondência apenas provável de forma silenciosa', async () => {
     const source = setup('probable-source'); createRichWork(source)
     const file = join(source.root, 'library.json')
-    const payload = JSON.parse(JSON.stringify(source.transfer.exportJson(file) && JSON.parse(readFileSync(file, 'utf8')))) as LumiLibraryExport
+    const payload = JSON.parse(JSON.stringify(source.transfer.exportJson(file) && JSON.parse(readFileSync(file, 'utf8')))) as AuriLibraryExport
     payload.works[0].externalRefs = []; writeFileSync(file, JSON.stringify(payload))
     const target = setup('probable-target')
     target.fixture.services.works.createWork({ title: 'The Shepherd Wizard', mediaType: 'manhwa', userStatus: 'reading' })

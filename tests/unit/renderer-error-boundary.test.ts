@@ -9,6 +9,6 @@ describe('RendererErrorBoundary', () => {
     boundary.state = { failed: true }
     const fallback = boundary.render() as ReactElement<{ className: string; children: ReactElement[] }>
     expect(fallback.props.className).toBe('renderer-fallback')
-    expect(fallback.props.children.at(-1)?.props).toMatchObject({ children: 'Recarregar Lumi' })
+    expect(fallback.props.children.at(-1)?.props).toMatchObject({ children: 'Recarregar Auri' })
   })
 })

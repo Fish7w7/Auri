@@ -23,7 +23,7 @@ function fromDetails(details: WorkDetails): WorkFormState {
   }
 }
 
-type EditorCoverApi = Pick<typeof window.lumi.assets, 'removeCover' | 'setRemoteCover' | 'selectCover'>
+type EditorCoverApi = Pick<typeof window.auri.assets, 'removeCover' | 'setRemoteCover' | 'selectCover'>
 export type EditorCoverResult = 'unchanged' | 'applied' | 'cancelled'
 
 export async function applyEditorCoverChange(workId: string, form: WorkFormState, initial: WorkFormState, assets: EditorCoverApi): Promise<EditorCoverResult> {
@@ -44,8 +44,8 @@ export function WorkEditorDialog({ open, details, onClose, onSaved }: { open: bo
   const [confirmClose, setConfirmClose] = useState(false)
   const { showToast } = useToast()
   const dirty = JSON.stringify(form) !== JSON.stringify(initial)
-  useEffect(() => { void window.lumi.updates.setDirty({ scope: 'work-editor', dirty: open && dirty }) }, [dirty, open])
-  useEffect(() => () => { void window.lumi.updates.setDirty({ scope: 'work-editor', dirty: false }) }, [])
+  useEffect(() => { void window.auri.updates.setDirty({ scope: 'work-editor', dirty: open && dirty }) }, [dirty, open])
+  useEffect(() => () => { void window.auri.updates.setDirty({ scope: 'work-editor', dirty: false }) }, [])
   const requestClose = () => dirty ? setConfirmClose(true) : onClose()
 
   async function save() {
@@ -67,7 +67,7 @@ export function WorkEditorDialog({ open, details, onClose, onSaved }: { open: bo
       const genresChanged = form.genres !== initial.genres
       const detailsChanged = Object.keys(workPatch).length > 1 || aliasesChanged || creatorsChanged || genresChanged
       if (detailsChanged) {
-        await window.lumi.works.updateDetailed({
+        await window.auri.works.updateDetailed({
           work: workPatch as DetailedUpdateWorkRequest['work'],
           ...(aliasesChanged ? { aliases: form.aliases.filter((item) => item.name.trim()).map((item) => ({ ...item, source: 'user' })) } : {}),
           ...(creatorsChanged ? { creators: form.creators.filter((item) => item.name.trim()).map((item) => ({ ...item, source: 'user' })) } : {}),
@@ -77,13 +77,13 @@ export function WorkEditorDialog({ open, details, onClose, onSaved }: { open: bo
       }
       const previousTags = new Map(details.tags.map((tag) => [tag.name.toLocaleLowerCase('pt-BR'), tag]))
       const nextTags = new Set(form.tags.map((tag) => tag.toLocaleLowerCase('pt-BR')))
-      for (const tag of details.tags) if (!nextTags.has(tag.name.toLocaleLowerCase('pt-BR'))) { await window.lumi.tags.removeFromWork({ workId: details.work.id, tagId: tag.id }); persistedChanges = true }
-      for (const tag of form.tags) if (!previousTags.has(tag.toLocaleLowerCase('pt-BR'))) { await window.lumi.tags.create({ workId: details.work.id, name: tag }); persistedChanges = true }
+      for (const tag of details.tags) if (!nextTags.has(tag.name.toLocaleLowerCase('pt-BR'))) { await window.auri.tags.removeFromWork({ workId: details.work.id, tagId: tag.id }); persistedChanges = true }
+      for (const tag of form.tags) if (!previousTags.has(tag.toLocaleLowerCase('pt-BR'))) { await window.auri.tags.create({ workId: details.work.id, name: tag }); persistedChanges = true }
       const previousCollections = new Set(details.collections.map((collection) => collection.id))
       const nextCollections = new Set(form.collectionIds)
-      for (const id of previousCollections) if (!nextCollections.has(id)) { await window.lumi.collections.removeWork({ workId: details.work.id, collectionId: id }); persistedChanges = true }
-      for (const id of nextCollections) if (!previousCollections.has(id)) { await window.lumi.collections.addWork({ workId: details.work.id, collectionId: id }); persistedChanges = true }
-      const coverResult = await applyEditorCoverChange(details.work.id, form, initial, window.lumi.assets)
+      for (const id of previousCollections) if (!nextCollections.has(id)) { await window.auri.collections.removeWork({ workId: details.work.id, collectionId: id }); persistedChanges = true }
+      for (const id of nextCollections) if (!previousCollections.has(id)) { await window.auri.collections.addWork({ workId: details.work.id, collectionId: id }); persistedChanges = true }
+      const coverResult = await applyEditorCoverChange(details.work.id, form, initial, window.auri.assets)
       if (coverResult === 'cancelled') {
         if (persistedChanges) {
           showToast({ kind: 'info', message: 'As demais alterações foram salvas; a troca de capa foi cancelada.' })

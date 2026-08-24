@@ -15,10 +15,10 @@ export function TrashPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [target, setTarget] = useState<Work | null>(null)
   const [busy, setBusy] = useState(false)
-  const load = useCallback(async () => { try { setWorks(await window.lumi.works.listTrash()); setState('ready') } catch { setState('error') } }, [])
+  const load = useCallback(async () => { try { setWorks(await window.auri.works.listTrash()); setState('ready') } catch { setState('error') } }, [])
   useEffect(() => { void load() }, [load])
-  async function restore(work: Work) { try { await window.lumi.works.restore({ workId: work.id }); showToast({ kind: 'success', message: `“${work.title}” foi restaurado.` }); refreshData(); await load() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }
-  async function permanentlyDelete() { if (!target) return; setBusy(true); try { await window.lumi.works.deletePermanently({ workId: target.id }); showToast({ kind: 'info', message: `“${target.title}” foi excluída permanentemente.` }); setTarget(null); refreshData(); await load() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) } }
+  async function restore(work: Work) { try { await window.auri.works.restore({ workId: work.id }); showToast({ kind: 'success', message: `“${work.title}” foi restaurado.` }); refreshData(); await load() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }
+  async function permanentlyDelete() { if (!target) return; setBusy(true); try { await window.auri.works.deletePermanently({ workId: target.id }); showToast({ kind: 'info', message: `“${target.title}” foi excluída permanentemente.` }); setTarget(null); refreshData(); await load() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) } }
 
   return <div className="page trash-page"><header className="page-header"><div><span className="page-kicker">Itens removidos</span><h1>Lixeira</h1><p>Restaure uma obra ou exclua seus dados definitivamente.</p></div></header>
     {state === 'loading' && <LoadingState />}{state === 'error' && <ErrorState title="Não foi possível abrir a Lixeira." onRetry={() => void load()} />}

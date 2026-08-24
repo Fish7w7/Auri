@@ -11,6 +11,7 @@ import type { HomeSectionModel } from '../lib/home-sections'
 import { selectBestReadingSource } from '../lib/source-selection'
 import { mapDomainError } from '../lib/format'
 import { useToast } from '../components/ui/Toast'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 const EMPTY_HOME: HomeData = { continueReading: [], staleReading: [], waiting: [], recentlyAdded: [] }
 
@@ -24,21 +25,21 @@ export function HomePage() {
   const { showToast } = useToast()
   const [data, setData] = useState<HomeData>(EMPTY_HOME)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const load = useCallback(async () => { try { setData(await window.lumi.library.home()); setState('ready') } catch { setState('error') } }, [])
-  useEffect(() => { void load(); const handler = () => void load(); window.addEventListener('lumi:data-changed', handler); return () => window.removeEventListener('lumi:data-changed', handler) }, [load])
+  const load = useCallback(async () => { try { setData(await window.auri.library.home()); setState('ready') } catch { setState('error') } }, [])
+  useEffect(() => { void load(); const handler = () => void load(); window.addEventListener('auri:data-changed', handler); return () => window.removeEventListener('auri:data-changed', handler) }, [load])
   const refresh = useCallback(() => { refreshData() }, [refreshData])
   const actions = useWorkActions(refresh)
   const sections = getVisibleHomeSections(data)
 
   async function continueReading(work: Work) {
     try {
-      const source = selectBestReadingSource(await window.lumi.sources.list({ workId: work.id }))
+      const source = selectBestReadingSource(await window.auri.sources.list({ workId: work.id }))
       const url = source?.lastReadUrl || source?.seriesUrl
       if (!url) {
         showToast({ kind: 'warning', message: 'Nenhuma fonte utilizável foi cadastrada para esta obra.', action: { label: 'Abrir obra', onClick: () => navigate(`/work/${work.id}`) } })
         return
       }
-      await window.lumi.shell.openExternal({ url })
+      await window.auri.shell.openExternal({ url })
     } catch (error) {
       showToast({ kind: 'error', message: mapDomainError(error) })
     }
@@ -46,7 +47,7 @@ export function HomePage() {
 
   if (state === 'loading') return <div className="page"><LoadingState label="Organizando sua leitura…" /></div>
   if (state === 'error') return <div className="page"><ErrorState onRetry={() => void load()} /></div>
-  if (summary.total === 0) return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Bem-vindo ao Lumi</span><h1>Home</h1></div></header><EmptyState title="Sua biblioteca ainda está vazia." description="Adicione sua primeira obra para começar a acompanhar suas leituras." action={<Button variant="primary" icon="plus" title="Adicionar obra (Ctrl+N)" onClick={openAddWork}>Adicionar obra</Button>} /></div>
+  if (summary.total === 0) return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Bem-vindo ao {APP_BRAND.name}</span><h1>Home</h1></div></header><EmptyState title="Sua biblioteca ainda está vazia." description="Adicione sua primeira obra para começar a acompanhar suas leituras." action={<Button variant="primary" icon="plus" title="Adicionar obra (Ctrl+N)" onClick={openAddWork}>Adicionar obra</Button>} /></div>
   if (sections.length === 0) return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Sua leitura, no seu ritmo</span><h1>Home</h1></div></header><EmptyState title="Sua biblioteca ainda não tem leituras para continuar." description="Abra a Biblioteca para escolher o que ler a seguir." action={<Button icon="library" onClick={() => navigate('/library')}>Ver Biblioteca</Button>} /></div>
 
   return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Sua leitura, no seu ritmo</span><h1>Home</h1><p>Retome de onde parou.</p></div><Button icon="library" onClick={() => navigate('/library')}>Ver Biblioteca</Button></header>

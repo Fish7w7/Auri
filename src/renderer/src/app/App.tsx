@@ -32,19 +32,19 @@ function AppShell() {
   const settingsUpdateQueue = useRef<Promise<void>>(Promise.resolve())
 
   const loadSummary = useCallback(async () => {
-    try { setSummary(await window.lumi.library.summary()) } catch { /* páginas mostram o erro de dados */ }
+    try { setSummary(await window.auri.library.summary()) } catch { /* páginas mostram o erro de dados */ }
   }, [])
   useEffect(() => {
-    void Promise.all([window.lumi.settings.get().then(setSettings), loadSummary()]).finally(() => setReady(true))
+    void Promise.all([window.auri.settings.get().then(setSettings), loadSummary()]).finally(() => setReady(true))
   }, [loadSummary])
 
   const refreshData = useCallback(() => {
     void loadSummary()
-    window.dispatchEvent(new Event('lumi:data-changed'))
+    window.dispatchEvent(new Event('auri:data-changed'))
   }, [loadSummary])
   const updateSettings = useCallback(async (patch: UpdateSettingsRequest) => {
     const operation = settingsUpdateQueue.current.then(async () => {
-      const next = await window.lumi.settings.update(patch)
+      const next = await window.auri.settings.update(patch)
       setSettings(next)
     })
     settingsUpdateQueue.current = operation.catch(() => undefined)
@@ -52,7 +52,7 @@ function AppShell() {
   }, [])
   const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => setAddOpen(true) }), [refreshData, settings, summary, updateSettings])
 
-  if (!ready) return <div className="app-loading"><div className="brand-mark brand-mark--large">L</div><span>Preparando sua biblioteca…</span></div>
+  if (!ready) return <div className="app-loading"><span>Preparando sua biblioteca…</span></div>
 
   return <AppContext.Provider value={context}><KeyboardShortcutsProvider onQuickSearch={() => setQuickSearchOpen(true)} onAddWork={() => setAddOpen(true)} canAddWork={route.page !== 'settings'}><div className="app-shell">
       <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />

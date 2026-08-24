@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { BrowserWindow, shell } from 'electron'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export interface MainWindowOptions {
   showWhenReady?: boolean
@@ -8,7 +9,7 @@ export interface MainWindowOptions {
 
 export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden = false }: MainWindowOptions = {}): BrowserWindow {
   const window = new BrowserWindow({
-    title: 'Lumi',
+    title: APP_BRAND.name,
     width: 1200,
     height: 780,
     minWidth: 900,
@@ -16,7 +17,6 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     show: false,
     backgroundColor: '#111016',
     autoHideMenuBar: true,
-    icon: resolveWindowIcon(),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#15141a',
@@ -53,10 +53,4 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
   }
 
   return window
-}
-
-function resolveWindowIcon(): string {
-  return process.env.ELECTRON_RENDERER_URL
-    ? join(process.cwd(), 'src/renderer/public/lumi-icon.png')
-    : join(__dirname, '../renderer/lumi-icon.png')
 }

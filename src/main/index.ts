@@ -13,6 +13,8 @@ import { JsonLogger } from './logging/logger'
 import { classifyDatabaseOpenFailure, createRecoveryBackupService } from './services/database-recovery-service'
 import type { SafePageFetcher } from './services/url-metadata/safe-page-fetcher'
 import type { UpdaterAdapter } from './services/update-service'
+import { APP_BRAND } from '@shared/constants/app-branding'
+import { APP_USER_MODEL_ID, CURRENT_LOG_FILE_NAME } from './app/app-identity'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
@@ -24,7 +26,7 @@ const isReleasePersistenceSmokeTest = process.argv.includes('--release-persisten
 const isReleaseBackupRestoreTest = process.argv.includes('--release-backup-restore-test')
 const isReleaseDataSmokeTest = isReleasePersistenceSmokeTest || isReleaseBackupRestoreTest
 const testCoverBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
-const testMetadata: MetadataWork = { provider: 'anilist', externalId: '987654', title: 'Lumi Metadata Test', originalTitle: 'ルミテスト', aliases: [{ name: 'Lumi Test', kind: 'synonym' }], description: 'Metadados determinísticos para validar a integração completa.', mediaType: 'manga', publicationStatus: 'ongoing', countryCode: 'JP', startDate: '2026-08', endDate: null, creators: [{ name: 'Lumi Author', role: 'author' }], genres: ['Teste', 'Fantasia'], coverUrl: 'https://fixtures.lumi.invalid/cover.png', canonicalUrl: 'https://anilist.co/manga/987654' }
+const testMetadata: MetadataWork = { provider: 'anilist', externalId: '987654', title: 'Auri Metadata Test', originalTitle: 'ルミテスト', aliases: [{ name: 'Auri Test', kind: 'synonym' }], description: 'Metadados determinísticos para validar a integração completa.', mediaType: 'manga', publicationStatus: 'ongoing', countryCode: 'JP', startDate: '2026-08', endDate: null, creators: [{ name: 'Auri Author', role: 'author' }], genres: ['Teste', 'Fantasia'], coverUrl: 'https://fixtures.auri.invalid/cover.png', canonicalUrl: 'https://anilist.co/manga/987654' }
 let testMetadataReads = 0
 const testMetadataProvider: MetadataProvider = { id: 'anilist', search: async (query) => { const normalized = query.trim().toLowerCase(); if (normalized === 'offline') throw new DomainError('METADATA_PROVIDER_UNAVAILABLE', 'Fixture offline.'); if (normalized === 'sem resultado') return []; return [{ provider: testMetadata.provider, externalId: testMetadata.externalId, title: testMetadata.title, originalTitle: testMetadata.originalTitle, mediaType: testMetadata.mediaType, publicationStatus: testMetadata.publicationStatus, countryCode: testMetadata.countryCode, startDate: testMetadata.startDate, coverUrl: testMetadata.coverUrl, canonicalUrl: testMetadata.canonicalUrl }] }, getById: async (id) => { if (id !== testMetadata.externalId) return null; testMetadataReads += 1; return testMetadataReads > 1 ? { ...testMetadata, description: 'Descrição atualizada pela fixture de refresh.' } : testMetadata } }
 const testCoverClient: CoverDownloadClient = { isOnline: () => true, download: async () => testCoverBytes }
@@ -35,19 +37,20 @@ const testUpdaterAdapter = {
   on(event: string, listener: (...args: unknown[]) => void) { testUpdateHandlers.set(event, [...(testUpdateHandlers.get(event) ?? []), listener]) },
   checkForUpdates: async () => null, downloadUpdate: async () => [], quitAndInstall: () => undefined
 } as UpdaterAdapter
-const testReleaseNotes = '<h1>Lumi v1.2.0</h1><p>Uma atualização com <strong>melhorias importantes</strong> e <em>mais clareza</em>.</p><h2>Novidades</h2><ul><li>Janela integrada ao Lumi</li><li>Ícone oficial no Windows</li><li>Notas de versão legíveis</li><li>Links externos seguros</li><li>Melhor apresentação do progresso</li><li>Controles nativos preservados</li><li>Atalhos do instalador atualizados</li><li>Compatibilidade com bibliotecas existentes</li></ul><p>Consulte os <a href="https://example.com/lumi-release">detalhes completos</a> ou use <code>Ctrl+K</code>.</p><script>window.__lumiUnsafeReleaseNote = true</script><iframe src="https://example.com"></iframe>'
+const testReleaseNotes = '<h1>Auri v1.2.0</h1><p>Uma atualização com <strong>melhorias importantes</strong> e <em>mais clareza</em>.</p><h2>Novidades</h2><ul><li>Janela integrada ao Auri</li><li>Identidade Auri no Windows</li><li>Notas de versão legíveis</li><li>Links externos seguros</li><li>Melhor apresentação do progresso</li><li>Controles nativos preservados</li><li>Atalhos do instalador atualizados</li><li>Restauração de backups legados</li></ul><p>Consulte os <a href="https://example.com/auri-release">detalhes completos</a> ou use <code>Ctrl+K</code>.</p><script>window.__auriUnsafeReleaseNote = true</script><iframe src="https://example.com"></iframe>'
 
 function emitTestUpdate(event: string, value: unknown): void {
   for (const handler of testUpdateHandlers.get(event) ?? []) handler(value)
 }
 
-app.setName('Lumi')
+app.setName(APP_BRAND.name)
+app.setAppUserModelId(APP_USER_MODEL_ID)
 if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) app.disableHardwareAcceleration()
 if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) app.commandLine.appendSwitch('in-process-gpu')
 if (isSmokeTest || isScreenshotTest || isSettingsScrollTest || isBackupSmokeTest || isReleaseDataSmokeTest) {
   app.setPath(
     'userData',
-    join(app.getPath('temp'), isScreenshotTest ? 'lumi-screenshot-test' : isSettingsScrollTest ? 'lumi-settings-scroll-test' : isBackupSmokeTest ? 'lumi-backup-smoke-test' : isReleasePersistenceSmokeTest ? 'lumi-release-persistence-test' : isReleaseBackupRestoreTest ? 'lumi-release-backup-restore-test' : 'lumi-smoke-test')
+    join(app.getPath('temp'), isScreenshotTest ? 'auri-screenshot-test' : isSettingsScrollTest ? 'auri-settings-scroll-test' : isBackupSmokeTest ? 'auri-backup-smoke-test' : isReleasePersistenceSmokeTest ? 'auri-release-persistence-test' : isReleaseBackupRestoreTest ? 'auri-release-backup-restore-test' : 'auri-smoke-test')
   )
 }
 
@@ -71,11 +74,11 @@ if (!singleInstanceLock) {
       } : {})
       if (isScreenshotTest) emitTestUpdate('update-available', { version: '1.2.0', releaseNotes: testReleaseNotes })
       if (isReleasePersistenceSmokeTest) {
-        try { await runReleasePersistenceSmoke(context) } catch (error) { console.error('LUMI_RELEASE_PERSISTENCE_TEST_FAILED', error); app.exit(1) }
+        try { await runReleasePersistenceSmoke(context) } catch (error) { console.error('AURI_RELEASE_PERSISTENCE_TEST_FAILED', error); app.exit(1) }
         return
       }
       if (isReleaseBackupRestoreTest) {
-        try { await runReleaseBackupRestoreSmoke(context) } catch (error) { console.error('LUMI_RELEASE_BACKUP_RESTORE_TEST_FAILED', error); app.exit(1) }
+        try { await runReleaseBackupRestoreSmoke(context) } catch (error) { console.error('AURI_RELEASE_BACKUP_RESTORE_TEST_FAILED', error); app.exit(1) }
         return
       }
       if (isBackupSmokeTest) {
@@ -87,7 +90,7 @@ if (!singleInstanceLock) {
         context.services.transfer.exportJson(exportPath)
         const importPreview = context.services.transfer.analyzeImport(exportPath)
         if (preview.workCount < 1 || importPreview.total < 1) throw new Error('Backup/export preview vazio.')
-        console.log(`LUMI_BACKUP_SMOKE_TEST_OK backup=${backup.fileName} works=${preview.workCount}`)
+        console.log(`AURI_BACKUP_SMOKE_TEST_OK backup=${backup.fileName} works=${preview.workCount}`)
         app.quit()
         return
       }
@@ -223,12 +226,12 @@ if (!singleInstanceLock) {
                   option.click()
                   await sleep(80)
                 }
-                const testTitle = 'Lumi E2E Work'
-                const status = await window.lumi.system.getStatus()
-                for (const item of await window.lumi.library.query({ search: testTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
-                for (const cleanupTitle of ['Lumi Metadata Test', 'Meu título importado', 'Offline Manual E2E', 'URL Smoke Work']) for (const item of await window.lumi.library.query({ search: cleanupTitle })) await window.lumi.works.deletePermanently({ workId: item.id })
-                for (const item of await window.lumi.works.listTrash()) if (item.title === testTitle) await window.lumi.works.deletePermanently({ workId: item.id })
-                for (const collection of await window.lumi.collections.list()) if (collection.name === 'Murim favoritos E2E') await window.lumi.collections.delete({ collectionId: collection.id })
+                const testTitle = 'Auri E2E Work'
+                const status = await window.auri.system.getStatus()
+                for (const item of await window.auri.library.query({ search: testTitle })) await window.auri.works.deletePermanently({ workId: item.id })
+                for (const cleanupTitle of ['Auri Metadata Test', 'Meu título importado', 'Offline Manual E2E', 'URL Smoke Work']) for (const item of await window.auri.library.query({ search: cleanupTitle })) await window.auri.works.deletePermanently({ workId: item.id })
+                for (const item of await window.auri.works.listTrash()) if (item.title === testTitle) await window.auri.works.deletePermanently({ workId: item.id })
+                for (const collection of await window.auri.collections.list()) if (collection.name === 'Murim favoritos E2E') await window.auri.collections.delete({ collectionId: collection.id })
                 window.location.hash = '/library'
                 await waitFor(() => document.querySelector('.library-page'), 'Biblioteca inicial')
 
@@ -244,7 +247,7 @@ if (!singleInstanceLock) {
                 await waitFor(() => document.querySelector('.sidebar:not(.sidebar--compact) button[aria-label="Recolher sidebar"]'), 'sidebar expandida')
                 document.querySelector('button[aria-label="Recolher sidebar"]').click()
                 await waitFor(() => document.querySelector('.sidebar--compact button[aria-label="Expandir sidebar"]'), 'segundo recolhimento')
-                if (!(await window.lumi.settings.get()).sidebarCompact) throw new Error('Sidebar compacta não foi persistida após o ciclo.')
+                if (!(await window.auri.settings.get()).sidebarCompact) throw new Error('Sidebar compacta não foi persistida após o ciclo.')
 
                 // Atalhos contextuais não interferem com campos e Ctrl+N reutiliza o cadastro existente.
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
@@ -261,10 +264,10 @@ if (!singleInstanceLock) {
                 setInput(modal.querySelector('input[placeholder="Ex.: Nano Machine"]'), testTitle)
                 setInput(modal.querySelector('input[placeholder="183, 10A ou Prólogo"]'), '183')
                 byText(modal, 'Adicionar').click()
-                const work = await waitFor(async () => (await window.lumi.library.query({ search: testTitle }))[0], 'obra criada')
+                const work = await waitFor(async () => (await window.auri.library.query({ search: testTitle }))[0], 'obra criada')
                 await waitFor(() => byText(document, 'Abrir obra'), 'ação Abrir obra')
                 await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro rápido fechado')
-                if (!(await window.lumi.settings.get()).sidebarCompact) throw new Error('Cadastro resetou a preferência da sidebar.')
+                if (!(await window.auri.settings.get()).sidebarCompact) throw new Error('Cadastro resetou a preferência da sidebar.')
 
                 // Tamanhos de card mudam as colunas sem resetar a sidebar compacta.
                 const cardColumns = {}
@@ -273,8 +276,8 @@ if (!singleInstanceLock) {
                   await waitFor(() => document.querySelector('.settings-page'), 'Configurações para tamanho ' + label)
                   const sizeButton = await waitFor(() => Array.from(document.querySelectorAll('.size-segmented button')).find((button) => button.textContent.trim() === label), 'controle de tamanho ' + label)
                   sizeButton.click()
-                  await waitFor(async () => (await window.lumi.settings.get()).cardSize === value, 'persistência do tamanho ' + label)
-                  const persistedSidebar = (await window.lumi.settings.get()).sidebarCompact
+                  await waitFor(async () => (await window.auri.settings.get()).cardSize === value, 'persistência do tamanho ' + label)
+                  const persistedSidebar = (await window.auri.settings.get()).sidebarCompact
                   if (!document.querySelector('.sidebar--compact button[aria-label="Expandir sidebar"]') || !persistedSidebar) throw new Error('Sidebar foi resetada ao mudar tamanho dos cards: persistida=' + persistedSidebar)
                   window.location.hash = '/library'
                   const gridButton = await waitFor(() => document.querySelector('button[aria-label="Visualização em grade"]'), 'controle de grade')
@@ -313,7 +316,7 @@ if (!singleInstanceLock) {
                 // C — fonte derivando domínio e tornando-se preferida.
                 byText(document.querySelector('.no-source-callout'), 'Adicionar fonte').click()
                 modal = await waitFor(latestDialog, 'adicionar fonte')
-                setInput(modal.querySelector('input[placeholder="https://scan.example/obra"]'), 'https://scan.e2e.example/lumi')
+                setInput(modal.querySelector('input[placeholder="https://scan.example/obra"]'), 'https://scan.e2e.example/auri')
                 modal.querySelector('input[type="checkbox"]').click()
                 byText(modal, 'Adicionar').click()
                 await waitFor(() => document.querySelector('.source-row strong')?.textContent.includes('★'), 'fonte preferida')
@@ -408,7 +411,7 @@ if (!singleInstanceLock) {
                 byText(document, 'Restaurar').click()
                 await waitFor(() => document.querySelector('.work-page h1')?.textContent === testTitle, 'obra restaurada')
 
-                const persisted = await window.lumi.works.getDetails({ workId: work.id })
+                const persisted = await window.auri.works.getDetails({ workId: work.id })
                 const checks = { progress: persisted.work.lastReadChapter?.label === '183', alias: persisted.aliases.some((item) => item.name === 'E2E Alternative'), tag: persisted.tags.some((item) => item.name === 'Murim E2E'), source: persisted.sources[0]?.isPreferred === true, collection: persisted.collections.some((item) => item.name === 'Murim favoritos E2E'), cover: persisted.work.cover.type === 'custom' }
                 const domainReady = Object.values(checks).every(Boolean)
                 if (!domainReady) throw new Error('E2E domain checks: ' + JSON.stringify(checks))
@@ -419,25 +422,25 @@ if (!singleInstanceLock) {
                 modal = await waitFor(latestDialog, 'escolha de metadata')
                 byText(modal, 'Buscar metadados').click()
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.metadata-search)'), 'pesquisa de metadata')
-                setInput(modal.querySelector('.metadata-search input'), 'Lumi')
+                setInput(modal.querySelector('.metadata-search input'), 'Auri')
                 ;(await waitFor(() => modal.querySelector('.metadata-results button'), 'resultado de metadata')).click()
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.metadata-review)'), 'revisão de metadata')
-                byText(modal, 'Importar para o Lumi').click()
-                const imported = await waitFor(async () => (await window.lumi.library.query({ search: 'Lumi Metadata Test' }))[0] && await window.lumi.works.getDetails({ workId: (await window.lumi.library.query({ search: 'Lumi Metadata Test' }))[0].id }), 'obra importada')
-                const remoteCover = await window.lumi.covers.get({ workId: imported.work.id })
-                const cacheUsage = await window.lumi.covers.usage()
+                byText(modal, 'Importar para o Auri').click()
+                const imported = await waitFor(async () => (await window.auri.library.query({ search: 'Auri Metadata Test' }))[0] && await window.auri.works.getDetails({ workId: (await window.auri.library.query({ search: 'Auri Metadata Test' }))[0].id }), 'obra importada')
+                const remoteCover = await window.auri.covers.get({ workId: imported.work.id })
+                const cacheUsage = await window.auri.covers.usage()
                 const metadataReady = imported.externalRefs[0]?.lastSyncedAt && remoteCover.state === 'ready' && remoteCover.dataUrl?.startsWith('data:image/webp') && cacheUsage.files >= 1
                 if (!metadataReady) throw new Error('Metadata/cover E2E checks failed')
                 // H — override de título e refresh manual com preview.
                 window.location.hash = '/work/' + imported.work.id
-                await waitFor(() => document.querySelector('.work-page h1')?.textContent === 'Lumi Metadata Test', 'obra importada aberta')
+                await waitFor(() => document.querySelector('.work-page h1')?.textContent === 'Auri Metadata Test', 'obra importada aberta')
                 byText(openWorkMenu(), 'Editar obra').click()
                 modal = await waitFor(latestDialog, 'editar obra importada')
                 const customCoverOption = Array.from(modal.querySelectorAll('.cover-options label')).find((label) => label.textContent.includes('Arquivo local'))
                 customCoverOption.querySelector('input').click()
                 byText(modal, 'Salvar alterações').click()
                 await sleep(150)
-                if (!modal.open || (await window.lumi.works.get({ workId: imported.work.id })).cover.type !== 'remote') throw new Error('Cancelamento da capa encerrou o editor ou alterou a capa.')
+                if (!modal.open || (await window.auri.works.get({ workId: imported.work.id })).cover.type !== 'remote') throw new Error('Cancelamento da capa encerrou o editor ou alterou a capa.')
                 const remoteCoverOption = Array.from(modal.querySelectorAll('.cover-options label')).find((label) => label.textContent.trim() === 'URL')
                 remoteCoverOption.querySelector('input').click()
                 setInput(modal.querySelector('input[placeholder="Ex.: Nano Machine"]'), 'Meu título importado')
@@ -450,9 +453,9 @@ if (!singleInstanceLock) {
                 await waitFor(() => !document.querySelector('dialog[open]:has(.metadata-refresh)'), 'refresh aplicado')
                 if (document.querySelector('.work-page h1')?.textContent !== 'Meu título importado') throw new Error('Override title was overwritten')
                 // I — limpeza e reconstrução do cache.
-                await window.lumi.covers.clearAll()
-                if ((await window.lumi.covers.usage()).files !== 0) throw new Error('Cover cache was not cleared')
-                if ((await window.lumi.covers.get({ workId: imported.work.id })).state !== 'ready') throw new Error('Cover cache was not rebuilt')
+                await window.auri.covers.clearAll()
+                if ((await window.auri.covers.usage()).files !== 0) throw new Error('Cover cache was not cleared')
+                if ((await window.auri.covers.get({ workId: imported.work.id })).state !== 'ready') throw new Error('Cover cache was not rebuilt')
                 // J — zero resultados orienta; provider offline não bloqueia o cadastro manual.
                 window.location.hash = '/library'
                 await waitFor(() => document.querySelector('.library-page'), 'biblioteca offline')
@@ -474,7 +477,7 @@ if (!singleInstanceLock) {
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.work-form)'), 'formulário manual offline')
                 setInput(modal.querySelector('input[placeholder="Ex.: Nano Machine"]'), 'Offline Manual E2E')
                 byText(modal, 'Adicionar obra').click()
-                const offlineWork = await waitFor(async () => (await window.lumi.library.query({ search: 'Offline Manual E2E' }))[0], 'cadastro manual offline')
+                const offlineWork = await waitFor(async () => (await window.auri.library.query({ search: 'Offline Manual E2E' }))[0], 'cadastro manual offline')
                 await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro manual offline fechado')
 
                 // Fluxo seguro de URL usa HTML determinístico e confirma a fonte antes do cadastro.
@@ -489,8 +492,8 @@ if (!singleInstanceLock) {
                 byText(modal, 'Continuar com dados detectados').click()
                 modal = await waitFor(() => document.querySelector('dialog[open]:has(.work-form)'), 'cadastro manual vindo da URL')
                 byText(modal, 'Adicionar obra').click()
-                const urlWork = await waitFor(async () => (await window.lumi.library.query({ search: 'URL Smoke Work' }))[0], 'obra cadastrada por URL')
-                const urlDetails = await window.lumi.works.getDetails({ workId: urlWork.id })
+                const urlWork = await waitFor(async () => (await window.auri.library.query({ search: 'URL Smoke Work' }))[0], 'obra cadastrada por URL')
+                const urlDetails = await window.auri.works.getDetails({ workId: urlWork.id })
                 if (urlDetails.sources[0]?.domain !== 'reader.e2e.example' || !urlDetails.sources[0]?.isPreferred) throw new Error('Fonte da URL não foi preservada no cadastro.')
                 await waitFor(() => !document.querySelector('dialog[open]'), 'cadastro por URL fechado')
 
@@ -520,27 +523,27 @@ if (!singleInstanceLock) {
                 await sleep(120)
                 if (document.querySelectorAll('.toast--error').length !== errorsBeforeCancel || document.querySelector('dialog[open]')) throw new Error('Cancelamento de backup/export foi tratado como erro.')
 
-                await window.lumi.works.deletePermanently({ workId: imported.work.id })
-                await window.lumi.works.deletePermanently({ workId: offlineWork.id })
-                await window.lumi.works.deletePermanently({ workId: urlWork.id })
-                await window.lumi.works.deletePermanently({ workId: work.id })
+                await window.auri.works.deletePermanently({ workId: imported.work.id })
+                await window.auri.works.deletePermanently({ workId: offlineWork.id })
+                await window.auri.works.deletePermanently({ workId: urlWork.id })
+                await window.auri.works.deletePermanently({ workId: work.id })
                 return { schemaVersion: status.database.schemaVersion, domainReady: domainReady && !!metadataReady }
               })()
             `))
             .then((result: { schemaVersion: number; domainReady: boolean }) => {
               console.log(
-                `LUMI_SMOKE_TEST_OK schema=${result.schemaVersion} domain=${result.domainReady}`
+                `AURI_SMOKE_TEST_OK schema=${result.schemaVersion} domain=${result.domainReady}`
               )
               app.quit()
             })
             .catch((error: unknown) => {
-              console.error('LUMI_SMOKE_TEST_FAILED', error instanceof Error ? error.stack : error)
+              console.error('AURI_SMOKE_TEST_FAILED', error instanceof Error ? error.stack : error)
               app.exit(1)
             })
         })
 
         mainWindow.webContents.once('did-fail-load', (_event, code, description) => {
-          console.error(`LUMI_SMOKE_TEST_FAILED load=${code} ${description}`)
+          console.error(`AURI_SMOKE_TEST_FAILED load=${code} ${description}`)
           app.exit(1)
         })
       }
@@ -592,7 +595,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-backup-1440x900-bottom.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-backup-1440x900-bottom.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const appearance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Aparência')
@@ -637,7 +640,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-advanced-1100x720-bottom.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-advanced-1100x720-bottom.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const appearance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Aparência')
@@ -651,13 +654,13 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 300)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-appearance-1100x720-top.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-appearance-1100x720-top.png'), image.toPNG()))
             .then(() => {
-              console.log('LUMI_SETTINGS_SCROLL_TEST_OK resolutions=1440x900,1100x720')
+              console.log('AURI_SETTINGS_SCROLL_TEST_OK resolutions=1440x900,1100x720')
               app.quit()
             })
             .catch((error: unknown) => {
-              console.error('LUMI_SETTINGS_SCROLL_TEST_FAILED', error)
+              console.error('AURI_SETTINGS_SCROLL_TEST_FAILED', error)
               app.exit(1)
             })
         })
@@ -687,13 +690,13 @@ if (!singleInstanceLock) {
             .then(() => new Promise((resolve) => setTimeout(resolve, 500)))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-home.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-home.png'), image.toPNG()))
             .then(() => { mainWindow.blur(); return new Promise((resolve) => setTimeout(resolve, 200)) })
             .then(() => mainWindow.webContents.executeJavaScript(`
               document.querySelector('.window-titlebar.is-inactive') ? true : Promise.reject(new Error('Estado inativo da title bar não foi aplicado.'))
             `))
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-window-inactive.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-window-inactive.png'), image.toPNG()))
             .then(() => { mainWindow.focus(); return new Promise((resolve) => setTimeout(resolve, 200)) })
             .then(() =>
               mainWindow.webContents.executeJavaScript(`
@@ -733,9 +736,9 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-library.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-library.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
-              window.lumi.library.query({ search: 'Nano Machine' }).then((works) => {
+              window.auri.library.query({ search: 'Nano Machine' }).then((works) => {
                 window.location.hash = '/work/' + works[0].id
                 return new Promise((resolve, reject) => {
                   const started = Date.now()
@@ -751,7 +754,7 @@ if (!singleInstanceLock) {
             .then(() => mainWindow.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 700)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-work.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-work.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               window.location.hash = '/library'
               new Promise((resolve, reject) => {
@@ -781,7 +784,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-add-search.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-add-search.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const manual = Array.from(document.querySelectorAll('dialog[open] button')).find((button) => button.textContent.includes('Adicionar manualmente'))
@@ -792,7 +795,7 @@ if (!singleInstanceLock) {
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => {
-              writeFileSync(join(output, 'lumi-add-manual.png'), image.toPNG())
+              writeFileSync(join(output, 'auri-add-manual.png'), image.toPNG())
             })
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
@@ -823,7 +826,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-appearance.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-appearance.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup')
@@ -839,7 +842,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-backup.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-backup.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const updates = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Atualizações')
@@ -849,7 +852,7 @@ if (!singleInstanceLock) {
                   const card = document.querySelector('.settings-panel .update-card')
                   const notes = document.querySelector('.release-notes__content')
                   if (card && notes) {
-                      if (notes.textContent.includes('<h1>') || window.__lumiUnsafeReleaseNote) return reject(new Error('HTML remoto inseguro foi executado ou exibido cru.'))
+                      if (notes.textContent.includes('<h1>') || window.__auriUnsafeReleaseNote) return reject(new Error('HTML remoto inseguro foi executado ou exibido cru.'))
                       if (notes.querySelector('script, iframe, style, object, embed')) return reject(new Error('Elemento remoto inseguro permaneceu no Renderer.'))
                       if (!notes.querySelector('h1, h2') || !notes.querySelector('ul li') || !notes.querySelector('strong') || !notes.querySelector('a[href^="https://"]')) return reject(new Error('Estrutura das release notes ficou incompleta.'))
                       if (notes.scrollHeight <= notes.clientHeight) return reject(new Error('Release notes extensas não ativaram o scroll interno.'))
@@ -865,13 +868,13 @@ if (!singleInstanceLock) {
             .then(() => mainWindow.webContents.executeJavaScript(`
               (() => {
                 const notes = document.querySelector('.release-notes__content')
-                if (!notes || !notes.textContent.includes('Janela integrada ao Lumi')) throw new Error('Release notes não permaneceram estáveis antes da captura.')
+                if (!notes || !notes.textContent.includes('Janela integrada ao Auri')) throw new Error('Release notes não permaneceram estáveis antes da captura.')
                 return true
               })()
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 250)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-updates.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-updates.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const advanced = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Avançado')
@@ -900,7 +903,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-advanced.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-advanced.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               const page = document.querySelector('.settings-page')
               if (page) page.scrollTop = page.scrollHeight
@@ -908,7 +911,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-settings-maintenance.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-maintenance.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               window.location.hash = '/library'
               new Promise((resolve, reject) => {
@@ -932,7 +935,7 @@ if (!singleInstanceLock) {
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => {
-              writeFileSync(join(output, 'lumi-library-list-compact.png'), image.toPNG())
+              writeFileSync(join(output, 'auri-library-list-compact.png'), image.toPNG())
               return mainWindow.webContents.executeJavaScript(`document.querySelector('button[aria-label="Visualização em grade"]')?.click()`)
             })
             .then(() => mainWindow.webContents.executeJavaScript(`
@@ -955,7 +958,7 @@ if (!singleInstanceLock) {
               })()
             `))
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-library-grid-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-library-grid-compact.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const button = Array.from(document.querySelectorAll('.library-toolbar button')).find((item) => item.textContent.trim() === 'Filtros')
@@ -976,7 +979,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-library-filters-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-library-filters-compact.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               document.querySelector('.filter-popover__header > button')?.click()
               window.location.hash = '/'
@@ -990,7 +993,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-home-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-home-compact.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               window.location.hash = '/collections'
               new Promise((resolve, reject) => {
@@ -1003,7 +1006,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-collections-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-collections-compact.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               window.location.hash = '/library'
               new Promise((resolve, reject) => {
@@ -1025,7 +1028,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-bulk-actions-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-bulk-actions-compact.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const exit = Array.from(document.querySelectorAll('.bulk-toolbar button')).find((button) => button.textContent.trim() === 'Sair da seleção')
@@ -1052,13 +1055,13 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-sidebar-tooltip-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-sidebar-tooltip-compact.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise(async (resolve, reject) => {
                 document.querySelector('button[aria-label="Expandir sidebar"]')?.click()
-                const works = await window.lumi.library.query({ search: 'Eleceed' })
+                const works = await window.auri.library.query({ search: 'Eleceed' })
                 if (!works[0]) return reject(new Error('Obra para a Lixeira não encontrada.'))
-                await window.lumi.works.trash({ workId: works[0].id })
+                await window.auri.works.trash({ workId: works[0].id })
                 window.location.hash = '/trash'
                 const started = Date.now()
                 const check = () => document.querySelector('.trash-item .button--danger-ghost')
@@ -1069,13 +1072,13 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'lumi-trash-compact.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-trash-compact.png'), image.toPNG()))
             .then(() => {
-              console.log('LUMI_SCREENSHOT_TEST_OK')
+              console.log('AURI_SCREENSHOT_TEST_OK')
               app.quit()
             })
             .catch((error: unknown) => {
-              console.error('LUMI_SCREENSHOT_TEST_FAILED', error)
+              console.error('AURI_SCREENSHOT_TEST_FAILED', error)
               app.exit(1)
             })
         })
@@ -1116,7 +1119,7 @@ async function runReleasePersistenceSmoke(appContext: AppContext): Promise<void>
     appContext.services.progress.incrementProgress({ workId: details.work.id })
     appContext.services.settings.updateSettings({ libraryView: 'list', librarySort: 'title_asc', cardSize: 'large', sidebarCompact: true, backupAutomatic: false })
     writeFileSync(markerPath, JSON.stringify({ workId: details.work.id }), 'utf8')
-    console.log('LUMI_RELEASE_PERSISTENCE_TEST_SEEDED')
+    console.log('AURI_RELEASE_PERSISTENCE_TEST_SEEDED')
     app.quit()
     return
   }
@@ -1135,7 +1138,7 @@ async function runReleasePersistenceSmoke(appContext: AppContext): Promise<void>
   assertRelease(settings.libraryView === 'list' && settings.librarySort === 'title_asc' && settings.cardSize === 'large' && settings.sidebarCompact && !settings.backupAutomatic, 'Preferências não persistiram.')
   assertRelease(summary.total === 1 && summary.favorite === 1 && summary.byStatus.reading === 1 && home.continueReading.some((item) => item.id === marker.workId), 'Agregados ou Home não refletiram os dados persistidos.')
   rmSync(markerPath, { force: true })
-  console.log('LUMI_RELEASE_PERSISTENCE_TEST_OK')
+  console.log('AURI_RELEASE_PERSISTENCE_TEST_OK')
   app.quit()
 }
 
@@ -1168,7 +1171,7 @@ async function runReleaseBackupRestoreSmoke(appContext: AppContext): Promise<voi
   assertRelease(settings.libraryView === 'list' && settings.cardSize === 'large' && settings.sidebarCompact && !settings.backupAutomatic, 'Preferências não retornaram após restore.')
   assertRelease(backups.some((item) => item.type === 'before_restore'), 'Backup de segurança before_restore não foi preservado.')
   rmSync(markerPath, { force: true })
-  console.log('LUMI_RELEASE_BACKUP_RESTORE_TEST_OK')
+  console.log('AURI_RELEASE_BACKUP_RESTORE_TEST_OK')
   app.quit()
 }
 
@@ -1200,7 +1203,7 @@ async function runNativeWindowStateSmoke(window: BrowserWindow): Promise<void> {
 async function showStartupRecovery(error: unknown): Promise<void> {
   const failure = classifyDatabaseOpenFailure(error)
   const paths = resolveDataPaths(app.getPath('userData'))
-  const logger = new JsonLogger(join(paths.logs, 'lumi.jsonl'), !app.isPackaged)
+  const logger = new JsonLogger(join(paths.logs, CURRENT_LOG_FILE_NAME), !app.isPackaged)
   logger.error('database', 'Inicialização entrou no fluxo de recuperação.', { event: 'database.recovery_opened', errorCode: failure.kind })
   while (true) {
     const result = await dialog.showMessageBox({
@@ -1208,7 +1211,7 @@ async function showStartupRecovery(error: unknown): Promise<void> {
       title: 'Não foi possível abrir sua biblioteca',
       message: failure.title,
       detail: `${failure.explanation}\n\nNenhum dado foi alterado automaticamente.`,
-      buttons: ['Tentar novamente', 'Restaurar backup', 'Abrir pasta de dados', 'Ver detalhes', 'Fechar Lumi'],
+      buttons: ['Tentar novamente', 'Restaurar backup', 'Abrir pasta de dados', 'Ver detalhes', `Fechar ${APP_BRAND.name}`],
       defaultId: 0,
       cancelId: 4,
       noLink: true
@@ -1219,7 +1222,7 @@ async function showStartupRecovery(error: unknown): Promise<void> {
       return
     }
     if (result.response === 1) {
-      const selected = await dialog.showOpenDialog({ title: 'Restaurar backup do Lumi', properties: ['openFile'], filters: [{ name: 'Backup do Lumi', extensions: ['lumi-backup'] }] })
+      const selected = await dialog.showOpenDialog({ title: `Restaurar backup do ${APP_BRAND.name}`, properties: ['openFile'], filters: [{ name: `Backup do ${APP_BRAND.name}`, extensions: ['auri-backup', 'lumi-backup'] }] })
       if (selected.canceled || !selected.filePaths[0]) continue
       const recovery = createRecoveryBackupService(app, logger)
       try {
@@ -1259,7 +1262,7 @@ async function showStartupRecovery(error: unknown): Promise<void> {
         cancelId: 1,
         noLink: true
       })
-      if (detailResult.response === 0) clipboard.writeText(`Lumi ${app.getVersion()}\n${failure.technicalDetails}`)
+      if (detailResult.response === 0) clipboard.writeText(`${APP_BRAND.name} ${app.getVersion()}\n${failure.technicalDetails}`)
       continue
     }
     app.quit()

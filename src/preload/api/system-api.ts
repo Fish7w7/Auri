@@ -1,15 +1,15 @@
 import { ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
-import type { ApiResult, DomainErrorShape, LumiApi, SystemStatus } from '@shared/contracts'
-import { LumiClientError } from './domain-api'
+import type { ApiResult, DomainErrorShape, AuriApi, SystemStatus } from '@shared/contracts'
+import { AuriClientError } from './domain-api'
 
 async function invoke<T>(channel: string): Promise<T> {
   const result = (await ipcRenderer.invoke(channel)) as ApiResult<T>
-  if (!result.ok) throw new LumiClientError(result.error as DomainErrorShape)
+  if (!result.ok) throw new AuriClientError(result.error as DomainErrorShape)
   return result.data
 }
 
-export const systemApi: LumiApi['system'] = {
+export const systemApi: AuriApi['system'] = {
   async getStatus() {
     return ipcRenderer.invoke(IPC_CHANNELS.system.getStatus) as Promise<SystemStatus>
   },

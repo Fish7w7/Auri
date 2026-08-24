@@ -20,7 +20,7 @@ afterEach(() => { for (const db of databases.splice(0)) if (db.open) db.close();
 const migration1 = (db: Database.Database): Migration => ({ version: 1, name: 'base', up: () => db.exec('CREATE TABLE works (id TEXT PRIMARY KEY) STRICT') })
 
 function setup() {
-  const root = mkdtempSync(join(tmpdir(), 'lumi-migration-test-')); roots.push(root)
+  const root = mkdtempSync(join(tmpdir(), 'auri-migration-test-')); roots.push(root)
   const paths: DataPaths = { root, database: join(root, 'data', 'library.sqlite'), assets: join(root, 'assets'), coverCache: join(root, 'cache', 'covers'), backups: join(root, 'backups'), logs: join(root, 'logs'), settings: join(root, 'settings.json') }
   for (const directory of [join(root, 'data'), paths.assets, paths.coverCache, paths.backups, paths.logs]) mkdirSync(directory, { recursive: true })
   const db = new Database(paths.database); databases.push(db)
@@ -31,7 +31,7 @@ function setup() {
 
 describe('migrations seguras', () => {
   it('recusa schema mais novo sem executar ou alterar dados', () => {
-    const root = mkdtempSync(join(tmpdir(), 'lumi-newer-schema-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'auri-newer-schema-')); roots.push(root)
     const databasePath = join(root, 'library.sqlite')
     const db = new Database(databasePath); databases.push(db)
     db.exec("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT; INSERT INTO schema_migrations VALUES (2, 'future', '2026-08-17'); CREATE TABLE preserved (value TEXT) STRICT; INSERT INTO preserved VALUES ('intacto')")

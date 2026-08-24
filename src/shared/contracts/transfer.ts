@@ -1,6 +1,6 @@
 import type { Work, Alias, Creator, Genre, Tag, Collection, Source, ReadingHistory, ExternalRef } from '@shared/types/domain'
 
-export interface LumiExportWork {
+export interface AuriExportWork {
   work: Work
   aliases: Alias[]
   creators: Creator[]
@@ -12,11 +12,11 @@ export interface LumiExportWork {
   externalRefs: ExternalRef[]
 }
 
-export interface LumiLibraryExport {
-  format: 'lumi-library'
+export interface AuriLibraryExport {
+  format: 'auri-library'
   version: 1
   exportedAt: string
-  works: LumiExportWork[]
+  works: AuriExportWork[]
 }
 
 export interface ImportCandidate {

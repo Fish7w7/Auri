@@ -19,7 +19,7 @@ afterEach(() => {
 })
 
 function setup(repository?: SystemRepositoryReader) {
-  const root = mkdtempSync(join(tmpdir(), 'lumi-system-')); roots.push(root)
+  const root = mkdtempSync(join(tmpdir(), 'auri-system-')); roots.push(root)
   const paths: DataPaths = {
     root, database: join(root, 'data', 'library.sqlite'), assets: join(root, 'assets'),
     coverCache: join(root, 'cache', 'covers'), backups: join(root, 'backups'),
@@ -71,11 +71,13 @@ describe('SystemService', () => {
   it('exporta diagnóstico sem conteúdo privado dos logs ou caminhos pessoais', () => {
     const { service, paths } = setup()
     const privateTitle = 'Título secreto da obra'
-    writeFileSync(join(paths.logs, 'lumi.jsonl'), `${JSON.stringify({ timestamp: '2026-01-01T00:00:00.000Z', level: 'error', category: 'app', event: 'safe.event', errorCode: 'TEST', message: privateTitle, token: 'secret-token', path: paths.root, url: 'https://private.example/work' })}\n`, 'utf8')
+    writeFileSync(join(paths.logs, 'auri.jsonl'), `${JSON.stringify({ timestamp: '2026-01-01T00:00:00.000Z', level: 'error', category: 'app', event: 'safe.event', errorCode: 'TEST', message: privateTitle, token: 'secret-token', path: paths.root, url: 'https://private.example/work' })}\n`, 'utf8')
     const destination = join(paths.root, 'diagnostic.json')
     expect(service.exportDiagnostic(destination)).toBe(destination)
     expect(existsSync(destination)).toBe(true)
     const report = readFileSync(destination, 'utf8')
+    expect(report).toContain('"format": "auri-diagnostic"')
+    expect(report).toContain('"name": "Auri"')
     expect(report).toContain('safe.event')
     expect(report).not.toContain(privateTitle)
     expect(report).not.toContain('secret-token')

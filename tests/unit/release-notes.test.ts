@@ -11,7 +11,7 @@ function text(nodes: ReleaseNoteNode[]): string {
 
 describe('release notes seguras', () => {
   it('preserva a estrutura comum do HTML e aceita somente links externos seguros', () => {
-    const parsed = parseReleaseNotes('<h1>Lumi v1.1.0</h1><p>Texto <strong>importante</strong> e <em>ênfase</em>.</p><ul><li>Primeiro</li></ul><p><a href="https://example.com/notas">Detalhes</a> <a href="javascript:alert(1)">Perigoso</a></p>')
+    const parsed = parseReleaseNotes('<h1>Auri v1.1.0</h1><p>Texto <strong>importante</strong> e <em>ênfase</em>.</p><ul><li>Primeiro</li></ul><p><a href="https://example.com/notas">Detalhes</a> <a href="javascript:alert(1)">Perigoso</a></p>')
     const tags = elements(parsed).map((node) => node.tag)
     expect(tags).toEqual(expect.arrayContaining(['h1', 'p', 'strong', 'em', 'ul', 'li', 'a']))
     expect(elements(parsed).filter((node) => node.tag === 'a').map((node) => node.href)).toEqual(['https://example.com/notas', undefined])
@@ -24,7 +24,7 @@ describe('release notes seguras', () => {
   })
 
   it('apresenta Markdown simples quando as notas não chegam como HTML', () => {
-    const parsed = parseReleaseNotes('# Lumi 1.1.0\n\n- Lista\n- **Destaque**\n\nVeja o [site](https://example.com) e use `código`.')
+    const parsed = parseReleaseNotes('# Auri 1.1.0\n\n- Lista\n- **Destaque**\n\nVeja o [site](https://example.com) e use `código`.')
     expect(elements(parsed).map((node) => node.tag)).toEqual(expect.arrayContaining(['h1', 'ul', 'li', 'strong', 'p', 'a', 'code']))
   })
 

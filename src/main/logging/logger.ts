@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export type LogCategory =
   | 'app'
@@ -64,7 +65,7 @@ export class JsonLogger implements Logger {
     try {
       appendFileSync(this.logFile, `${entry}\n`, 'utf8')
     } catch (error) {
-      console.error('[Lumi] Falha ao gravar log estruturado.', error)
+      console.error(`[${APP_BRAND.name}] Falha ao gravar log estruturado.`, error)
     }
 
     if (this.isDevelopment) {
@@ -73,4 +74,3 @@ export class JsonLogger implements Logger {
     }
   }
 }
-

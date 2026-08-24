@@ -2,6 +2,7 @@ import type { Collection, MediaType, PublicationStatus, UserStatus } from '@shar
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS } from '../../lib/format'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Select'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export interface AliasDraft { name: string; kind: string }
 export interface CreatorDraft { name: string; role: 'author' | 'artist' | 'story' | 'original_creator' | 'other' }
@@ -70,7 +71,7 @@ export function WorkForm({ value, onChange, collections = [], includeProgress = 
       <label className="field field--wide"><span>Minha nota</span><textarea rows={4} value={value.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Suas impressões gerais…" /></label>
     </div></section>
 
-    {includeCover && <section className="form-section"><div className="form-section__heading"><span>06</span><div><h3>Capa</h3><p>Capas remotas ficam salvas como URL; arquivos são copiados pelo Lumi.</p></div></div><div className="cover-options">
+    {includeCover && <section className="form-section"><div className="form-section__heading"><span>06</span><div><h3>Capa</h3><p>Capas remotas ficam salvas como URL; arquivos são copiados pelo {APP_BRAND.name}.</p></div></div><div className="cover-options">
       {(['none', 'remote', 'custom'] as const).map((mode) => <label key={mode} className={value.coverMode === mode ? 'is-selected' : ''}><input type="radio" name="cover-mode" checked={value.coverMode === mode} onChange={() => set('coverMode', mode)} /><span>{mode === 'none' ? 'Sem capa' : mode === 'remote' ? 'URL' : 'Arquivo local'}</span></label>)}
       {value.coverMode === 'remote' && <label className="field field--wide"><span>URL da capa</span><input type="url" value={value.coverUrl} onChange={(event) => set('coverUrl', event.target.value)} placeholder="https://…" /></label>}
       {value.coverMode === 'custom' && <p className="form-hint">O seletor seguro de arquivo abrirá depois que a obra for criada.</p>}

@@ -35,7 +35,7 @@ export function QuickSearchDialog({ open, onClose }: { open: boolean; onClose():
     setLoading(true)
     setFailed(false)
     const timer = window.setTimeout(() => {
-      void window.lumi.library.search({ query: trimmed }).then((items) => {
+      void window.auri.library.search({ query: trimmed }).then((items) => {
         if (request.current !== id) return
         setResults(items.slice(0, 8)); setActive(0); setLoading(false)
       }).catch(() => { if (request.current === id) { setResults([]); setLoading(false); setFailed(true) } })

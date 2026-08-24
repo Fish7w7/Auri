@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { existsSync } from 'node:fs'
 import { DomainError } from '@shared/errors/domain-error'
+import { APP_BRAND } from '@shared/constants/app-branding'
 import type { Logger } from '../../logging/logger'
 
 export interface DatabaseConnection {
@@ -16,7 +17,7 @@ export function assertDatabaseSchemaSupported(databasePath: string, supportedSch
     if (!hasMigrations) return
     const databaseSchema = (db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get() as { version: number }).version
     if (databaseSchema > supportedSchema) {
-      throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca foi atualizada por uma versão mais recente do Lumi. Banco: schema ${databaseSchema}. Esta versão suporta até: schema ${supportedSchema}.`, { databaseSchema, supportedSchema })
+      throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca foi atualizada por uma versão mais recente do ${APP_BRAND.name}. Banco: schema ${databaseSchema}. Esta versão suporta até: schema ${supportedSchema}.`, { databaseSchema, supportedSchema })
     }
   } finally { db.close() }
 }

@@ -3,6 +3,7 @@ import type { Migration } from '@shared/types/database'
 import type { Logger } from '../../logging/logger'
 import { MigrationRepository } from '../repositories/migration-repository'
 import { DomainError } from '@shared/errors/domain-error'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export interface MigrationInspection {
   currentVersion: number
@@ -51,14 +52,14 @@ export class MigrationRunner {
     const currentVersion = appliedRows.at(-1)?.version ?? 0
 
     if (currentVersion > targetVersion) {
-      throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca foi atualizada por uma versão mais recente do Lumi. Banco: schema ${currentVersion}. Esta versão suporta até: schema ${targetVersion}.`, { databaseSchema: currentVersion, supportedSchema: targetVersion })
+      throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca foi atualizada por uma versão mais recente do ${APP_BRAND.name}. Banco: schema ${currentVersion}. Esta versão suporta até: schema ${targetVersion}.`, { databaseSchema: currentVersion, supportedSchema: targetVersion })
     }
     for (const [version, name] of applied) {
       const known = this.migrations.find((migration) => migration.version === version)
       if (!known) {
-        throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca usa o schema ${version}, que não é suportado por esta versão do Lumi.`, { databaseSchema: version, supportedSchema: targetVersion })
+        throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca usa o schema ${version}, que não é suportado por esta versão do ${APP_BRAND.name}.`, { databaseSchema: version, supportedSchema: targetVersion })
       }
-      if (known.name !== name) throw new DomainError('MIGRATION_FAILED', `A migration ${version} registrada não corresponde à definição desta versão do Lumi.`)
+      if (known.name !== name) throw new DomainError('MIGRATION_FAILED', `A migration ${version} registrada não corresponde à definição desta versão do ${APP_BRAND.name}.`)
     }
     return { currentVersion, targetVersion, pending: this.migrations.filter((migration) => !applied.has(migration.version)) }
   }

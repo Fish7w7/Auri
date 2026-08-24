@@ -11,14 +11,14 @@ export function MetadataRefreshDialog({ open, workId, onClose, onSaved }: { open
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const { showToast } = useToast()
-  const load = () => { setLoading(true); setError(''); void window.lumi.metadata.previewRefresh({ workId }).then(setPreview).catch((reason) => setError(mapDomainError(reason))).finally(() => setLoading(false)) }
+  const load = () => { setLoading(true); setError(''); void window.auri.metadata.previewRefresh({ workId }).then(setPreview).catch((reason) => setError(mapDomainError(reason))).finally(() => setLoading(false)) }
   useEffect(() => { if (open) load() }, [open, workId])
   async function apply() {
     setBusy(true)
     try {
-      const result = await window.lumi.metadata.applyRefresh({ workId })
+      const result = await window.auri.metadata.applyRefresh({ workId })
       onSaved(); onClose()
-      window.dispatchEvent(new Event('lumi:cover-cache-changed'))
+      window.dispatchEvent(new Event('auri:cover-cache-changed'))
       showToast({ kind: result.warnings.length ? 'warning' : 'success', message: result.warnings[0] ?? 'Metadados atualizados.' })
     } catch (reason) { showToast({ kind: 'error', message: mapDomainError(reason) }) } finally { setBusy(false) }
   }

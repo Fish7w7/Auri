@@ -9,7 +9,7 @@ export function ReleaseNotes({ notes }: { notes: string }) {
 
   const openLink = (event: MouseEvent<HTMLAnchorElement>, url: string) => {
     event.preventDefault()
-    void window.lumi.shell.openExternal({ url }).catch(() => showToast({ kind: 'error', message: 'Não foi possível abrir este link.' }))
+    void window.auri.shell.openExternal({ url }).catch(() => showToast({ kind: 'error', message: 'Não foi possível abrir este link.' }))
   }
 
   return <section className="release-notes" aria-labelledby="release-notes-title">

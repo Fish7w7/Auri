@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export function WindowTitleBar() {
   const [active, setActive] = useState(document.hasFocus())
@@ -15,6 +16,6 @@ export function WindowTitleBar() {
   }, [])
 
   return <header className={`window-titlebar ${active ? 'is-active' : 'is-inactive'}`}>
-    <div><img src="./lumi-icon.png" alt="" draggable={false} /><strong>Lumi</strong></div>
+    <div><strong>{APP_BRAND.name}</strong></div>
   </header>
 }

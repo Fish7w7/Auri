@@ -12,14 +12,14 @@ export function useWorkActions(refresh: () => void) {
 
   async function favorite(work: Work) {
     try {
-      await window.lumi.works.update({ id: work.id, favorite: !work.favorite })
+      await window.auri.works.update({ id: work.id, favorite: !work.favorite })
       refresh()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) }
   }
 
   async function increment(work: Work) {
     try {
-      const result = await window.lumi.progress.increment({ workId: work.id })
+      const result = await window.auri.progress.increment({ workId: work.id })
       if (!result.applied) {
         showToast({ kind: 'warning', message: 'Esta alteração precisa de confirmação.' })
         return
@@ -32,7 +32,7 @@ export function useWorkActions(refresh: () => void) {
           label: 'Desfazer',
           onClick: async () => {
             try {
-              await window.lumi.progress.undo({ historyId: result.history.id })
+              await window.auri.progress.undo({ historyId: result.history.id })
               refresh()
               showToast({ kind: 'info', message: 'Alteração desfeita.' })
             } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) }
@@ -46,7 +46,7 @@ export function useWorkActions(refresh: () => void) {
     if (!trashTarget) return
     setBusy(true)
     try {
-      await window.lumi.works.trash({ workId: trashTarget.id })
+      await window.auri.works.trash({ workId: trashTarget.id })
       showToast({ kind: 'info', message: `“${trashTarget.title}” foi movida para a Lixeira.` })
       setTrashTarget(null); refresh()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) }

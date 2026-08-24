@@ -13,7 +13,7 @@ describe('AssetService', () => {
   it('copia capa customizada para asset controlado e independe do arquivo original', () => {
     const fixture = createDomainFixture()
     const work = createMinimalWork(fixture)
-    const root = mkdtempSync(join(tmpdir(), 'lumi-cover-test-'))
+    const root = mkdtempSync(join(tmpdir(), 'auri-cover-test-'))
     temporaryDirectories.push(root)
     const original = join(root, 'original.png')
     writeFileSync(original, Buffer.from([137, 80, 78, 71, 1, 2, 3]))
@@ -29,7 +29,7 @@ describe('AssetService', () => {
   it('não remove a capa anterior quando a atualização do banco falha', () => {
     const fixture = createDomainFixture()
     const work = createMinimalWork(fixture)
-    const root = mkdtempSync(join(tmpdir(), 'lumi-cover-swap-'))
+    const root = mkdtempSync(join(tmpdir(), 'auri-cover-swap-'))
     temporaryDirectories.push(root)
     const first = join(root, 'first.jpg'); const second = join(root, 'second.webp')
     writeFileSync(first, Buffer.from([1, 2, 3])); writeFileSync(second, Buffer.from([4, 5, 6]))

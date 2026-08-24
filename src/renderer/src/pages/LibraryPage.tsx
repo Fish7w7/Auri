@@ -53,11 +53,11 @@ export function LibraryPage({ initialStatus, initialFavorite, initialSort, colle
   useEffect(() => { if (!selection.active) selectionAnchor.current = null }, [selection.active])
 
   const load = useCallback(async () => {
-    try { setState((current) => current === 'ready' ? current : 'loading'); const next = await window.lumi.library.query(effectiveQuery); setWorks(next); dispatchSelection({ type: 'reconcile', workIds: next.map((work) => work.id) }); setState('ready') }
+    try { setState((current) => current === 'ready' ? current : 'loading'); const next = await window.auri.library.query(effectiveQuery); setWorks(next); dispatchSelection({ type: 'reconcile', workIds: next.map((work) => work.id) }); setState('ready') }
     catch { setState('error') }
   }, [effectiveQuery])
   useEffect(() => { void load() }, [load])
-  useEffect(() => { const handler = () => void load(); window.addEventListener('lumi:data-changed', handler); return () => window.removeEventListener('lumi:data-changed', handler) }, [load])
+  useEffect(() => { const handler = () => void load(); window.addEventListener('auri:data-changed', handler); return () => window.removeEventListener('auri:data-changed', handler) }, [load])
   useShortcutScope({
     focusSearch: () => searchRef.current?.focus(),
     escape: filtersOpen

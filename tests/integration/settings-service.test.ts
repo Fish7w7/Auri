@@ -10,7 +10,7 @@ describe('SettingsService', () => {
   afterEach(() => { if (directory) rmSync(directory, { recursive: true, force: true }) })
 
   it('usa defaults e persiste preferências apenas em diretório temporário', () => {
-    directory = mkdtempSync(join(tmpdir(), 'lumi-settings-'))
+    directory = mkdtempSync(join(tmpdir(), 'auri-settings-'))
     const path = join(directory, 'settings.json')
     const service = new SettingsService(path, new TestLogger())
     expect(service.getSettings()).toMatchObject({ libraryView: 'grid', librarySort: 'last_read_desc' })

@@ -22,7 +22,7 @@ export function Select({ value, options, onChange, label, disabled = false, clas
   const enabledIndexes = () => options.map((option, index) => option.disabled ? -1 : index).filter((index) => index >= 0)
   const move = (direction: 1 | -1) => { if (!options.length) return; let next = active; do { next = (next + direction + options.length) % options.length } while (options[next]?.disabled && next !== active); setActive(next) }
   const choose = (index: number) => { const option = options[index]; if (!option || option.disabled) return; onChange(option.value); setOpen(false) }
-  return <div ref={root} className={`lumi-select ${open ? 'is-open' : ''} ${above ? 'is-above' : ''} ${className}`}>
+  return <div ref={root} className={`auri-select ${open ? 'is-open' : ''} ${above ? 'is-above' : ''} ${className}`}>
     <button type="button" role="combobox" aria-label={label} aria-controls={id} aria-activedescendant={open ? `${id}-${active}` : undefined} aria-expanded={open} aria-haspopup="listbox" disabled={disabled} onClick={() => setOpen((current) => !current)} onKeyDown={(event) => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); if (!open) setOpen(true); else move(event.key === 'ArrowDown' ? 1 : -1) }
       if (event.key === 'Home') { event.preventDefault(); const first = enabledIndexes()[0]; if (first !== undefined) setActive(first); setOpen(true) }
@@ -30,6 +30,6 @@ export function Select({ value, options, onChange, label, disabled = false, clas
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (open) choose(active); else setOpen(true) }
       if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false) }
     }}><span>{selected?.label ?? 'Selecione'}</span><i aria-hidden="true">⌄</i></button>
-    {open && <div id={id} role="listbox" aria-label={label} className="lumi-select__list">{options.map((option, index) => <button id={`${id}-${index}`} type="button" tabIndex={-1} key={option.value} role="option" aria-selected={option.value === value} disabled={option.disabled} className={index === active ? 'is-active' : ''} onPointerMove={() => setActive(index)} onClick={() => choose(index)}>{option.label}{option.value === value && <span aria-hidden="true">✓</span>}</button>)}</div>}
+    {open && <div id={id} role="listbox" aria-label={label} className="auri-select__list">{options.map((option, index) => <button id={`${id}-${index}`} type="button" tabIndex={-1} key={option.value} role="option" aria-selected={option.value === value} disabled={option.disabled} className={index === active ? 'is-active' : ''} onPointerMove={() => setActive(index)} onClick={() => choose(index)}>{option.label}{option.value === value && <span aria-hidden="true">✓</span>}</button>)}</div>}
   </div>
 }

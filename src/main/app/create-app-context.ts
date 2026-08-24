@@ -43,6 +43,7 @@ import { ElectronPageTransport } from '../services/url-metadata/electron-page-tr
 import { SafePageFetcher } from '../services/url-metadata/safe-page-fetcher'
 import { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
 import { BulkLibraryService } from '../services/bulk-library-service'
+import { CURRENT_LOG_FILE_NAME } from './app-identity'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -78,7 +79,7 @@ export interface CreateAppContextOptions {
 
 export async function createAppContext(app: App, options: CreateAppContextOptions = {}): Promise<AppContext> {
   const paths = resolveDataPaths(app.getPath('userData'))
-  const logger = new JsonLogger(join(paths.logs, 'lumi.jsonl'), !app.isPackaged)
+  const logger = new JsonLogger(join(paths.logs, CURRENT_LOG_FILE_NAME), !app.isPackaged)
   assertDatabaseSchemaSupported(paths.database, SUPPORTED_SCHEMA_VERSION)
   const database = openDatabase(paths.database, logger)
 

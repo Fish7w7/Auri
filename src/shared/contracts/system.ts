@@ -62,7 +62,7 @@ export interface SystemDiagnostics {
   integrity: LibraryIntegrityResult | null
 }
 
-export interface LumiApi extends DomainApi, SettingsApi, MetadataApi, CoverApi, DataManagementApi, UpdatesApi, UrlMetadataApi {
+export interface AuriApi extends DomainApi, SettingsApi, MetadataApi, CoverApi, DataManagementApi, UpdatesApi, UrlMetadataApi {
   system: {
     getStatus(): Promise<SystemStatus>
     getDiagnostics(): Promise<SystemDiagnostics>

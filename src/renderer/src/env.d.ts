@@ -1,10 +1,10 @@
 /// <reference types="vite/client" />
 
-import type { LumiApi } from '@shared/contracts'
+import type { AuriApi } from '@shared/contracts'
 
 declare global {
   interface Window {
-    lumi: LumiApi
+    auri: AuriApi
   }
 }
 

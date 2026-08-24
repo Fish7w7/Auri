@@ -1,5 +1,6 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
+import { APP_BRAND } from '@shared/constants/app-branding'
 import { DomainError, type ApiResult } from '@shared/errors/domain-error'
 import type { Logger } from '../logging/logger'
 import type { LibraryService } from '../services/library-service'
@@ -69,7 +70,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
       let destination = options.selectDiagnosticFile ? await options.selectDiagnosticFile(event) : null
       if (!options.selectDiagnosticFile) {
         const owner = BrowserWindow.fromWebContents(event.sender)
-        const picker = { title: 'Exportar diagnóstico do Lumi', defaultPath: 'lumi-diagnostic.json', filters: [{ name: 'Diagnóstico JSON', extensions: ['json'] }] }
+        const picker = { title: `Exportar diagnóstico do ${APP_BRAND.name}`, defaultPath: 'auri-diagnostic.json', filters: [{ name: 'Diagnóstico JSON', extensions: ['json'] }] }
         const result = owner ? await dialog.showSaveDialog(owner, picker) : await dialog.showSaveDialog(picker)
         destination = result.canceled ? null : result.filePath ?? null
       }
@@ -183,7 +184,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
       let selected = options.selectRestoreFile ? await options.selectRestoreFile(event) : null
       if (!options.selectRestoreFile) {
         const owner = BrowserWindow.fromWebContents(event.sender)
-        const picker: OpenDialogOptions = { title: 'Restaurar backup do Lumi', properties: ['openFile'], filters: [{ name: 'Backup do Lumi', extensions: ['lumi-backup'] }] }
+        const picker: OpenDialogOptions = { title: `Restaurar backup do ${APP_BRAND.name}`, properties: ['openFile'], filters: [{ name: `Backup do ${APP_BRAND.name}`, extensions: ['auri-backup', 'lumi-backup'] }] }
         const result = owner ? await dialog.showOpenDialog(owner, picker) : await dialog.showOpenDialog(picker)
         selected = result.canceled ? null : result.filePaths[0] ?? null
       }
@@ -208,7 +209,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
       let selected = options.selectImportFile ? await options.selectImportFile(event) : null
       if (!options.selectImportFile) {
         const owner = BrowserWindow.fromWebContents(event.sender)
-        const picker: OpenDialogOptions = { title: 'Importar biblioteca do Lumi', properties: ['openFile'], filters: [{ name: 'Exportação JSON do Lumi', extensions: ['json'] }] }
+        const picker: OpenDialogOptions = { title: `Importar biblioteca do ${APP_BRAND.name}`, properties: ['openFile'], filters: [{ name: `Exportação JSON do ${APP_BRAND.name}`, extensions: ['json'] }] }
         const result = owner ? await dialog.showOpenDialog(owner, picker) : await dialog.showOpenDialog(picker)
         selected = result.canceled ? null : result.filePaths[0] ?? null
       }
@@ -256,7 +257,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
 async function selectExportPath(event: IpcMainInvokeEvent, kind: 'json' | 'csv', options: IpcHandlerOptions): Promise<string | null> {
   if (options.selectExportFile) return options.selectExportFile(event, kind)
   const owner = BrowserWindow.fromWebContents(event.sender)
-  const picker = { title: kind === 'json' ? 'Exportar biblioteca completa' : 'Exportar resumo CSV', defaultPath: `lumi-biblioteca.${kind}`, filters: [{ name: kind === 'json' ? 'JSON' : 'CSV', extensions: [kind] }] }
+  const picker = { title: kind === 'json' ? 'Exportar biblioteca completa' : 'Exportar resumo CSV', defaultPath: `auri-biblioteca.${kind}`, filters: [{ name: kind === 'json' ? 'JSON' : 'CSV', extensions: [kind] }] }
   const result = owner ? await dialog.showSaveDialog(owner, picker) : await dialog.showSaveDialog(picker)
   return result.canceled ? null : result.filePath ?? null
 }

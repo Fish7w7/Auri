@@ -19,8 +19,8 @@ export function SourceDialog({ open, work, source, onClose, onSaved }: { open: b
     setBusy(true)
     try {
       const values = { name: form.name.trim() || null, language: form.language, seriesUrl: form.seriesUrl.trim() || null, lastReadUrl: form.lastReadUrl.trim() || null, translatorGroup: form.group.trim() || null, isPreferred: form.preferred }
-      if (source) await window.lumi.sources.update({ id: source.id, ...values })
-      else await window.lumi.sources.create({ workId: work.id, ...values, isPreferred: form.preferred })
+      if (source) await window.auri.sources.update({ id: source.id, ...values })
+      else await window.auri.sources.create({ workId: work.id, ...values, isPreferred: form.preferred })
       showToast({ kind: 'success', message: source ? 'Fonte atualizada.' : 'Fonte adicionada.' }); onSaved(); onClose()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }

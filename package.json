@@ -1,11 +1,11 @@
 {
-  "name": "lumi-desktop",
-  "version": "1.1.0",
+  "name": "auri-desktop",
+  "version": "1.2.0",
   "description": "Biblioteca local-first para obras seriadas",
-  "author": "Lumi",
+  "author": "Auri",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Fish7w7/Lumi.git"
+    "url": "https://github.com/Fish7w7/Auri.git"
   },
   "private": true,
   "type": "module",
@@ -54,9 +54,9 @@
     "vitest": "^4.1.10"
   },
   "build": {
-    "appId": "app.lumi.desktop",
-    "productName": "Lumi",
-    "artifactName": "Lumi-Setup-${version}-${arch}.${ext}",
+    "appId": "app.auri.desktop",
+    "productName": "Auri",
+    "artifactName": "Auri-Setup-${version}-${arch}.${ext}",
     "npmRebuild": false,
     "directories": {
       "output": "release"
@@ -87,7 +87,6 @@
       "en-US"
     ],
     "win": {
-      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -98,18 +97,15 @@
       ]
     },
     "nsis": {
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Lumi"
+      "shortcutName": "Auri"
     },
     "publish": [
       {
         "provider": "github",
         "owner": "Fish7w7",
-        "repo": "Lumi",
+        "repo": "Auri",
         "releaseType": "draft",
         "channel": "latest"
       }

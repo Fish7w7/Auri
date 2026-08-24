@@ -19,9 +19,9 @@ export function ProgressDialog({ open, work, sources, onClose, onSaved }: { open
     if (!chapter.trim()) return
     setBusy(true)
     try {
-      const result = await window.lumi.progress.update({ workId: work.id, chapterLabel: chapter, sourceId: sourceId || null, note: note.trim() || null, confirmSuspicious })
+      const result = await window.auri.progress.update({ workId: work.id, chapterLabel: chapter, sourceId: sourceId || null, note: note.trim() || null, confirmSuspicious })
       if (!result.applied) { setConfirmation(result); return }
-      showToast({ kind: 'success', message: `Progresso atualizado para ${result.progress.chapter?.label}.`, action: { label: 'Desfazer', onClick: async () => { await window.lumi.progress.undo({ historyId: result.history.id }); onSaved(); showToast({ kind: 'info', message: 'Alteração desfeita.' }) } } })
+      showToast({ kind: 'success', message: `Progresso atualizado para ${result.progress.chapter?.label}.`, action: { label: 'Desfazer', onClick: async () => { await window.auri.progress.undo({ historyId: result.history.id }); onSaved(); showToast({ kind: 'info', message: 'Alteração desfeita.' }) } } })
       setConfirmation(null); onSaved(); onClose()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }

@@ -15,8 +15,11 @@ import { assertRegularFile, createZip, extractZip } from './zip-archive'
 import { createMigrations } from '../../database/migrations'
 import { MigrationRunner } from '../../database/migrations/migration-runner'
 import { CriticalOperationCoordinator, type CriticalOperation } from '../critical-operation-coordinator'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export const BACKUP_FORMAT_VERSION = 1 as const
+export const CURRENT_BACKUP_EXTENSION = '.auri-backup'
+export const LEGACY_BACKUP_EXTENSION = '.lumi-backup'
 const MAX_MANIFEST_BYTES = 1024 * 1024
 const MAX_CHECKSUMS_BYTES = 5 * 1024 * 1024
 
@@ -92,7 +95,7 @@ export class BackupService {
       })
     } catch (error) {
       if (error instanceof DomainError) throw error
-      throw new DomainError('BACKUP_INVALID', 'O arquivo selecionado não é um backup válido do Lumi.')
+      throw new DomainError('BACKUP_INVALID', `O arquivo selecionado não é um backup válido do ${APP_BRAND.name}.`)
     }
   }
 
@@ -100,7 +103,7 @@ export class BackupService {
     await this.exclusive('restore', async () => {
       const startedAt = Date.now()
       this.logger.info('backup', 'Iniciando restauração de backup.', { event: 'backup.restore_started' })
-      const extracted = mkdtempSync(join(tmpdir(), 'lumi-restore-'))
+      const extracted = mkdtempSync(join(tmpdir(), 'auri-restore-'))
       try {
         const entries = await extractZip(path, extracted)
         const manifest = this.validateExtracted(extracted)
@@ -121,7 +124,7 @@ export class BackupService {
   deleteBackup(path: string): void {
     const root = resolve(this.effectiveDirectory())
     const target = resolve(path)
-    if (!target.startsWith(`${root}${sep}`) || extname(target) !== '.lumi-backup') {
+    if (!target.startsWith(`${root}${sep}`) || ![CURRENT_BACKUP_EXTENSION, LEGACY_BACKUP_EXTENSION].includes(extname(target))) {
       throw new DomainError('INVALID_INPUT', 'Arquivo de backup inválido.')
     }
     rmSync(target, { force: true })
@@ -132,17 +135,17 @@ export class BackupService {
     this.logger.info('backup', 'Iniciando backup.', { event: 'backup.started', type })
     const destinationDirectory = this.effectiveDirectory()
     mkdirSync(destinationDirectory, { recursive: true })
-    const stage = mkdtempSync(join(tmpdir(), 'lumi-backup-'))
+    const stage = mkdtempSync(join(tmpdir(), 'auri-backup-'))
     const createdAt = this.now().toISOString()
     const stamp = createdAt.replace(/[:.]/g, '-')
-    const fileName = `lumi-${type}-${stamp}.lumi-backup`
+    const fileName = `auri-${type}-${stamp}${CURRENT_BACKUP_EXTENSION}`
     const finalPath = join(destinationDirectory, fileName)
     const temporaryPath = join(destinationDirectory, `.${fileName}.tmp`)
     try {
       await this.db.backup(join(stage, 'library.db'))
       const currentSchemaVersion = this.getCurrentSchemaVersion(this.db)
       const manifest: BackupManifest = {
-        format: 'lumi-backup', formatVersion: BACKUP_FORMAT_VERSION, appVersion: this.appVersion,
+        format: 'auri-backup', formatVersion: BACKUP_FORMAT_VERSION, appVersion: this.appVersion,
         schemaVersion: currentSchemaVersion, createdAt, type,
         workCount: this.tableExists(this.db, 'works') ? (this.db.prepare('SELECT COUNT(*) AS count FROM works').get() as { count: number }).count : 0
       }
@@ -180,11 +183,11 @@ export class BackupService {
     if (statSync(manifestPath).size > MAX_MANIFEST_BYTES) throw new DomainError('BACKUP_INVALID', 'Manifesto de backup inválido.')
     if (statSync(checksumsPath).size > MAX_CHECKSUMS_BYTES) throw new DomainError('BACKUP_INVALID', 'Lista de checksums inválida.')
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Partial<BackupManifest>
-    if (manifest.format !== 'lumi-backup' || manifest.formatVersion !== 1 || typeof manifest.appVersion !== 'string' || !manifest.createdAt || !manifest.type || !['manual', 'auto', 'before_restore', 'before_import', 'before_migration'].includes(manifest.type) || !Number.isInteger(manifest.schemaVersion) || !Number.isInteger(manifest.workCount)) {
+    if (!['auri-backup', 'lumi-backup'].includes(String(manifest.format)) || manifest.formatVersion !== 1 || typeof manifest.appVersion !== 'string' || !manifest.createdAt || !manifest.type || !['manual', 'auto', 'before_restore', 'before_import', 'before_migration'].includes(manifest.type) || !Number.isInteger(manifest.schemaVersion) || !Number.isInteger(manifest.workCount)) {
       throw new DomainError('BACKUP_INVALID', 'Manifesto de backup inválido.')
     }
     if ((manifest.schemaVersion as number) > this.schemaVersion) {
-      throw new DomainError('BACKUP_TOO_NEW', 'Este backup foi criado por uma versão mais nova do Lumi.')
+      throw new DomainError('BACKUP_TOO_NEW', `Este backup foi criado por uma versão mais nova do ${APP_BRAND.name}.`)
     }
     const checksums = JSON.parse(readFileSync(checksumsPath, 'utf8')) as Record<string, unknown>
     const payloadEntries = this.listFiles(root).filter((entry) => entry !== 'checksums.json')
@@ -271,7 +274,7 @@ export class BackupService {
     const directory = this.effectiveDirectory()
     mkdirSync(directory, { recursive: true })
     const stamp = this.now().toISOString().replace(/[:.]/g, '-')
-    copyFileSync(this.paths.database, join(directory, `lumi-failed-database-${stamp}.sqlite`))
+    copyFileSync(this.paths.database, join(directory, `auri-failed-database-${stamp}.sqlite`))
   }
 
   private effectiveDirectory(): string {
@@ -304,8 +307,9 @@ export class BackupService {
   private listBackups(directory: string): BackupRecord[] {
     if (!existsSync(directory)) return []
     const records: BackupRecord[] = []
-    for (const fileName of readdirSync(directory).filter((name) => name.endsWith('.lumi-backup'))) {
-      const match = /^lumi-(manual|auto|before_restore|before_import|before_migration)-(.+)\.lumi-backup$/.exec(fileName)
+    for (const fileName of readdirSync(directory).filter((name) => name.endsWith(CURRENT_BACKUP_EXTENSION) || name.endsWith(LEGACY_BACKUP_EXTENSION))) {
+      const match = /^auri-(manual|auto|before_restore|before_import|before_migration)-(.+)\.auri-backup$/.exec(fileName)
+        ?? /^lumi-(manual|auto|before_restore|before_import|before_migration)-(.+)\.lumi-backup$/.exec(fileName)
       if (!match) continue
       const path = join(directory, fileName)
       const stats = statSync(path)
@@ -319,7 +323,7 @@ export class BackupService {
   }
 
   private async withExtracted<T>(path: string, operation: (root: string, entries: string[]) => T): Promise<T> {
-    const root = mkdtempSync(join(tmpdir(), 'lumi-validate-'))
+    const root = mkdtempSync(join(tmpdir(), 'auri-validate-'))
     try { return operation(root, await extractZip(path, root)) } finally { rmSync(root, { recursive: true, force: true }) }
   }
 

@@ -32,7 +32,7 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
 
   useEffect(() => {
     let active = true
-    void Promise.all([window.lumi.tags.list(), window.lumi.collections.list()])
+    void Promise.all([window.auri.tags.list(), window.auri.collections.list()])
       .then(([nextTags, nextCollections]) => {
         if (!active) return
         setTags(nextTags)
@@ -71,22 +71,22 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
       <Button disabled={disabled} onClick={() => setDialog('status')}>Status</Button>
       <Button disabled={disabled} onClick={() => setDialog('tag')}>Tags</Button>
       <Button disabled={disabled} onClick={() => setDialog('collection')}>Coleções</Button>
-      <KeyboardMenu className="bulk-overflow" label="Mais ações"><button disabled={disabled} onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: true }), `${countLabel} como favorita.`)}>Favoritar</button><button disabled={disabled} onClick={() => void run(() => window.lumi.bulk.setFavorite({ workIds, favorite: false }), `Favorito removido de ${countLabel}.`)}>Remover dos favoritos</button><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></KeyboardMenu>
+      <KeyboardMenu className="bulk-overflow" label="Mais ações"><button disabled={disabled} onClick={() => void run(() => window.auri.bulk.setFavorite({ workIds, favorite: true }), `${countLabel} como favorita.`)}>Favoritar</button><button disabled={disabled} onClick={() => void run(() => window.auri.bulk.setFavorite({ workIds, favorite: false }), `Favorito removido de ${countLabel}.`)}>Remover dos favoritos</button><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></KeyboardMenu>
       <Button variant="ghost" disabled={busy} onClick={onExit}>Sair da seleção</Button>
     </div>
 
-    <Dialog open={dialog === 'status'} title={`Alterar status de ${countLabel}`} description="Somente o status pessoal será alterado; progresso e publicação serão preservados." onClose={() => setDialog(null)} footer={<><Button onClick={() => setDialog(null)}>Cancelar</Button><Button variant="primary" disabled={busy} onClick={() => void run(() => window.lumi.bulk.setStatus({ workIds, userStatus: status }), `Status atualizado em ${countLabel}.`)}>Aplicar status</Button></>}>
+    <Dialog open={dialog === 'status'} title={`Alterar status de ${countLabel}`} description="Somente o status pessoal será alterado; progresso e publicação serão preservados." onClose={() => setDialog(null)} footer={<><Button onClick={() => setDialog(null)}>Cancelar</Button><Button variant="primary" disabled={busy} onClick={() => void run(() => window.auri.bulk.setStatus({ workIds, userStatus: status }), `Status atualizado em ${countLabel}.`)}>Aplicar status</Button></>}>
       <Select label="Novo status" value={status} onChange={(value) => setStatus(value as UserStatus)} options={(Object.entries(STATUS_LABELS) as Array<[UserStatus, string]>).map(([value, label]) => ({ value, label }))} />
     </Dialog>
 
-    <Dialog open={dialog === 'tag'} title={`Gerenciar tags de ${countLabel}`} description="Apenas a tag escolhida será adicionada ou removida; as outras permanecerão intactas." onClose={() => setDialog(null)} footer={<><Button onClick={() => setDialog(null)}>Cancelar</Button><Button disabled={busy || !tagId} onClick={() => void run(() => window.lumi.bulk.removeTag({ workIds, tagId }), `Tag removida de ${countLabel}.`)}>Remover tag</Button><Button variant="primary" disabled={busy || !tagId} onClick={() => void run(() => window.lumi.bulk.addTag({ workIds, tagId }), `Tag adicionada a ${countLabel}.`)}>Adicionar tag</Button></>}>
+    <Dialog open={dialog === 'tag'} title={`Gerenciar tags de ${countLabel}`} description="Apenas a tag escolhida será adicionada ou removida; as outras permanecerão intactas." onClose={() => setDialog(null)} footer={<><Button onClick={() => setDialog(null)}>Cancelar</Button><Button disabled={busy || !tagId} onClick={() => void run(() => window.auri.bulk.removeTag({ workIds, tagId }), `Tag removida de ${countLabel}.`)}>Remover tag</Button><Button variant="primary" disabled={busy || !tagId} onClick={() => void run(() => window.auri.bulk.addTag({ workIds, tagId }), `Tag adicionada a ${countLabel}.`)}>Adicionar tag</Button></>}>
       {tags.length ? <Select label="Tag" value={tagId} onChange={setTagId} options={tags.map((tag) => ({ value: tag.id, label: tag.name }))} /> : <p className="inline-empty">Nenhuma tag cadastrada.</p>}
     </Dialog>
 
-    <Dialog open={dialog === 'collection'} title={`Gerenciar coleções de ${countLabel}`} description="Apenas a coleção escolhida será adicionada ou removida; os outros vínculos permanecerão intactos." onClose={() => setDialog(null)} footer={<><Button onClick={() => setDialog(null)}>Cancelar</Button><Button disabled={busy || !collectionId} onClick={() => void run(() => window.lumi.bulk.removeCollection({ workIds, collectionId }), `Coleção removida de ${countLabel}.`)}>Remover</Button><Button variant="primary" disabled={busy || !collectionId} onClick={() => void run(() => window.lumi.bulk.addCollection({ workIds, collectionId }), `${countLabel} adicionada à coleção.`)}>Adicionar</Button></>}>
+    <Dialog open={dialog === 'collection'} title={`Gerenciar coleções de ${countLabel}`} description="Apenas a coleção escolhida será adicionada ou removida; os outros vínculos permanecerão intactos." onClose={() => setDialog(null)} footer={<><Button onClick={() => setDialog(null)}>Cancelar</Button><Button disabled={busy || !collectionId} onClick={() => void run(() => window.auri.bulk.removeCollection({ workIds, collectionId }), `Coleção removida de ${countLabel}.`)}>Remover</Button><Button variant="primary" disabled={busy || !collectionId} onClick={() => void run(() => window.auri.bulk.addCollection({ workIds, collectionId }), `${countLabel} adicionada à coleção.`)}>Adicionar</Button></>}>
       {collections.length ? <Select label="Coleção" value={collectionId} onChange={setCollectionId} options={collections.map((collection) => ({ value: collection.id, label: collection.name }))} /> : <p className="inline-empty">Nenhuma coleção cadastrada.</p>}
     </Dialog>
 
-    <ConfirmDialog open={dialog === 'trash'} title={`Mover ${countLabel} para a Lixeira?`} description="As obras, progresso, histórico, fontes, notas, tags e coleções serão preservados e poderão ser restaurados." confirmLabel="Mover para a Lixeira" danger busy={busy} onClose={() => setDialog(null)} onConfirm={() => run(() => window.lumi.bulk.moveToTrash({ workIds }), `${countLabel} movida para a Lixeira.`)} />
+    <ConfirmDialog open={dialog === 'trash'} title={`Mover ${countLabel} para a Lixeira?`} description="As obras, progresso, histórico, fontes, notas, tags e coleções serão preservados e poderão ser restaurados." confirmLabel="Mover para a Lixeira" danger busy={busy} onClose={() => setDialog(null)} onConfirm={() => run(() => window.auri.bulk.moveToTrash({ workIds }), `${countLabel} movida para a Lixeira.`)} />
   </>
 }

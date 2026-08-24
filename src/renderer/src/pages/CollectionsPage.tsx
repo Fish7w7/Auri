@@ -21,7 +21,7 @@ export function CollectionsPage({ collectionId }: { collectionId?: string }) {
   const { refreshData } = useAppContext()
   const { showToast } = useToast()
   const load = useCallback(async () => {
-    try { setCollections(await window.lumi.collections.list()); setState('ready') }
+    try { setCollections(await window.auri.collections.list()); setState('ready') }
     catch { setState('error') }
   }, [])
   useEffect(() => { void load() }, [load])
@@ -41,8 +41,8 @@ export function CollectionsPage({ collectionId }: { collectionId?: string }) {
     if (!editing || !name.trim()) return
     setBusy(true)
     try {
-      if (editing === 'new') await window.lumi.collections.create({ name, description: description.trim() || null })
-      else await window.lumi.collections.update({ id: editing.id, name, description: description.trim() || null })
+      if (editing === 'new') await window.auri.collections.create({ name, description: description.trim() || null })
+      else await window.auri.collections.update({ id: editing.id, name, description: description.trim() || null })
       const created = editing === 'new'
       setEditing(null)
       await load()
@@ -55,7 +55,7 @@ export function CollectionsPage({ collectionId }: { collectionId?: string }) {
     if (!deleting) return
     setBusy(true)
     try {
-      await window.lumi.collections.delete({ collectionId: deleting.id })
+      await window.auri.collections.delete({ collectionId: deleting.id })
       setDeleting(null)
       await load()
       refreshData()

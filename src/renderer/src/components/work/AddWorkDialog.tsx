@@ -9,6 +9,7 @@ import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 import { EMPTY_WORK_FORM, WorkForm, splitNames, type WorkFormState } from './WorkForm'
 import { useShortcutScope } from '../../app/keyboard-shortcuts'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 type Mode = 'choose' | 'url' | 'urlPreview' | 'search' | 'review' | 'quick' | 'manual'
 type SearchState = 'idle' | 'loading' | 'ready' | 'error'
@@ -42,14 +43,14 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
 
-  useEffect(() => { if (open) void window.lumi.collections.list().then(setCollections).catch(() => setCollections([])) }, [open])
+  useEffect(() => { if (open) void window.auri.collections.list().then(setCollections).catch(() => setCollections([])) }, [open])
   useEffect(() => {
     if (!open || mode !== 'search') return
     const trimmed = debouncedQuery.trim()
     if (trimmed.length < 3) { setSearchState('idle'); setResults([]); return }
     const id = ++requestId.current
     setSearchState('loading'); setSearchError('')
-    void window.lumi.metadata.search({ provider: 'anilist', query: trimmed }).then((items) => {
+    void window.auri.metadata.search({ provider: 'anilist', query: trimmed }).then((items) => {
       if (id !== requestId.current) return
       setResults(items); setSearchState('ready')
     }).catch((error) => {
@@ -63,8 +64,8 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   const reviewDirty = mode === 'review' && isImportReviewDirty(importForm, initialImportForm)
   const dirty = quickDirty || (mode === 'manual' && JSON.stringify(manual) !== JSON.stringify(EMPTY_WORK_FORM)) ||
     ((mode === 'url' || mode === 'urlPreview') && Boolean(urlInput.trim())) || reviewDirty
-  useEffect(() => { void window.lumi.updates.setDirty({ scope: 'add-work', dirty: open && dirty }) }, [dirty, open])
-  useEffect(() => () => { void window.lumi.updates.setDirty({ scope: 'add-work', dirty: false }) }, [])
+  useEffect(() => { void window.auri.updates.setDirty({ scope: 'add-work', dirty: open && dirty }) }, [dirty, open])
+  useEffect(() => () => { void window.auri.updates.setDirty({ scope: 'add-work', dirty: false }) }, [])
   const reset = () => { setMode('choose'); setQuick({ title: '', chapter: '', status: 'reading' }); setManual(EMPTY_WORK_FORM); setQuery(''); setResults([]); setReview(null); setInitialImportForm(null); setUrlInput(''); setUrlError(''); setUrlAnalysis(null); setUrlDraft(null); setConfirmClose(false) }
   const close = () => { reset(); onClose() }
   const requestClose = () => { if (dirty) setConfirmClose(true); else close() }
@@ -73,7 +74,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     if (!urlInput.trim()) return
     setBusy(true); setUrlError('')
     try {
-      const analysis = await window.lumi.urlMetadata.analyze({ url: urlInput })
+      const analysis = await window.auri.urlMetadata.analyze({ url: urlInput })
       setUrlAnalysis(analysis)
       setUrlDraft({
         title: analysis.metadata.title ?? '',
@@ -90,7 +91,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
 
   async function refreshUrlDuplicate(): Promise<UrlMetadataDuplicate | null> {
     if (!urlDraft) return null
-    const duplicate = await window.lumi.urlMetadata.checkDuplicate({ url: urlDraft.sourceUrl, title: urlDraft.title.trim() || null })
+    const duplicate = await window.auri.urlMetadata.checkDuplicate({ url: urlDraft.sourceUrl, title: urlDraft.title.trim() || null })
     setUrlAnalysis((current) => current ? { ...current, duplicate } : current)
     return duplicate
   }
@@ -129,7 +130,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     if (!urlDraft) return
     setBusy(true)
     try {
-      const source = await window.lumi.sources.create({ workId, name: urlDraft.sourceName.trim() || null, seriesUrl: urlDraft.sourceUrl, isPreferred: false })
+      const source = await window.auri.sources.create({ workId, name: urlDraft.sourceName.trim() || null, seriesUrl: urlDraft.sourceUrl, isPreferred: false })
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${source.domain} foi adicionada como fonte.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${workId}`) } })
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
@@ -138,7 +139,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   async function selectResult(result: MetadataSearchResult) {
     setBusy(true)
     try {
-      const next = await window.lumi.metadata.review({ provider: result.provider, externalId: result.externalId })
+      const next = await window.auri.metadata.review({ provider: result.provider, externalId: result.externalId })
       setReview(next)
       const nextForm: ImportForm = { title: next.metadata.title, mediaType: next.metadata.mediaType ?? 'other', userStatus: 'want_to_read', chapter: '', sourceName: urlDraft?.sourceName ?? '', sourceUrl: urlDraft?.sourceUrl ?? '', lastReadNote: '', allowProbable: false }
       setImportForm(nextForm)
@@ -151,7 +152,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     if (!review) return
     setBusy(true)
     try {
-      const details = await window.lumi.metadata.import({ provider: review.metadata.provider, externalId: review.metadata.externalId, title: importForm.title, mediaType: importForm.mediaType, userStatus: importForm.userStatus, chapter: importForm.chapter.trim() || null, lastReadNote: importForm.lastReadNote.trim() || null, allowProbableDuplicate: importForm.allowProbable, source: importForm.sourceUrl.trim() ? { name: importForm.sourceName.trim() || null, seriesUrl: importForm.sourceUrl.trim(), isPreferred: true } : undefined })
+      const details = await window.auri.metadata.import({ provider: review.metadata.provider, externalId: review.metadata.externalId, title: importForm.title, mediaType: importForm.mediaType, userStatus: importForm.userStatus, chapter: importForm.chapter.trim() || null, lastReadNote: importForm.lastReadNote.trim() || null, allowProbableDuplicate: importForm.allowProbable, source: importForm.sourceUrl.trim() ? { name: importForm.sourceName.trim() || null, seriesUrl: importForm.sourceUrl.trim(), isPreferred: true } : undefined })
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${details.work.title} foi importada.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${details.work.id}`) } })
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
@@ -161,7 +162,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     if (!quick.title.trim()) return
     setBusy(true)
     try {
-      const work = await window.lumi.works.create({ title: quick.title, mediaType: 'manhwa', userStatus: quick.status, ...(quick.chapter.trim() ? { chapter: quick.chapter } : {}) })
+      const work = await window.auri.works.create({ title: quick.title, mediaType: 'manhwa', userStatus: quick.status, ...(quick.chapter.trim() ? { chapter: quick.chapter } : {}) })
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${work.title} foi adicionada à biblioteca.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${work.id}`) } })
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
@@ -171,7 +172,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     if (!manual.title.trim()) return
     setBusy(true)
     try {
-      const details = await window.lumi.works.createDetailed({
+      const details = await window.auri.works.createDetailed({
         title: manual.title, mediaType: manual.mediaType, userStatus: manual.userStatus,
         publicationStatus: manual.publicationStatus || null, description: manual.description.trim() || null,
         countryCode: manual.countryCode.trim() || null, startDate: manual.startDate.trim() || null,
@@ -184,7 +185,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
         genres: splitNames(manual.genres), tags: manual.tags, collectionIds: manual.collectionIds,
         source: manual.sourceUrl.trim() || manual.sourceLastUrl.trim() ? { name: manual.sourceName.trim() || null, language: manual.sourceLanguage, seriesUrl: manual.sourceUrl.trim() || null, lastReadUrl: manual.sourceLastUrl.trim() || null, translatorGroup: manual.sourceGroup.trim() || null, isPreferred: manual.sourcePreferred } : undefined
       })
-      if (manual.coverMode === 'custom') try { await window.lumi.assets.selectCover({ workId: details.work.id }) } catch (error) { showToast({ kind: 'warning', message: `A obra foi criada, mas a capa não foi importada: ${mapDomainError(error)}` }) }
+      if (manual.coverMode === 'custom') try { await window.auri.assets.selectCover({ workId: details.work.id }) } catch (error) { showToast({ kind: 'warning', message: `A obra foi criada, mas a capa não foi importada: ${mapDomainError(error)}` }) }
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${details.work.title} foi adicionada à biblioteca.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${details.work.id}`) } })
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
@@ -201,13 +202,13 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     : mode === 'url' ? <><Button onClick={() => setMode('choose')}>Voltar</Button><Button variant="primary" disabled={busy || !urlInput.trim()} onClick={() => void analyzeUrl()}>{busy ? 'Analisando…' : 'Analisar URL'}</Button></>
       : mode === 'urlPreview' ? <Button onClick={() => setMode('url')}>Voltar</Button>
         : mode === 'search' ? <><Button onClick={() => setMode(urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button>{!noResults && <Button onClick={() => urlDraft ? void continueUrlManually() : setMode('manual')}>Adicionar manualmente</Button>}</>
-          : mode === 'review' ? <><Button onClick={() => setMode('search')}>Voltar</Button>{!review?.duplicate || review.duplicate.kind === 'probable' ? <Button variant="primary" disabled={busy || !importForm.title.trim() || (review?.duplicate?.kind === 'probable' && !importForm.allowProbable)} onClick={() => void importMetadata()}>{busy ? 'Importando…' : 'Importar para o Lumi'}</Button> : null}</>
+          : mode === 'review' ? <><Button onClick={() => setMode('search')}>Voltar</Button>{!review?.duplicate || review.duplicate.kind === 'probable' ? <Button variant="primary" disabled={busy || !importForm.title.trim() || (review?.duplicate?.kind === 'probable' && !importForm.allowProbable)} onClick={() => void importMetadata()}>{busy ? 'Importando…' : `Importar para o ${APP_BRAND.name}`}</Button> : null}</>
             : <><Button onClick={() => setMode(mode === 'manual' && urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button><Button variant="primary" disabled={busy || !(mode === 'quick' ? quick.title : manual.title).trim()} onClick={() => void (mode === 'quick' ? submitQuick() : submitManual())}>{busy ? 'Adicionando…' : mode === 'quick' ? 'Adicionar' : 'Adicionar obra'}</Button></>
 
   return <>
-    <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : 'Adicionar ao Lumi'} description={mode === 'choose' ? 'Escolha quanto deseja informar agora. Você poderá editar tudo depois.' : undefined} onClose={requestClose} footer={footer}>
+    <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : `Adicionar ao ${APP_BRAND.name}`} description={mode === 'choose' ? 'Escolha quanto deseja informar agora. Você poderá editar tudo depois.' : undefined} onClose={requestClose} footer={footer}>
       {mode === 'choose' && <div className="add-mode-grid"><button onClick={() => setMode('url')}><strong>Adicionar por URL</strong><span>Cole a página da obra para detectar título, site, descrição e capa.</span></button><button onClick={() => setMode('search')}><strong>Buscar metadados</strong><span>Pesquise no AniList e revise tudo antes de importar.</span></button><button onClick={() => setMode('quick')}><strong>Adicionar rapidamente</strong><span>Título, progresso e status. Leva poucos segundos.</span></button><button onClick={() => setMode('manual')}><strong>Adicionar manualmente</strong><span>Identificação, organização, fonte, notas e capa.</span></button></div>}
-      {mode === 'url' && <form className="url-analyze-form" onSubmit={(event) => { event.preventDefault(); void analyzeUrl() }}><label className="field"><span>URL da página da obra</span><input type="url" autoFocus value={urlInput} onChange={(event) => { setUrlInput(event.target.value); setUrlError('') }} placeholder="https://…" /></label><p className="metadata-hint">O Lumi acessa somente páginas públicas HTTP/HTTPS e não adiciona nada sem sua confirmação.</p>{urlError && <div className="metadata-error" role="alert"><p>{urlError}</p><Button onClick={() => void analyzeUrl()}>Tentar novamente</Button></div>}</form>}
+      {mode === 'url' && <form className="url-analyze-form" onSubmit={(event) => { event.preventDefault(); void analyzeUrl() }}><label className="field"><span>URL da página da obra</span><input type="url" autoFocus value={urlInput} onChange={(event) => { setUrlInput(event.target.value); setUrlError('') }} placeholder="https://…" /></label><p className="metadata-hint">O {APP_BRAND.name} acessa somente páginas públicas HTTP/HTTPS e não adiciona nada sem sua confirmação.</p>{urlError && <div className="metadata-error" role="alert"><p>{urlError}</p><Button onClick={() => void analyzeUrl()}>Tentar novamente</Button></div>}</form>}
       {mode === 'urlPreview' && urlAnalysis && urlDraft && <UrlMetadataPreview analysis={urlAnalysis} draft={urlDraft} setDraft={(next) => { setUrlDraft(next); if (urlAnalysis.duplicate?.kind === 'work') setUrlAnalysis({ ...urlAnalysis, duplicate: null }) }} busy={busy} onAniList={() => void searchUrlOnAniList()} onManual={() => void continueUrlManually()} onAddSource={(workId) => void addUrlAsSource(workId)} onOpen={(workId) => { close(); navigate(`/work/${workId}`) }} onCancel={close} />}
       {mode === 'search' && <div className="metadata-search"><label className="field"><span>Título da obra</span><input ref={searchInputRef} autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite pelo menos 3 caracteres" /></label><p className="metadata-search-tip"><strong>Não encontrou?</strong> O AniList pode não reconhecer o título em português usado pelo site onde você lê. Tente pesquisar pelo título em inglês, romanizado ou no idioma original.</p>{searchState === 'idle' && <p className="metadata-hint">Os resultados aparecem após uma pequena pausa na digitação.</p>}{searchState === 'loading' && <div className="metadata-skeleton" role="status"><i /><i /><i /></div>}{searchState === 'error' && <div className="metadata-error" role="alert"><p>{searchError}</p><Button onClick={() => { setSearchState('idle'); setQuery(`${query} `) }}>Tentar novamente</Button></div>}{noResults && <NoMetadataResults onRetry={retryTitle} onManual={() => urlDraft ? void continueUrlManually() : setMode('manual')} />}{searchState === 'ready' && results.length > 0 && <div className="metadata-results">{results.map((result) => <button key={`${result.provider}:${result.externalId}`} disabled={busy} onClick={() => void selectResult(result)}><span className="metadata-result__cover">{result.title.charAt(0)}</span><span><strong>{result.title}</strong><small>{[result.originalTitle, result.startDate?.slice(0, 4), result.mediaType ? MEDIA_TYPE_LABELS[result.mediaType] : null].filter(Boolean).join(' · ')}</small></span><b aria-hidden="true">›</b></button>)}</div>}</div>}
       {mode === 'review' && review && <MetadataReviewForm review={review} form={importForm} setForm={setImportForm} onClose={close} onCreated={onCreated} onAddSource={urlDraft ? addUrlAsSource : undefined} />}
@@ -241,7 +242,7 @@ function UrlMetadataPreview({ analysis, draft, setDraft, busy, onAniList, onManu
     let active = true
     if (!debouncedCoverUrl.trim()) { setCoverPreview({ state: 'placeholder', dataUrl: null, source: 'none', cached: false }); return () => { active = false } }
     setCoverPreview({ state: 'placeholder', dataUrl: null, source: 'remote', cached: false })
-    void window.lumi.covers.preview({ url: debouncedCoverUrl }).then((result) => { if (active) setCoverPreview(result) }).catch(() => { if (active) setCoverPreview({ state: 'error', dataUrl: null, source: 'remote', cached: false }) })
+    void window.auri.covers.preview({ url: debouncedCoverUrl }).then((result) => { if (active) setCoverPreview(result) }).catch(() => { if (active) setCoverPreview({ state: 'error', dataUrl: null, source: 'remote', cached: false }) })
     return () => { active = false }
   }, [debouncedCoverUrl])
   return <div className="url-metadata-preview">
@@ -256,7 +257,7 @@ function UrlMetadataPreview({ analysis, draft, setDraft, busy, onAniList, onManu
     </div>}
     <div className="url-preview-summary">
       <div className="metadata-summary__cover" aria-busy={Boolean(draft.coverUrl) && coverPreview.state === 'placeholder'}>{coverPreview.dataUrl ? <img src={coverPreview.dataUrl} alt="" /> : draft.title.trim().charAt(0).toLocaleUpperCase('pt-BR') || 'L'}</div>
-      <div><span className="page-kicker">{metadata.siteName ?? metadata.domain}</span><h3>{draft.title || 'Título não identificado'}</h3><p>{!draft.coverUrl ? 'Nenhuma capa detectada.' : coverPreview.state === 'ready' ? 'Preview processado pelo sistema de capas do Lumi.' : coverPreview.state === 'error' ? 'A capa foi detectada, mas o preview não pôde ser carregado.' : 'Preparando preview da capa…'}</p></div>
+      <div><span className="page-kicker">{metadata.siteName ?? metadata.domain}</span><h3>{draft.title || 'Título não identificado'}</h3><p>{!draft.coverUrl ? 'Nenhuma capa detectada.' : coverPreview.state === 'ready' ? `Preview processado pelo sistema de capas do ${APP_BRAND.name}.` : coverPreview.state === 'error' ? 'A capa foi detectada, mas o preview não pôde ser carregado.' : 'Preparando preview da capa…'}</p></div>
     </div>
     {partial && <div className="url-partial-callout"><strong>Não foi possível identificar automaticamente esta obra.</strong><p>Você pode completar os dados manualmente; a fonte já ficará preenchida.</p></div>}
     <div className="form-grid">
@@ -276,10 +277,10 @@ function MetadataReviewForm({ review, form, setForm, onClose, onCreated, onAddSo
   const { metadata, duplicate } = review
   const { showToast } = useToast()
   return <div className="metadata-review">
-    {duplicate && <div className={`duplicate-callout duplicate-callout--${duplicate.kind}`}><strong>{duplicate.kind === 'active' ? 'Esta obra já está na Biblioteca.' : duplicate.kind === 'trash' ? 'Esta obra está na Lixeira.' : 'Possível duplicata encontrada.'}</strong><p>“{duplicate.work.title}”</p><div className="url-preview-actions">{onAddSource && duplicate.kind !== 'trash' && <Button variant="primary" onClick={() => void onAddSource(duplicate.work.id)}>Adicionar como fonte</Button>}{duplicate.kind === 'active' && <Button onClick={() => { onClose(); navigate(`/work/${duplicate.work.id}`) }}>Abrir obra</Button>}{duplicate.kind === 'trash' && <Button onClick={async () => { await window.lumi.works.restore({ workId: duplicate.work.id }); onCreated(); onClose(); showToast({ kind: 'success', message: 'Obra restaurada.' }); navigate(`/work/${duplicate.work.id}`) }}>Restaurar</Button>}</div>{duplicate.kind === 'probable' && <label className="check-field"><input type="checkbox" checked={form.allowProbable} onChange={(event) => setForm({ ...form, allowProbable: event.target.checked })} /><span>Manter como obra separada</span></label>}</div>}
+    {duplicate && <div className={`duplicate-callout duplicate-callout--${duplicate.kind}`}><strong>{duplicate.kind === 'active' ? 'Esta obra já está na Biblioteca.' : duplicate.kind === 'trash' ? 'Esta obra está na Lixeira.' : 'Possível duplicata encontrada.'}</strong><p>“{duplicate.work.title}”</p><div className="url-preview-actions">{onAddSource && duplicate.kind !== 'trash' && <Button variant="primary" onClick={() => void onAddSource(duplicate.work.id)}>Adicionar como fonte</Button>}{duplicate.kind === 'active' && <Button onClick={() => { onClose(); navigate(`/work/${duplicate.work.id}`) }}>Abrir obra</Button>}{duplicate.kind === 'trash' && <Button onClick={async () => { await window.auri.works.restore({ workId: duplicate.work.id }); onCreated(); onClose(); showToast({ kind: 'success', message: 'Obra restaurada.' }); navigate(`/work/${duplicate.work.id}`) }}>Restaurar</Button>}</div>{duplicate.kind === 'probable' && <label className="check-field"><input type="checkbox" checked={form.allowProbable} onChange={(event) => setForm({ ...form, allowProbable: event.target.checked })} /><span>Manter como obra separada</span></label>}</div>}
     <div className="metadata-summary"><div className="metadata-summary__cover">{metadata.title.charAt(0)}</div><div><span className="page-kicker">AniList</span><h3>{metadata.title}</h3><p>{[metadata.originalTitle, metadata.startDate?.slice(0, 4), metadata.publicationStatus ? PUBLICATION_LABELS[metadata.publicationStatus] : null].filter(Boolean).join(' · ')}</p></div></div>
     {metadata.description && <p className="metadata-description">{metadata.description}</p>}
-    <div className="form-grid"><label className="field field--wide"><span>Título no Lumi</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="field"><span>Tipo</span><Select label="Tipo da obra" value={form.mediaType} onChange={(mediaType) => setForm({ ...form, mediaType: mediaType as MediaType })} options={Object.entries(MEDIA_TYPE_LABELS).map(([value, label]) => ({ value, label }))} /></label><label className="field"><span>Meu status</span><Select label="Status pessoal" value={form.userStatus} onChange={(userStatus) => setForm({ ...form, userStatus: userStatus as UserStatus })} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label><label className="field"><span>Último capítulo</span><input value={form.chapter} onChange={(event) => setForm({ ...form, chapter: event.target.value })} placeholder="Opcional" /></label><label className="field"><span>Nome da fonte <small>opcional</small></span><input value={form.sourceName} onChange={(event) => setForm({ ...form, sourceName: event.target.value })} /></label><label className="field field--wide"><span>Onde ler <small>opcional</small></span><input type="url" value={form.sourceUrl} onChange={(event) => setForm({ ...form, sourceUrl: event.target.value })} placeholder="https://…" /></label><label className="field field--wide"><span>Onde parei <small>opcional</small></span><textarea rows={2} value={form.lastReadNote} onChange={(event) => setForm({ ...form, lastReadNote: event.target.value })} /></label></div>
+    <div className="form-grid"><label className="field field--wide"><span>Título no {APP_BRAND.name}</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label className="field"><span>Tipo</span><Select label="Tipo da obra" value={form.mediaType} onChange={(mediaType) => setForm({ ...form, mediaType: mediaType as MediaType })} options={Object.entries(MEDIA_TYPE_LABELS).map(([value, label]) => ({ value, label }))} /></label><label className="field"><span>Meu status</span><Select label="Status pessoal" value={form.userStatus} onChange={(userStatus) => setForm({ ...form, userStatus: userStatus as UserStatus })} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label><label className="field"><span>Último capítulo</span><input value={form.chapter} onChange={(event) => setForm({ ...form, chapter: event.target.value })} placeholder="Opcional" /></label><label className="field"><span>Nome da fonte <small>opcional</small></span><input value={form.sourceName} onChange={(event) => setForm({ ...form, sourceName: event.target.value })} /></label><label className="field field--wide"><span>Onde ler <small>opcional</small></span><input type="url" value={form.sourceUrl} onChange={(event) => setForm({ ...form, sourceUrl: event.target.value })} placeholder="https://…" /></label><label className="field field--wide"><span>Onde parei <small>opcional</small></span><textarea rows={2} value={form.lastReadNote} onChange={(event) => setForm({ ...form, lastReadNote: event.target.value })} /></label></div>
     <dl className="metadata-facts"><div><dt>Creators</dt><dd>{metadata.creators.map((item) => item.name).join(', ') || 'Não informado'}</dd></div><div><dt>Gêneros</dt><dd>{metadata.genres.join(', ') || 'Não informado'}</dd></div><div><dt>Títulos alternativos</dt><dd>{metadata.aliases.map((item) => item.name).join(', ') || 'Nenhum'}</dd></div></dl>
   </div>
 }

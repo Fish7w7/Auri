@@ -1,7 +1,7 @@
 export type BackupType = 'manual' | 'auto' | 'before_restore' | 'before_import' | 'before_migration'
 
 export interface BackupManifest {
-  format: 'lumi-backup'
+  format: 'auri-backup' | 'lumi-backup'
   formatVersion: 1
   appVersion: string
   schemaVersion: number

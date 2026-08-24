@@ -14,7 +14,7 @@ afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recur
 
 async function setup(client: CoverDownloadClient) {
   const fixture = createDomainFixture()
-  const root = mkdtempSync(join(tmpdir(), 'lumi-cover-cache-')); directories.push(root)
+  const root = mkdtempSync(join(tmpdir(), 'auri-cover-cache-')); directories.push(root)
   const assets = new AssetService(join(root, 'assets'), fixture.services.works)
   const service = new CoverService(join(root, 'cache'), fixture.repositories.works, assets, client)
   const work = fixture.services.works.createWork({ title: 'Capa', mediaType: 'manga', userStatus: 'reading', cover: { type: 'remote', sourceUrl: 'https://img.example/cover.png' } })

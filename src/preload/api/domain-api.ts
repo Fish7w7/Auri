@@ -1,21 +1,21 @@
 import { ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
-import type { ApiResult, DomainErrorShape, LumiApi } from '@shared/contracts'
+import type { ApiResult, DomainErrorShape, AuriApi } from '@shared/contracts'
 
-export class LumiClientError extends Error {
+export class AuriClientError extends Error {
   constructor(readonly error: DomainErrorShape) {
     super(error.message)
-    this.name = 'LumiClientError'
+    this.name = 'AuriClientError'
   }
 }
 
 async function invoke<T>(channel: string, request?: unknown): Promise<T> {
   const result = (await ipcRenderer.invoke(channel, request)) as ApiResult<T>
-  if (!result.ok) throw new LumiClientError(result.error)
+  if (!result.ok) throw new AuriClientError(result.error)
   return result.data
 }
 
-export const domainApi: Omit<LumiApi, 'system' | 'settings'> = {
+export const domainApi: Omit<AuriApi, 'system' | 'settings'> = {
   bulk: {
     setStatus: (request) => invoke(IPC_CHANNELS.bulk.setStatus, request),
     setFavorite: (request) => invoke(IPC_CHANNELS.bulk.setFavorite, request),

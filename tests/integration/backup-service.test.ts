@@ -16,7 +16,7 @@ const databases: Database.Database[] = []
 afterEach(() => { for (const db of databases.splice(0)) if (db.open) db.close(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 function setup(now: () => Date = () => new Date('2026-08-17T12:00:00.000Z')) {
-  const root = mkdtempSync(join(tmpdir(), 'lumi-backup-test-')); roots.push(root)
+  const root = mkdtempSync(join(tmpdir(), 'auri-backup-test-')); roots.push(root)
   const paths: DataPaths = { root, database: join(root, 'data', 'library.sqlite'), assets: join(root, 'assets'), coverCache: join(root, 'cache', 'covers'), backups: join(root, 'backups'), logs: join(root, 'logs'), settings: join(root, 'settings.json') }
   for (const directory of [join(root, 'data'), paths.assets, paths.coverCache, paths.backups, paths.logs]) mkdirSync(directory, { recursive: true })
   const fixture = createDomainFixture(paths.database)
@@ -27,10 +27,10 @@ function setup(now: () => Date = () => new Date('2026-08-17T12:00:00.000Z')) {
 }
 
 async function rewriteArchive(archive: string, mutate: (stage: string) => void): Promise<string> {
-  const stage = mkdtempSync(join(tmpdir(), 'lumi-rewrite-')); roots.push(stage)
+  const stage = mkdtempSync(join(tmpdir(), 'auri-rewrite-')); roots.push(stage)
   const entries = await extractZip(archive, stage)
   mutate(stage)
-  const output = join(stage, 'rewritten.lumi-backup')
+  const output = join(stage, 'rewritten.auri-backup')
   await createZip(stage, entries.filter((entry) => !entry.endsWith('/')), output)
   return output
 }
@@ -43,20 +43,67 @@ function updateChecksum(stage: string, entry: string): void {
 }
 
 describe('BackupService', () => {
-  it('cria e valida um .lumi-backup com manifesto, banco, preferências, assets e checksums', async () => {
+  it('cria e valida um .auri-backup com manifesto Auri, banco, preferências, assets e checksums', async () => {
     const { paths, fixture, settings, service } = setup()
     createMinimalWork(fixture)
     settings.updateSettings({ backupRetention: 5 })
     writeFileSync(join(paths.assets, 'cover.webp'), 'permanent')
     writeFileSync(join(paths.coverCache, 'remote.webp'), 'cache')
     const backup = await service.createBackup()
+    expect(backup.fileName).toMatch(/^auri-manual-.+\.auri-backup$/)
     const preview = await service.previewBackup(backup.path)
     expect(preview).toMatchObject({ schemaVersion: 1, workCount: 1, includesSettings: true, assetCount: 1 })
-    const extracted = mkdtempSync(join(tmpdir(), 'lumi-extract-')); roots.push(extracted)
+    const extracted = mkdtempSync(join(tmpdir(), 'auri-extract-')); roots.push(extracted)
     const entries = await extractZip(backup.path, extracted)
     expect(entries).toContain('checksums.json')
     expect(entries).toContain('assets/cover.webp')
     expect(entries.some((entry) => entry.includes('cache'))).toBe(false)
+  })
+
+  it('restaura um .lumi-backup legado com toda a biblioteca íntegra', async () => {
+    const { paths, fixture, settings, service } = setup()
+    const details = fixture.services.details.createDetailed({
+      title: 'Backup legado', mediaType: 'manhwa', userStatus: 'reading', chapter: '42', favorite: true,
+      notes: 'Nota preservada', lastReadNote: 'Parei aqui', cover: { type: 'custom', customPath: 'covers/custom/legacy.webp' },
+      aliases: [{ name: 'Alias legado', kind: 'synonym', source: 'user' }],
+      creators: [{ name: 'Autora legada', role: 'author' }], genres: ['Fantasia'], tags: ['Magia'],
+      externalRefs: [{ provider: 'anilist', externalId: '123', canonicalUrl: 'https://anilist.co/manga/123' }]
+    })
+    fixture.services.details.createCollection({ name: 'Coleção legada', workId: details.work.id })
+    fixture.services.sources.createSource({ workId: details.work.id, seriesUrl: 'https://reader.example/legacy', isPreferred: true })
+    fixture.services.progress.updateProgress({ workId: details.work.id, chapterLabel: '43', confirmed: true })
+    settings.updateSettings({ cardSize: 'large' })
+    mkdirSync(join(paths.assets, 'covers', 'custom'), { recursive: true })
+    writeFileSync(join(paths.assets, 'covers', 'custom', 'legacy.webp'), 'capa legada')
+
+    const current = await service.createBackup()
+    const rewritten = await rewriteArchive(current.path, (stage) => {
+      const manifestPath = join(stage, 'manifest.json')
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
+      manifest.format = 'lumi-backup'
+      writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+      updateChecksum(stage, 'manifest.json')
+    })
+    const legacy = join(paths.backups, current.fileName.replace(/^auri-/, 'lumi-').replace(/\.auri-backup$/, '.lumi-backup'))
+    writeFileSync(legacy, readFileSync(rewritten))
+    expect(service.getState().backups.some((item) => item.path === legacy)).toBe(true)
+    await expect(service.previewBackup(legacy)).resolves.toMatchObject({ workCount: 1, schemaVersion: 1 })
+
+    let restarted = false
+    const restore = new BackupService(fixture.db, paths, settings, new TestLogger(), '1.2.0', 1, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
+    await restore.restoreBackup(legacy)
+    const restored = new Database(paths.database, { readonly: true })
+    try {
+      for (const table of ['works', 'reading_history', 'aliases', 'work_creators', 'genres', 'work_genres', 'tags', 'work_tags', 'collections', 'collection_items', 'sources', 'external_refs']) {
+        expect((restored.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count).toBeGreaterThan(0)
+      }
+      expect(restored.prepare('SELECT favorite, notes, last_read_note, cover_type, cover_custom_path FROM works').get()).toMatchObject({ favorite: 1, notes: 'Nota preservada', last_read_note: 'Parei aqui', cover_type: 'custom', cover_custom_path: 'covers/custom/legacy.webp' })
+      expect(restored.prepare('SELECT is_preferred FROM sources').get()).toMatchObject({ is_preferred: 1 })
+    } finally { restored.close() }
+    expect(readFileSync(join(paths.assets, 'covers', 'custom', 'legacy.webp'), 'utf8')).toBe('capa legada')
+    expect(JSON.parse(readFileSync(paths.settings, 'utf8'))).toMatchObject({ cardSize: 'large' })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(restarted).toBe(true)
   })
 
   it('rejeita backup cujo conteúdo não corresponde ao checksum', async () => {
@@ -131,14 +178,14 @@ describe('BackupService', () => {
   })
 
   it('rejeita entry com path traversal antes de extrair fora do staging', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'lumi-zipslip-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'auri-zipslip-')); roots.push(root)
     writeFileSync(join(root, 'safe.txt'), 'x')
     const valid = join(root, 'valid.zip'); await createZip(root, ['safe.txt'], valid)
     const bytes = readFileSync(valid)
     const safeName = Buffer.from('safe.txt'); const unsafeName = Buffer.from('../x.txt')
     let offset = 0
     while ((offset = bytes.indexOf(safeName, offset)) >= 0) { unsafeName.copy(bytes, offset); offset += safeName.length }
-    const malicious = join(root, 'malicious.lumi-backup'); writeFileSync(malicious, bytes)
+    const malicious = join(root, 'malicious.auri-backup'); writeFileSync(malicious, bytes)
     const destination = join(root, 'extract')
     await expect(extractZip(malicious, destination)).rejects.toThrow()
     expect(() => readFileSync(join(root, 'x.txt'))).toThrow()

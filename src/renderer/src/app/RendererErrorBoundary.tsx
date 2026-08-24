@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 interface RendererErrorBoundaryState {
   failed: boolean
@@ -12,17 +13,16 @@ export class RendererErrorBoundary extends Component<{ children: ReactNode }, Re
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error('Falha recuperável no Renderer do Lumi.', error, info.componentStack)
+    console.error(`Falha recuperável no Renderer do ${APP_BRAND.name}.`, error, info.componentStack)
   }
 
   render(): ReactNode {
     if (!this.state.failed) return this.props.children
 
     return <main className="renderer-fallback" role="alert">
-      <div className="brand-mark brand-mark--large">L</div>
-      <h1>O Lumi encontrou um problema nesta tela.</h1>
+      <h1>O {APP_BRAND.name} encontrou um problema nesta tela.</h1>
       <p>Seus dados continuam salvos. Recarregue o aplicativo para tentar novamente.</p>
-      <button className="button button--primary" onClick={() => window.location.reload()}>Recarregar Lumi</button>
+      <button className="button button--primary" onClick={() => window.location.reload()}>{`Recarregar ${APP_BRAND.name}`}</button>
     </main>
   }
 }

@@ -8,6 +8,8 @@ import type { CoverService } from './covers/cover-service'
 import type { CriticalOperationCoordinator } from './critical-operation-coordinator'
 import type { Logger } from '../logging/logger'
 import type { DatabaseIntegrityDetails } from '../database/repositories/system-repository'
+import { APP_BRAND } from '@shared/constants/app-branding'
+import { CURRENT_LOG_FILE_NAME } from '../app/app-identity'
 
 export interface SystemRepositoryReader {
   getSchemaVersion(): number
@@ -89,7 +91,7 @@ export class SystemService {
   getSystemInformationText(): string {
     const status = this.getStatus()
     return [
-      `Lumi ${status.appVersion}`,
+      `${APP_BRAND.name} ${status.appVersion}`,
       `Database schema: ${status.database.schemaVersion}`,
       `Backup format: ${status.backupFormatVersion}`,
       status.platform.label,
@@ -104,10 +106,11 @@ export class SystemService {
     try {
       const status = this.getStatus()
       const report = {
-        format: 'lumi-diagnostic',
+        format: 'auri-diagnostic',
         formatVersion: 1,
         generatedAt: new Date().toISOString(),
         application: {
+          name: APP_BRAND.name,
           version: status.appVersion,
           databaseSchema: status.database.schemaVersion,
           backupFormat: status.backupFormatVersion,
@@ -132,18 +135,20 @@ export class SystemService {
   }
 
   private readSafeRecentLogs(): Array<Record<string, string>> {
-    const logPath = join(this.paths.logs, 'lumi.jsonl')
-    if (!existsSync(logPath)) return []
-    try {
-      return readFileSync(logPath, 'utf8').split(/\r?\n/).filter(Boolean).slice(-100).flatMap((line) => {
-        try {
-          const entry = JSON.parse(line) as Record<string, unknown>
-          const safe: Record<string, string> = {}
-          for (const key of ['timestamp', 'level', 'category', 'event', 'errorCode']) if (typeof entry[key] === 'string') safe[key] = String(entry[key])
-          return Object.keys(safe).length ? [safe] : []
-        } catch { return [] }
-      })
-    } catch { return [] }
+    return [CURRENT_LOG_FILE_NAME].flatMap((fileName) => {
+      const logPath = join(this.paths.logs, fileName)
+      if (!existsSync(logPath)) return []
+      try {
+        return readFileSync(logPath, 'utf8').split(/\r?\n/).filter(Boolean).flatMap((line) => {
+          try {
+            const entry = JSON.parse(line) as Record<string, unknown>
+            const safe: Record<string, string> = {}
+            for (const key of ['timestamp', 'level', 'category', 'event', 'errorCode']) if (typeof entry[key] === 'string') safe[key] = String(entry[key])
+            return Object.keys(safe).length ? [safe] : []
+          } catch { return [] }
+        })
+      } catch { return [] }
+    }).slice(-100)
   }
 }
 

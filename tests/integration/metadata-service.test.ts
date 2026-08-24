@@ -16,7 +16,7 @@ const base: MetadataWork = { provider: 'anilist', externalId: '42', title: 'Nano
 
 function setup(initial: MetadataWork = base) {
   const fixture = createDomainFixture()
-  const root = mkdtempSync(join(tmpdir(), 'lumi-metadata-')); directories.push(root)
+  const root = mkdtempSync(join(tmpdir(), 'auri-metadata-')); directories.push(root)
   let current = initial
   let searches = 0
   const provider: MetadataProvider = { id: 'anilist', search: async () => { searches += 1; return [{ provider: current.provider, externalId: current.externalId, title: current.title, originalTitle: current.originalTitle, mediaType: current.mediaType, publicationStatus: current.publicationStatus, countryCode: current.countryCode, startDate: current.startDate, coverUrl: current.coverUrl, canonicalUrl: current.canonicalUrl }] }, getById: async (id) => id === current.externalId ? current : null }

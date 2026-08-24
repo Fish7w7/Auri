@@ -19,11 +19,11 @@ export function RelationDialog({ open, kind, work, onClose, onSaved }: { open: b
     if (!name.trim()) return
     setBusy(true)
     try {
-      if (kind === 'alias') await window.lumi.aliases.create({ workId: work.id, name, kind: secondary, source: 'user' })
-      if (kind === 'creator') await window.lumi.creators.create({ workId: work.id, name, role: secondary as 'author', source: 'user' })
-      if (kind === 'genre') await window.lumi.genres.create({ workId: work.id, name })
-      if (kind === 'tag') await window.lumi.tags.create({ workId: work.id, name })
-      if (kind === 'collection') await window.lumi.collections.create({ workId: work.id, name, description: secondary.trim() || null })
+      if (kind === 'alias') await window.auri.aliases.create({ workId: work.id, name, kind: secondary, source: 'user' })
+      if (kind === 'creator') await window.auri.creators.create({ workId: work.id, name, role: secondary as 'author', source: 'user' })
+      if (kind === 'genre') await window.auri.genres.create({ workId: work.id, name })
+      if (kind === 'tag') await window.auri.tags.create({ workId: work.id, name })
+      if (kind === 'collection') await window.auri.collections.create({ workId: work.id, name, description: secondary.trim() || null })
       showToast({ kind: 'success', message: kind === 'collection' ? 'Coleção criada e associada.' : 'Informação adicionada.' }); onSaved(); onClose()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
   }

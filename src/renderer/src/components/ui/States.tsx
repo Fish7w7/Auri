@@ -6,7 +6,7 @@ export function LoadingState({ label = 'Carregando…' }: { label?: string }) {
 }
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
-  return <div className="empty-state"><div className="empty-state__mark">L</div><h2>{title}</h2>{description && <p>{description}</p>}{action}</div>
+  return <div className="empty-state"><h2>{title}</h2>{description && <p>{description}</p>}{action}</div>
 }
 
 export function ErrorState({ title = 'Não foi possível carregar sua biblioteca.', description = 'Seus dados não foram alterados.', onRetry }: { title?: string; description?: string; onRetry(): void }) {

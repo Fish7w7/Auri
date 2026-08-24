@@ -6,6 +6,7 @@ import { navigate } from '../../app/navigation'
 import { STATUS_LABELS } from '../../lib/format'
 import { Icon, type IconName } from '../ui/Icon'
 import { IconButton } from '../ui/Button'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 const statusItems: Array<{ status: UserStatus; icon: IconName }> = [
   { status: 'reading', icon: 'book-open' },
@@ -32,7 +33,7 @@ export function Sidebar({ route, summary, compact, onToggleCompact }: { route: A
   const navProps = { compact, onShowTooltip: showTooltip, onHideTooltip: () => setTooltip(null) }
   return (
     <aside className={`sidebar ${compact ? 'sidebar--compact' : ''}`}>
-      <div className="sidebar__brand"><div className="brand-mark">L</div><strong>Lumi</strong><IconButton icon="panel-left" label={compact ? 'Expandir sidebar' : 'Recolher sidebar'} onClick={onToggleCompact} /></div>
+      <div className="sidebar__brand"><strong>{APP_BRAND.name}</strong><IconButton icon="panel-left" label={compact ? 'Expandir sidebar' : 'Recolher sidebar'} onClick={onToggleCompact} /></div>
       <nav aria-label="Navegação principal">
         <div className="sidebar__group">
           <NavButton icon="home" label="Home" active={route.page === 'home'} {...navProps} onClick={() => navigate('/')} />

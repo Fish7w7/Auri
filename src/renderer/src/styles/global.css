@@ -66,9 +66,8 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin:
 .window-frame::after { content: ""; position: absolute; z-index: 20; top: var(--titlebar-height); right: 0; left: 0; height: 1px; background: var(--border); pointer-events: none; }
 .window-titlebar { height: var(--titlebar-height); flex: 0 0 var(--titlebar-height); background: var(--surface); user-select: none; }
 .window-titlebar > div { width: env(titlebar-area-width, 100%); height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 12px; app-region: drag; }
-.window-titlebar img { width: 20px; height: 20px; flex: 0 0 auto; border-radius: 4px; object-fit: contain; pointer-events: none; }
 .window-titlebar strong { overflow: hidden; color: var(--text-primary); font-size: .76rem; font-weight: 650; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; transition: opacity var(--transition); }
-.window-titlebar.is-inactive img, .window-titlebar.is-inactive strong { opacity: .55; }
+.window-titlebar.is-inactive strong { opacity: .55; }
 .app-loading { min-height: 0; flex: 1; display: grid; place-content: center; justify-items: center; gap: 16px; color: var(--text-secondary); background: var(--background); }
 .renderer-fallback { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 32px; color: var(--text-primary); background: var(--background); text-align: center; }
 .renderer-fallback h1 { margin: 8px 0 0; font-size: 1.45rem; }
@@ -76,16 +75,13 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin:
 .app-shell { min-height: 0; flex: 1; display: flex; background: var(--background); }
 .app-content { flex: 1; min-width: 0; height: 100%; overflow: hidden; }
 
-.brand-mark { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; color: var(--background); background: var(--accent); font-weight: 850; letter-spacing: -.04em; }
-.brand-mark--large { width: 52px; height: 52px; border-radius: 15px; font-size: 1.4rem; }
-
 .sidebar { width: var(--sidebar-width); flex: 0 0 auto; display: flex; flex-direction: column; padding: 16px 12px 12px; border-right: 1px solid var(--border); background: var(--surface); transition: width var(--transition); overflow: hidden; }
 .sidebar--compact { width: var(--sidebar-compact); }
 .sidebar__brand { height: 48px; display: flex; align-items: center; gap: 11px; padding: 0 6px 12px; }
 .sidebar__brand strong { flex: 1; font-size: 1.05rem; letter-spacing: -.02em; transition: opacity var(--transition); }
 .sidebar__brand .icon-button { opacity: .56; }
 .sidebar--compact .sidebar__brand { justify-content: center; padding-inline: 0; }
-.sidebar--compact .sidebar__brand .brand-mark, .sidebar--compact .sidebar__brand strong { display: none; }
+.sidebar--compact .sidebar__brand strong { display: none; }
 .sidebar nav { flex: 1; overflow-y: auto; }
 .sidebar__group { padding: 9px 0; border-bottom: 1px solid var(--border); }
 .sidebar__group:first-child { padding-top: 2px; }
@@ -247,7 +243,6 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .loading-state, .empty-state, .error-state { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .loading-state { flex-direction: row; gap: 12px; color: var(--text-muted); font-size: .84rem; }
 .spinner { width: 18px; height: 18px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
-.empty-state__mark { width: 62px; height: 72px; display: grid; place-items: center; margin-bottom: 18px; border: 1px solid var(--border-strong); border-radius: 9px 14px 14px 9px; color: var(--text-muted); background: var(--surface); font-size: 1.45rem; font-weight: 800; }
 .empty-state h2, .error-state h2 { max-width: 520px; margin: 0; font-size: 1.15rem; }
 .empty-state p, .error-state p { max-width: 480px; margin: 8px 0 18px; color: var(--text-muted); font-size: .84rem; line-height: 1.55; }
 
@@ -300,7 +295,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .setting-row { min-height: 80px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .setting-row__copy { min-width: 0; }
 .setting-row__control { min-width: 150px; display: flex; align-items: center; justify-content: flex-end; }
-.setting-row__control > .lumi-select { width: 210px; }
+.setting-row__control > .auri-select { width: 210px; }
 .setting-row strong { font-size: .84rem; }
 .setting-row p { max-width: 480px; margin: 5px 0 0; overflow-wrap: anywhere; color: var(--text-muted); font-size: .74rem; line-height: 1.5; }
 .setting-inline, .data-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -387,14 +382,14 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 .work-cover--error > span { color: var(--danger); }
 .work-cover--placeholder[aria-busy="true"]::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.06) 45%, transparent 70%); animation: cover-shimmer 1.35s infinite; }
 @keyframes cover-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-.lumi-select { position: relative; min-width: 150px; max-width: 100%; }
-.lumi-select > button[role="combobox"] { width: 100%; min-height: var(--control-height); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface); text-align: left; }
-.lumi-select > button[role="combobox"]:focus-visible, .lumi-select.is-open > button { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
-.lumi-select > button i { color: var(--text-secondary); font-style: normal; }
-.lumi-select__list { position: absolute; z-index: 50; top: calc(100% + 5px); left: 0; min-width: 100%; max-height: min(260px, 45vh); overflow: auto; padding: 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-elevated); box-shadow: 0 18px 48px var(--shadow); }
-.lumi-select.is-above .lumi-select__list { top: auto; bottom: calc(100% + 5px); }
-.lumi-select__list > button { width: 100%; display: flex; justify-content: space-between; gap: 14px; padding: 9px 10px; border: 0; border-radius: 6px; color: var(--text-primary); background: transparent; text-align: left; white-space: nowrap; }
-.lumi-select__list > button:hover, .lumi-select__list > button.is-active { background: var(--accent-subtle); }
+.auri-select { position: relative; min-width: 150px; max-width: 100%; }
+.auri-select > button[role="combobox"] { width: 100%; min-height: var(--control-height); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface); text-align: left; }
+.auri-select > button[role="combobox"]:focus-visible, .auri-select.is-open > button { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
+.auri-select > button i { color: var(--text-secondary); font-style: normal; }
+.auri-select__list { position: absolute; z-index: 50; top: calc(100% + 5px); left: 0; min-width: 100%; max-height: min(260px, 45vh); overflow: auto; padding: 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-elevated); box-shadow: 0 18px 48px var(--shadow); }
+.auri-select.is-above .auri-select__list { top: auto; bottom: calc(100% + 5px); }
+.auri-select__list > button { width: 100%; display: flex; justify-content: space-between; gap: 14px; padding: 9px 10px; border: 0; border-radius: 6px; color: var(--text-primary); background: transparent; text-align: left; white-space: nowrap; }
+.auri-select__list > button:hover, .auri-select__list > button.is-active { background: var(--accent-subtle); }
 .dialog:has(.work-form) { width: min(920px, calc(100vw - 48px)); }
 .dialog:has(.work-form) .dialog__body { max-height: calc(100vh - 136px); overflow-y: auto; }
 .dialog:has(.cover-manager) { width: min(650px, calc(100vw - 48px)); }
