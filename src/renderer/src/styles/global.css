@@ -223,10 +223,10 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .virtual-library--list .virtual-library__window { display: block; }
 .library-list-header { position: absolute; z-index: 2; top: 0; left: 0; right: 0; height: 34px; display: grid; grid-template-columns: minmax(240px, 2fr) minmax(110px, .8fr) minmax(130px, .8fr) minmax(130px, .8fr) 114px; align-items: center; padding: 0 14px; color: var(--text-muted); border-bottom: 1px solid var(--border); background: var(--background); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
 
-.work-card { position: relative; min-width: 0; height: 100%; }
+.work-card { position: relative; min-width: 0; height: 100%; isolation: isolate; }
 .work-card.is-selection-mode, .work-list-row.is-selection-mode { cursor: pointer; }
 .work-card__open { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; text-align: left; }
-.work-card__open:hover .work-cover { border-color: var(--border-strong); transform: translateY(-2px); }
+.work-card:hover .work-cover, .work-card:focus-within .work-cover { border-color: var(--border-strong); transform: translateY(-2px); }
 .work-card.is-selected .work-cover { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
 .work-selection-indicator { position: absolute; z-index: 3; top: 9px; left: 9px; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--background); background: var(--overlay); font-size: .78rem; font-weight: 850; pointer-events: none; }
 .is-selected > .work-selection-indicator, .is-selected .work-selection-indicator { color: var(--accent-foreground); border-color: var(--accent); background: var(--accent); }
@@ -247,7 +247,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .status-badge--waiting i, .status-badge--paused i { background: var(--warning); }
 .status-badge--completed i { background: var(--info); }
 .status-badge--dropped i { background: var(--danger); }
-.work-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--overlay); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--transition), visibility 0s linear 150ms; }
+.work-actions { position: absolute; z-index: 4; top: 8px; right: 8px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--overlay); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--transition), visibility 0s linear 150ms; }
 .work-actions .icon-button { width: 30px; height: 30px; }
 .work-card:hover .work-actions, .work-card:focus-within .work-actions, .work-list-row:hover .work-actions, .work-list-row:focus-within .work-actions { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
 .work-list-row { position: relative; height: 68px; display: grid; grid-template-columns: minmax(240px, 2fr) minmax(110px, .8fr) minmax(130px, .8fr) minmax(130px, .8fr) 114px; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--border); transition: background var(--transition); }
