@@ -15,13 +15,13 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     minWidth: 900,
     minHeight: 600,
     show: false,
-    backgroundColor: '#111016',
+    backgroundColor: '#090d15',
     autoHideMenuBar: true,
     icon: resolveWindowIcon(),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#15141a',
-      symbolColor: '#f2f0f5'
+      color: '#131b2a',
+      symbolColor: '#f7f0da'
     },
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),

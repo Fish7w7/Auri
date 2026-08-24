@@ -3,34 +3,59 @@
   font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --background: #0d0c11;
-  --surface: #15141a;
-  --surface-hover: #1c1a23;
-  --surface-elevated: #211f29;
-  --surface-soft: #19171f;
-  --border: #292731;
-  --border-strong: #3b3847;
-  --text-primary: #f2f0f5;
-  --text-secondary: #b3afbc;
-  --text-muted: #7e7a88;
-  --accent: #9c83f6;
-  --accent-hover: #ae99f8;
-  --accent-subtle: #29223f;
-  --success: #77c99a;
-  --success-subtle: #17291f;
-  --warning: #dcb66c;
-  --warning-subtle: #2e2618;
-  --danger: #df7c86;
-  --danger-hover: #eb929b;
-  --danger-subtle: #321c21;
-  --cover-a: #332a50;
-  --cover-b: #1b1825;
-  --overlay: #08070bbd;
-  --shadow: #00000052;
-  --scrollbar-track: #111016;
-  --scrollbar-thumb: #4a4657;
-  --scrollbar-thumb-hover: #676075;
-  --scrollbar-thumb-active: #806dcc;
+
+  /* Cores oficiais do ícone Auri v4. */
+  --brand-navy-900: #090d15;
+  --brand-navy-700: #131b2a;
+  --brand-navy-500: #1e2a40;
+  --brand-ivory: #f7f0da;
+  --brand-cream: #efe1b8;
+  --brand-champagne: #d6c08a;
+  --brand-gold: #d8b76a;
+
+  /* Papéis semânticos derivados da identidade Auri. */
+  --background: var(--brand-navy-900);
+  --background-elevated: #0d1420;
+  --surface: var(--brand-navy-700);
+  --surface-input: #101827;
+  --surface-soft: #172133;
+  --surface-hover: var(--brand-navy-500);
+  --surface-active: #25344e;
+  --surface-elevated: #192437;
+  --border-subtle: #1a2638;
+  --border: #28384f;
+  --border-strong: #40536d;
+  --text-primary: #f4f0e5;
+  --text-secondary: #bec5cf;
+  --text-muted: #8792a2;
+  --text-disabled: #6f7b8c;
+  --accent: var(--brand-champagne);
+  --accent-hover: #e3d2a5;
+  --accent-active: #c0a665;
+  --accent-subtle: rgb(214 192 138 / 11%);
+  --accent-text: #e6d5aa;
+  --accent-foreground: var(--brand-navy-900);
+  --focus-ring: var(--brand-gold);
+  --selection: rgb(216 183 106 / 26%);
+  --info: #7fb5e8;
+  --info-subtle: #12273a;
+  --success: #7fc99b;
+  --success-subtle: #13291f;
+  --warning: #f0ad4e;
+  --warning-subtle: #322311;
+  --danger: #ef858e;
+  --danger-hover: #f49ba3;
+  --danger-subtle: #35171f;
+  --danger-foreground: var(--brand-navy-900);
+  --cover-a: #24334b;
+  --cover-b: #101827;
+  --overlay: #05080dd1;
+  --shadow: #00000066;
+  --shimmer-highlight: rgb(247 240 218 / 7%);
+  --scrollbar-track: #0d1420;
+  --scrollbar-thumb: #3a4a60;
+  --scrollbar-thumb-hover: #586a82;
+  --scrollbar-thumb-active: var(--brand-champagne);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -56,14 +81,16 @@ body { margin: 0; min-width: 900px; min-height: 600px; overflow: hidden; color: 
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 button, a, input, select, textarea { outline: none; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--accent); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--focus-ring); }
 button { cursor: pointer; }
-button:disabled, input:disabled, textarea:disabled { cursor: not-allowed; opacity: .5; }
+button:disabled { cursor: not-allowed; opacity: .58; }
+input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; color: var(--text-disabled); border-color: var(--border-subtle); background: var(--surface-soft); }
 input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
+::selection { color: var(--brand-ivory); background: var(--selection); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .window-frame { position: relative; width: 100%; height: 100%; min-width: 0; display: flex; flex-direction: column; background: var(--background); }
-.window-frame::after { content: ""; position: absolute; z-index: 20; top: var(--titlebar-height); right: 0; left: 0; height: 1px; background: var(--border); pointer-events: none; }
+.window-frame::after { content: ""; position: absolute; z-index: 20; top: var(--titlebar-height); right: 0; left: 0; height: 1px; background: var(--border-subtle); pointer-events: none; }
 .window-titlebar { height: var(--titlebar-height); flex: 0 0 var(--titlebar-height); background: var(--surface); user-select: none; }
 .window-titlebar > div { width: env(titlebar-area-width, 100%); height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 12px; app-region: drag; }
 .window-titlebar img { width: 19px; height: 19px; flex: 0 0 auto; border-radius: 5px; object-fit: contain; pointer-events: none; }
@@ -94,7 +121,8 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin:
 .sidebar__footer { padding-top: 9px; border-top: 1px solid var(--border); }
 .sidebar-link { position: relative; width: 100%; height: 38px; display: flex; align-items: center; gap: 11px; padding: 0 11px; margin: 2px 0; border: 0; border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; text-align: left; transition: color var(--transition), background var(--transition); }
 .sidebar-link:hover { color: var(--text-primary); background: var(--surface-hover); }
-.sidebar-link.is-active { color: var(--text-primary); background: var(--accent-subtle); }
+.sidebar-link.is-active { color: var(--brand-ivory); background: var(--accent-subtle); }
+.sidebar-link.is-active svg { color: var(--accent); }
 .sidebar-link.is-active::before { content: ""; position: absolute; left: 0; width: 3px; height: 18px; border-radius: 4px; background: var(--accent); }
 .sidebar-link svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .sidebar-link span { flex: 1; white-space: nowrap; overflow: hidden; transition: opacity var(--transition); }
@@ -116,12 +144,14 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin:
 .button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface-elevated); font-size: .84rem; font-weight: 650; line-height: 1; transition: background var(--transition), border-color var(--transition), transform var(--transition); }
 .button:hover { border-color: var(--border-strong); background: var(--surface-hover); }
 .button:active { transform: translateY(1px); }
+.button:active:not(.button--primary):not(.button--danger) { background: var(--surface-active); }
 .button svg { width: 17px; height: 17px; }
-.button--primary { color: var(--background); border-color: var(--accent); background: var(--accent); }
+.button--primary { color: var(--accent-foreground); border-color: var(--accent); background: var(--accent); }
 .button--primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+.button--primary:active { border-color: var(--accent-active); background: var(--accent-active); }
 .button--ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
 .button--ghost:hover { color: var(--text-primary); background: var(--surface-hover); }
-.button--danger { border-color: var(--danger); background: var(--danger); color: var(--background); }
+.button--danger { border-color: var(--danger); background: var(--danger); color: var(--danger-foreground); }
 .button--danger:hover { border-color: var(--danger-hover); background: var(--danger-hover); }
 .button--danger-ghost { color: var(--danger); }
 .button--danger-ghost:hover { color: var(--danger-hover); background: var(--danger-subtle); }
@@ -199,7 +229,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .work-card__open:hover .work-cover { border-color: var(--border-strong); transform: translateY(-2px); }
 .work-card.is-selected .work-cover { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
 .work-selection-indicator { position: absolute; z-index: 3; top: 9px; left: 9px; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--background); background: var(--overlay); font-size: .78rem; font-weight: 850; pointer-events: none; }
-.is-selected > .work-selection-indicator, .is-selected .work-selection-indicator { border-color: var(--accent); background: var(--accent); }
+.is-selected > .work-selection-indicator, .is-selected .work-selection-indicator { color: var(--accent-foreground); border-color: var(--accent); background: var(--accent); }
 .work-cover { position: relative; width: 100%; aspect-ratio: .7; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-secondary); background: linear-gradient(145deg, var(--cover-a), var(--cover-b)); overflow: hidden; transition: transform var(--transition), border-color var(--transition); }
 .work-cover > span { position: relative; z-index: 1; font-size: clamp(1.7rem, 3vw, 2.6rem); font-weight: 820; opacity: .75; }
 .work-cover > i { position: absolute; width: 60%; aspect-ratio: 1; border: 1px solid var(--border-strong); border-radius: 50%; opacity: .25; }
@@ -215,7 +245,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .status-badge i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); }
 .status-badge--reading i { background: var(--success); }
 .status-badge--waiting i, .status-badge--paused i { background: var(--warning); }
-.status-badge--completed i { background: var(--accent); }
+.status-badge--completed i { background: var(--info); }
 .status-badge--dropped i { background: var(--danger); }
 .work-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--overlay); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--transition), visibility 0s linear 150ms; }
 .work-actions .icon-button { width: 30px; height: 30px; }
@@ -265,12 +295,14 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .field--wide { grid-column: 1 / -1; }
 .field span { font-weight: 600; }
 .field small { color: var(--text-muted); font-weight: 400; }
-.field input, .field textarea { width: 100%; height: var(--control-height); padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface); }
+.field input, .field textarea { width: 100%; height: var(--control-height); padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface-input); transition: border-color var(--transition), background var(--transition); }
 .field textarea { min-height: 76px; height: auto; padding-block: 10px; line-height: 1.45; }
-.field input:focus, .field select:focus { border-color: var(--accent); }
+.field input:hover:not(:disabled), .field textarea:hover:not(:disabled) { border-color: var(--border-strong); }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--focus-ring); }
+.field input:user-invalid, .field textarea:user-invalid, .field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: var(--danger); }
 
 .toast-region { position: fixed; z-index: 1000; right: 22px; bottom: 22px; width: min(410px, calc(100vw - 44px)); display: grid; gap: 9px; }
-.toast { position: relative; display: flex; align-items: center; gap: 12px; padding: 13px 38px 13px 15px; border: 1px solid var(--border-strong); border-left: 3px solid var(--accent); border-radius: var(--radius-md); background: var(--surface-elevated); box-shadow: 0 14px 46px var(--shadow); }
+.toast { position: relative; display: flex; align-items: center; gap: 12px; padding: 13px 38px 13px 15px; border: 1px solid var(--border-strong); border-left: 3px solid var(--info); border-radius: var(--radius-md); background: var(--surface-elevated); box-shadow: 0 14px 46px var(--shadow); }
 .toast--success { border-left-color: var(--success); }
 .toast--warning { border-left-color: var(--warning); }
 .toast--error { border-left-color: var(--danger); }
@@ -307,7 +339,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .setting-row p { max-width: 480px; margin: 5px 0 0; overflow-wrap: anywhere; color: var(--text-muted); font-size: .74rem; line-height: 1.5; }
 .setting-inline, .data-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .setting-toggle { min-height: var(--control-height); display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .78rem; cursor: pointer; }
-.setting-warning { color: #e6b96f !important; }
+.setting-warning { color: var(--warning) !important; }
 .data-actions { padding: 0; }
 .settings-group { margin-top: 30px; }
 .settings-group > header, .settings-action-group > div:first-child { margin-bottom: 8px; }
@@ -387,16 +419,18 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 /* Parte 4 — cadastro e página da obra */
 .work-cover > img { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; object-fit: cover; }
 .work-cover--error > span { color: var(--danger); }
-.work-cover--placeholder[aria-busy="true"]::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.06) 45%, transparent 70%); animation: cover-shimmer 1.35s infinite; }
+.work-cover--placeholder[aria-busy="true"]::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, var(--shimmer-highlight) 45%, transparent 70%); animation: cover-shimmer 1.35s infinite; }
 @keyframes cover-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .auri-select { position: relative; min-width: 150px; max-width: 100%; }
-.auri-select > button[role="combobox"] { width: 100%; min-height: var(--control-height); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface); text-align: left; }
-.auri-select > button[role="combobox"]:focus-visible, .auri-select.is-open > button { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
+.auri-select > button[role="combobox"] { width: 100%; min-height: var(--control-height); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface-input); text-align: left; transition: border-color var(--transition), background var(--transition); }
+.auri-select > button[role="combobox"]:hover:not(:disabled) { border-color: var(--border-strong); background: var(--surface-hover); }
+.auri-select > button[role="combobox"]:focus-visible, .auri-select.is-open > button { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 0 3px var(--accent-subtle); }
 .auri-select > button i { color: var(--text-secondary); font-style: normal; }
 .auri-select__list { position: absolute; z-index: 50; top: calc(100% + 5px); left: 0; min-width: 100%; max-height: min(260px, 45vh); overflow: auto; padding: 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-elevated); box-shadow: 0 18px 48px var(--shadow); }
 .auri-select.is-above .auri-select__list { top: auto; bottom: calc(100% + 5px); }
 .auri-select__list > button { width: 100%; display: flex; justify-content: space-between; gap: 14px; padding: 9px 10px; border: 0; border-radius: 6px; color: var(--text-primary); background: transparent; text-align: left; white-space: nowrap; }
 .auri-select__list > button:hover, .auri-select__list > button.is-active { background: var(--accent-subtle); }
+.auri-select__list > button[aria-selected="true"] { color: var(--accent-text); }
 .dialog:has(.work-form) { width: min(920px, calc(100vw - 48px)); }
 .dialog:has(.work-form) .dialog__body { max-height: calc(100vh - 136px); overflow-y: auto; }
 .dialog:has(.cover-manager) { width: min(650px, calc(100vw - 48px)); }
