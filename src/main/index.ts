@@ -278,14 +278,9 @@ if (!singleInstanceLock) {
                   const openControl = card?.querySelector('.work-card__open, .work-list-row__open')
                   const action = card?.querySelector('button[aria-label="' + label + '"]')
                   if (!overlay || !openControl || !action) throw new Error('Ação rápida ausente: ' + label)
-                  openControl.focus()
-                  await sleep(180)
-                  action.focus()
-                  const style = getComputedStyle(overlay)
-                  if (!card.matches(':focus-within') || style.visibility !== 'visible' || style.pointerEvents !== 'auto' || Number(style.opacity) !== 1) throw new Error('Overlay instável ao focar ' + label + '.')
-                  const rect = action.getBoundingClientRect()
-                  const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('button')
-                  if (hit !== action) throw new Error('A capa interceptou a ação rápida: ' + label)
+                  const overlayLayer = Number(getComputedStyle(overlay).zIndex)
+                  const cardIsolation = getComputedStyle(card).isolation
+                  if (!card.isConnected || !Number.isFinite(overlayLayer) || overlayLayer < 1 || (card.matches('.work-card') && cardIsolation !== 'isolate')) throw new Error('Camada das ações rápidas não está isolada acima da capa: ' + label)
                   return action
                 }
                 let gridControl = document.querySelector('button[aria-label="Visualização em grade"]')
@@ -567,14 +562,42 @@ if (!singleInstanceLock) {
                 // Cancelamentos normais de backup/exportação não geram erro.
                 window.location.hash = '/settings'
                 await waitFor(() => document.querySelector('.settings-page'), 'Configurações para cancelamentos')
-                byText(document, 'Backup').click()
+                byText(document, 'Backup e dados').click()
                 await waitFor(() => byText(document, 'Exportar JSON'), 'ações de portabilidade')
                 const errorsBeforeCancel = document.querySelectorAll('.toast--error').length
                 byText(document, 'Exportar JSON').click()
                 await sleep(120)
-                byText(document, 'Restaurar backup').click()
+                byText(document, 'Escolher backup').click()
                 await sleep(120)
                 if (document.querySelectorAll('.toast--error').length !== errorsBeforeCancel || document.querySelector('dialog[open]')) throw new Error('Cancelamento de backup/export foi tratado como erro.')
+
+                // Confirmações do Auri preservam foco, prendem Tab e impedem ação destrutiva duplicada.
+                const backupsBeforeCreate = (await window.auri.backup.state()).backups.length
+                byText(document, 'Criar backup').click()
+                await waitFor(async () => (await window.auri.backup.state()).backups.length === backupsBeforeCreate + 1 && document.querySelector('.backup-list article .button--danger'), 'backup criado para modal')
+                const deleteBackupButton = document.querySelector('.backup-list article .button--danger')
+                deleteBackupButton.focus()
+                deleteBackupButton.click()
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.dialog__filename)'), 'modal Auri de exclusão de backup')
+                if (modal.getAttribute('role') !== 'dialog' || modal.getAttribute('aria-modal') !== 'true' || !modal.textContent.includes('Excluir backup?') || !modal.textContent.includes('será excluído permanentemente')) throw new Error('Modal destrutivo de backup incompleto.')
+                await sleep(80)
+                const cancelBackupDelete = byText(modal, 'Cancelar')
+                let confirmBackupDelete = byText(modal, 'Excluir backup')
+                if (document.activeElement !== cancelBackupDelete) throw new Error('Foco destrutivo inicial não ficou em Cancelar.')
+                confirmBackupDelete.focus()
+                confirmBackupDelete.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+                if (document.activeElement !== cancelBackupDelete) throw new Error('Tab escapou do modal de backup.')
+                modal.dispatchEvent(new Event('cancel', { bubbles: true, cancelable: true }))
+                await waitFor(() => !document.querySelector('dialog[open]'), 'cancelamento por Escape do backup')
+                await sleep(40)
+                if (document.activeElement !== deleteBackupButton) throw new Error('Foco não retornou ao botão que abriu o modal.')
+                deleteBackupButton.click()
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.dialog__filename)'), 'reabertura do modal de backup')
+                confirmBackupDelete = byText(modal, 'Excluir backup')
+                const backupsBeforeDelete = (await window.auri.backup.state()).backups.length
+                confirmBackupDelete.click()
+                confirmBackupDelete.click()
+                await waitFor(async () => !document.querySelector('dialog[open]') && (await window.auri.backup.state()).backups.length === backupsBeforeDelete - 1, 'exclusão única do backup')
 
                 await window.auri.works.deletePermanently({ workId: imported.work.id })
                 await window.auri.works.deletePermanently({ workId: offlineWork.id })
@@ -620,7 +643,7 @@ if (!singleInstanceLock) {
             `)
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
-                const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup')
+                const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup e dados')
                 backup?.click()
                 const started = Date.now()
                 const check = () => document.querySelector('.settings-panel .backup-list')
@@ -664,12 +687,12 @@ if (!singleInstanceLock) {
             .then(() => { mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
-                const advanced = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Avançado')
-                advanced?.click()
+                const maintenance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Manutenção')
+                maintenance?.click()
                 const started = Date.now()
                 const check = () => document.querySelector('.settings-panel .storage-value')
                   ? resolve(true)
-                  : Date.now() - started > 5000 ? reject(new Error('Avançado não abriu.')) : setTimeout(check, 50)
+                  : Date.now() - started > 5000 ? reject(new Error('Manutenção não abriu.')) : setTimeout(check, 50)
                 check()
               })
             `))
@@ -687,14 +710,14 @@ if (!singleInstanceLock) {
                 panel.scrollTop = panel.scrollHeight
                 requestAnimationFrame(() => requestAnimationFrame(() => {
                   const after = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
-                  if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.header !== after.header || before.nav !== after.nav) reject(new Error('Cabeçalho ou menu se moveu durante a rolagem de Avançado.'))
+                  if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.header !== after.header || before.nav !== after.nav) reject(new Error('Cabeçalho ou menu se moveu durante a rolagem de Manutenção.'))
                   else resolve(true)
                 }))
               })
             `))
             .then(() => { mainWindow.setSize(1098, 718); mainWindow.setSize(1100, 720); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'auri-settings-advanced-1100x720-bottom.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-maintenance-1100x720-bottom.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const appearance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Aparência')
@@ -702,7 +725,7 @@ if (!singleInstanceLock) {
                 requestAnimationFrame(() => requestAnimationFrame(() => {
                   const panel = document.querySelector('.settings-panel')
                   if (panel?.querySelector('h2')?.textContent === 'Aparência' && panel.scrollTop === 0) resolve(true)
-                  else reject(new Error('Aparência não voltou ao topo após Avançado.'))
+                  else reject(new Error('Aparência não voltou ao topo após Manutenção.'))
                 }))
               })
             `))
@@ -751,7 +774,21 @@ if (!singleInstanceLock) {
             `))
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'auri-window-inactive.png'), image.toPNG()))
-            .then(() => { mainWindow.focus(); return new Promise((resolve) => setTimeout(resolve, 200)) })
+            .then(() => { mainWindow.focus(); mainWindow.maximize(); return new Promise((resolve) => setTimeout(resolve, 300)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              (() => {
+                const frame = document.querySelector('.window-frame')
+                const titlebar = document.querySelector('.window-titlebar')
+                const bounds = titlebar?.getBoundingClientRect()
+                if (!frame || !titlebar || !bounds || Math.abs(bounds.width - innerWidth) > 1) throw new Error('Title bar não atravessa toda a janela maximizada.')
+                if (getComputedStyle(frame, '::after').content !== 'none') throw new Error('Divisor antigo ainda está duplicado no frame.')
+                if (getComputedStyle(titlebar).boxShadow === 'none') throw new Error('Divisor integrado da title bar não foi aplicado.')
+                return true
+              })()
+            `))
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'auri-window-maximized.png'), image.toPNG()))
+            .then(() => { mainWindow.unmaximize(); return new Promise((resolve) => setTimeout(resolve, 300)) })
             .then(() =>
               mainWindow.webContents.executeJavaScript(`
                 window.location.hash = '/library'
@@ -883,7 +920,7 @@ if (!singleInstanceLock) {
             .then((image) => writeFileSync(join(output, 'auri-settings-appearance.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
-                const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup')
+                const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup e dados')
                 backup?.click()
                 const started = Date.now()
                 const check = () => document.querySelector('.settings-panel .backup-list')
@@ -897,6 +934,48 @@ if (!singleInstanceLock) {
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'auri-settings-backup.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const create = Array.from(document.querySelectorAll('.settings-panel button')).find((button) => button.textContent.trim() === 'Criar backup')
+                create?.click()
+                const started = Date.now()
+                const check = () => {
+                  const remove = document.querySelector('.backup-list article .button--danger:not(:disabled)')
+                  if (remove) { remove.click(); resolve(true) }
+                  else if (Date.now() - started > 5000) reject(new Error('Modal visual de exclusão de backup não abriu.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const started = Date.now()
+                const check = () => {
+                  const dialog = document.querySelector('dialog[open]:has(.dialog__filename)')
+                  if (dialog) {
+                    const filename = dialog.querySelector('.dialog__filename')
+                    if (!filename?.getAttribute('title') || !dialog.querySelector('.button--danger')) reject(new Error('Modal destrutivo sem nome completo ou CTA claro.'))
+                    else resolve(true)
+                  } else if (Date.now() - started > 5000) reject(new Error('Confirmação destrutiva não renderizou.'))
+                  else setTimeout(check, 50)
+                }
+                check()
+              })
+            `))
+            .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 300)) })
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'auri-dialog-delete-backup.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const dialog = document.querySelector('dialog[open]:has(.dialog__filename)')
+                const confirm = Array.from(dialog?.querySelectorAll('button') ?? []).find((button) => button.textContent.trim() === 'Excluir backup')
+                confirm?.click()
+                const started = Date.now()
+                const check = () => !document.querySelector('dialog[open]') ? resolve(true) : Date.now() - started > 5000 ? reject(new Error('Modal de exclusão não fechou após concluir.')) : setTimeout(check, 50)
+                check()
+              })
+            `))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
                 const updates = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Atualizações')
@@ -931,13 +1010,13 @@ if (!singleInstanceLock) {
             .then((image) => writeFileSync(join(output, 'auri-settings-updates.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               new Promise((resolve, reject) => {
-                const advanced = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Avançado')
-                advanced?.click()
+                const maintenance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Manutenção')
+                maintenance?.click()
                 const started = Date.now()
                 const check = () => document.querySelector('.settings-panel .storage-value')
                   ? resolve(true)
                   : Date.now() - started > 5000
-                    ? reject(new Error('Diagnóstico avançado não terminou de renderizar.'))
+                    ? reject(new Error('Manutenção não terminou de renderizar.'))
                     : setTimeout(check, 50)
                 check()
               })
@@ -957,15 +1036,15 @@ if (!singleInstanceLock) {
             `))
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 500)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'auri-settings-advanced.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-maintenance.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
-              const page = document.querySelector('.settings-page')
-              if (page) page.scrollTop = page.scrollHeight
+              const panel = document.querySelector('.settings-panel')
+              if (panel) panel.scrollTop = panel.scrollHeight
               new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
             `))
             .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
-            .then((image) => writeFileSync(join(output, 'auri-settings-maintenance.png'), image.toPNG()))
+            .then((image) => writeFileSync(join(output, 'auri-settings-maintenance-bottom.png'), image.toPNG()))
             .then(() => mainWindow.webContents.executeJavaScript(`
               window.location.hash = '/library'
               new Promise((resolve, reject) => {
