@@ -17,6 +17,7 @@ import { useToast } from '../components/ui/Toast'
 import { Select } from '../components/ui/Select'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../lib/format'
 import { selectBestReadingSource } from '../lib/source-selection'
+import { BrandMark } from '../components/shell/BrandMark'
 
 const SOURCE_STATUS = { active: 'Ativa', unavailable: 'Indisponível', archived: 'Arquivada' }
 const LANGUAGES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Português', en: 'Inglês', es: 'Espanhol', ja: 'Japonês', ko: 'Coreano', zh: 'Chinês', other: 'Outro' }
@@ -52,7 +53,7 @@ export function WorkPage({ id }: { id: string }) {
   if (pageState === 'error' || !details) return <div className="page"><ErrorState title="Não foi possível carregar esta obra." description="Seus dados permanecem seguros no dispositivo." onRetry={() => void loadDetails()} /></div>
   const work = details.work
 
-  if (work.deletedAt) return <div className="page trashed-work-state"><h1>Esta obra está na Lixeira.</h1><p>O progresso, o histórico, as fontes e as notas continuam preservados.</p><div><Button onClick={() => navigate('/library')}>Voltar à Biblioteca</Button><Button variant="primary" onClick={async () => { try { await window.auri.works.restore({ workId: work.id }); showToast({ kind: 'success', message: `“${work.title}” foi restaurada.` }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }}>Restaurar</Button></div></div>
+  if (work.deletedAt) return <div className="page trashed-work-state"><BrandMark large /><h1>Esta obra está na Lixeira.</h1><p>O progresso, o histórico, as fontes e as notas continuam preservados.</p><div><Button onClick={() => navigate('/library')}>Voltar à Biblioteca</Button><Button variant="primary" onClick={async () => { try { await window.auri.works.restore({ workId: work.id }); showToast({ kind: 'success', message: `“${work.title}” foi restaurada.` }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }}>Restaurar</Button></div></div>
 
   const originalAlias = details.aliases.find((alias) => alias.kind === 'original') ?? details.aliases[0]
   const numericProgress = work.lastReadChapter?.number != null

@@ -1,0 +1,56 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#1E2A40"/>
+      <stop offset="50%" stop-color="#131B2A"/>
+      <stop offset="100%" stop-color="#090D15"/>
+    </linearGradient>
+
+    <radialGradient id="auraGlow" cx="50%" cy="45%" r="40%">
+      <stop offset="0%" stop-color="#D8B76A" stop-opacity="0.14"/>
+      <stop offset="60%" stop-color="#D8B76A" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#D8B76A" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="topGlow" cx="28%" cy="16%" r="55%">
+      <stop offset="0%" stop-color="#4A5B7A" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#4A5B7A" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="62%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.18"/>
+    </radialGradient>
+
+    <linearGradient id="glyphGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F7F0DA"/>
+      <stop offset="100%" stop-color="#EFE1B8"/>
+    </linearGradient>
+
+    <clipPath id="roundedSquare">
+      <rect x="0" y="0" width="1024" height="1024" rx="225" ry="225"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#roundedSquare)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#topGlow)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#auraGlow)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#vignette)"/>
+
+    <!-- halo rings: more delicate, lower contrast -->
+    <circle cx="512" cy="468" r="321" fill="none" stroke="#D6C08A" stroke-width="4" opacity="0.11"/>
+    <circle cx="512" cy="468" r="283" fill="none" stroke="#D8B76A" stroke-width="5" opacity="0.18"/>
+
+    <!-- A mark: scaled ~10% smaller than v3 for better breathing room, same silhouette -->
+    <path d="M364,715 L512,317 L660,715"
+          fill="none"
+          stroke="url(#glyphGrad)"
+          stroke-width="70"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- accent dot above the apex -->
+    <circle cx="512" cy="211" r="20" fill="url(#glyphGrad)"/>
+  </g>
+</svg>

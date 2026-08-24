@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { APP_USER_MODEL_ID } from '@main/app/app-identity'
 
@@ -12,7 +12,8 @@ interface PackageIdentity {
     appId: string
     productName: string
     artifactName: string
-    nsis: { shortcutName: string }
+    win: { icon: string }
+    nsis: { shortcutName: string; installerIcon: string; uninstallerIcon: string; installerHeaderIcon: string }
     publish: Array<{ owner: string; repo: string }>
   }
 }
@@ -25,7 +26,10 @@ describe('identidade do aplicativo Auri', () => {
     expect(manifest.author).toBe('Auri')
     expect(manifest.build.productName).toBe('Auri')
     expect(manifest.build.artifactName).toBe('Auri-Setup-${version}-${arch}.${ext}')
-    expect(manifest.build.nsis.shortcutName).toBe('Auri')
+    expect(manifest.build.win.icon).toBe('build/icon.ico')
+    expect(manifest.build.nsis).toMatchObject({ shortcutName: 'Auri', installerIcon: 'build/icon.ico', uninstallerIcon: 'build/icon.ico', installerHeaderIcon: 'build/icon.ico' })
+    expect(existsSync(join(process.cwd(), 'src/renderer/public/auri-icon.svg'))).toBe(true)
+    expect(existsSync(join(process.cwd(), 'build/icon.ico'))).toBe(true)
     expect(manifest.name).toBe('auri-desktop')
     expect(manifest.build.appId).toBe('app.auri.desktop')
     expect(APP_USER_MODEL_ID).toBe(manifest.build.appId)

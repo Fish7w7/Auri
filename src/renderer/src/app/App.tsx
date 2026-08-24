@@ -14,6 +14,7 @@ import { CollectionsPage } from '../pages/CollectionsPage'
 import { KeyboardShortcutsProvider } from './keyboard-shortcuts'
 import { QuickSearchDialog } from '../components/library/QuickSearchDialog'
 import { WindowTitleBar } from '../components/shell/WindowTitleBar'
+import { BrandMark } from '../components/shell/BrandMark'
 
 const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
@@ -52,7 +53,7 @@ function AppShell() {
   }, [])
   const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => setAddOpen(true) }), [refreshData, settings, summary, updateSettings])
 
-  if (!ready) return <div className="app-loading"><span>Preparando sua biblioteca…</span></div>
+  if (!ready) return <div className="app-loading"><BrandMark large /><span>Preparando sua biblioteca…</span></div>
 
   return <AppContext.Provider value={context}><KeyboardShortcutsProvider onQuickSearch={() => setQuickSearchOpen(true)} onAddWork={() => setAddOpen(true)} canAddWork={route.page !== 'settings'}><div className="app-shell">
       <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />

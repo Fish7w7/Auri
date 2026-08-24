@@ -16,6 +16,6 @@ export function WindowTitleBar() {
   }, [])
 
   return <header className={`window-titlebar ${active ? 'is-active' : 'is-inactive'}`}>
-    <div><strong>{APP_BRAND.name}</strong></div>
+    <div><img src={APP_BRAND.iconPath} alt="" draggable={false} /><strong>{APP_BRAND.name}</strong></div>
   </header>
 }

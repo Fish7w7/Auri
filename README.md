@@ -6,17 +6,17 @@ Registre o que está lendo, salve o capítulo em que parou, reúna seus sites pr
 
 ## O que você pode fazer
 
-- organizar obras por status, como **Lendo**, **Quero ler**, **Pausado**, **Esperando**, **Finalizado** e **Abandonado**;
-- atualizar o capítulo atual e desfazer uma alteração de progresso;
-- continuar leituras recentes diretamente pela Home;
-- pesquisar por título, nome alternativo ou autor;
-- usar filtros, ordenação, favoritos, tags e coleções;
-- guardar notas, o ponto exato onde parou e o histórico de leitura;
-- cadastrar vários sites para a mesma obra e escolher uma fonte preferida;
-- usar capas obtidas da web ou escolher uma imagem do computador;
-- mover itens para a Lixeira e restaurá-los quando necessário;
-- selecionar várias obras e realizar ações em lote;
-- usar atalhos de teclado para as ações mais frequentes.
+* organizar obras por status, como **Lendo**, **Quero ler**, **Pausado**, **Esperando**, **Finalizado** e **Abandonado**;
+* atualizar o capítulo atual e desfazer uma alteração de progresso;
+* continuar leituras recentes diretamente pela Home;
+* pesquisar por título, nome alternativo ou autor;
+* usar filtros, ordenação, favoritos, tags e coleções;
+* guardar notas, o ponto exato onde parou e o histórico de leitura;
+* cadastrar vários sites para a mesma obra e escolher uma fonte preferida;
+* usar capas obtidas da web ou escolher uma imagem do computador;
+* mover itens para a Lixeira e restaurá-los quando necessário;
+* selecionar várias obras e realizar ações em lote;
+* usar atalhos de teclado para as ações mais frequentes.
 
 ## Adicione obras do seu jeito
 
@@ -32,11 +32,11 @@ Nenhum resultado externo é salvo sem a sua confirmação. Se um site não dispo
 
 O Auri é **local-first**: sua biblioteca, progresso, notas e preferências ficam no seu computador.
 
-- não é necessário criar uma conta;
-- a Biblioteca não depende de internet para funcionar;
-- o AniList só é consultado quando você inicia uma busca ou atualização de metadados;
-- não há sincronização automática da sua biblioteca com serviços externos;
-- capas já armazenadas e imagens personalizadas continuam disponíveis offline.
+* não é necessário criar uma conta;
+* a Biblioteca não depende de internet para funcionar;
+* o AniList só é consultado quando você inicia uma busca ou atualização de metadados;
+* não há sincronização automática da sua biblioteca com serviços externos;
+* capas já armazenadas e imagens personalizadas continuam disponíveis offline.
 
 Para proteger ou transportar seus dados, o aplicativo permite:
 
@@ -69,10 +69,10 @@ As opções de aparência, biblioteca, atualizações, atalhos e manutenção ta
 
 ## Limitações atuais
 
-- há distribuição oficial apenas para Windows x64;
-- não existe sincronização entre computadores ou celulares;
-- a busca do AniList pode não reconhecer alguns títulos em português — nesses casos, tente o título em inglês, romanizado ou original;
-- alguns sites carregam informações somente por JavaScript e podem fornecer poucos dados ao cadastro por URL.
+* há distribuição oficial apenas para Windows x64;
+* não existe sincronização entre computadores ou celulares;
+* a busca do AniList pode não reconhecer alguns títulos em português — nesses casos, tente o título em inglês, romanizado ou original;
+* alguns sites carregam informações somente por JavaScript e podem fornecer poucos dados ao cadastro por URL.
 
 ## Desenvolvimento
 
