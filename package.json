@@ -11,6 +11,8 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
+    "brand:assets": "node scripts/generate-brand-assets.mjs",
+    "prebuild:app": "npm run brand:assets",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
@@ -87,6 +89,7 @@
       "en-US"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -97,6 +100,9 @@
       ]
     },
     "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Auri"

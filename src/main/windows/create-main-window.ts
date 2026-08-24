@@ -17,6 +17,7 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     show: false,
     backgroundColor: '#111016',
     autoHideMenuBar: true,
+    icon: resolveWindowIcon(),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#15141a',
@@ -53,4 +54,10 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
   }
 
   return window
+}
+
+function resolveWindowIcon(): string {
+  return process.env.ELECTRON_RENDERER_URL
+    ? join(process.cwd(), 'src/renderer/public', APP_BRAND.iconFileName)
+    : join(__dirname, '../renderer', APP_BRAND.iconFileName)
 }

@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { Button } from './Button'
+import { APP_BRAND } from '@shared/constants/app-branding'
 
 export function LoadingState({ label = 'Carregando…' }: { label?: string }) {
   return <div className="loading-state" role="status"><span className="spinner" />{label}</div>
 }
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
-  return <div className="empty-state"><h2>{title}</h2>{description && <p>{description}</p>}{action}</div>
+  return <div className="empty-state"><div className="empty-state__mark"><img src={APP_BRAND.iconPath} alt="" draggable={false} /></div><h2>{title}</h2>{description && <p>{description}</p>}{action}</div>
 }
 
 export function ErrorState({ title = 'Não foi possível carregar sua biblioteca.', description = 'Seus dados não foram alterados.', onRetry }: { title?: string; description?: string; onRetry(): void }) {
