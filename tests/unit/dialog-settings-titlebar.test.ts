@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { adjacentSettingsSection, SETTINGS_SECTIONS } from '@renderer/pages/SettingsPage'
+import { adjacentSettingsSection, backupCountLabel, cardPreviewCount, formatIntegrityCheckedAt, SETTINGS_SECTIONS } from '@renderer/pages/SettingsPage'
 import { ConfirmDialog, Dialog, runDialogAction } from '@renderer/components/ui/Dialog'
 import { Button } from '@renderer/components/ui/Button'
 
@@ -20,7 +20,7 @@ describe('modais, Configurações e title bar do Auri', () => {
     const labels: readonly string[] = SETTINGS_SECTIONS.map((item) => item.label)
     expect(labels).toEqual([
       'Aparência',
-      'Biblioteca',
+      'Biblioteca e Home',
       'Backup e dados',
       'Atualizações',
       'Atalhos',
@@ -36,6 +36,24 @@ describe('modais, Configurações e title bar do Auri', () => {
     expect(adjacentSettingsSection('about', 'ArrowDown')).toBe('appearance')
     expect(adjacentSettingsSection('maintenance', 'Home')).toBe('appearance')
     expect(adjacentSettingsSection('library', 'End')).toBe('about')
+  })
+  it('expõe os estados visuais e resumos da nova experiência', () => {
+    expect(cardPreviewCount('small')).toBe(5)
+    expect(cardPreviewCount('medium')).toBe(4)
+    expect(cardPreviewCount('large')).toBe(3)
+    expect(backupCountLabel(0)).toBe('0 backups armazenados')
+    expect(backupCountLabel(1)).toBe('1 backup armazenado')
+    expect(formatIntegrityCheckedAt('2026-08-25T14:42:00-03:00', new Date('2026-08-25T18:00:00-03:00'))).toContain('Verificado hoje')
+  })
+
+  it('remove a ordenação redundante e mantém o gerenciador dedicado de backups', () => {
+    const settings = readFileSync(join(process.cwd(), 'src/renderer/src/pages/SettingsPage.tsx'), 'utf8')
+    const library = readFileSync(join(process.cwd(), 'src/renderer/src/pages/LibraryPage.tsx'), 'utf8')
+    expect(settings).not.toContain('Ordenação padrão')
+    expect(settings).toContain('última ordenação usada na Biblioteca')
+    expect(settings).toContain('backup-manager-list')
+    expect(settings).toContain('Gerenciar backups')
+    expect(library).toContain('updateSettings({ librarySort: sort })')
   })
 
   it('mantém semântica, descrição, loading e erro no modal compartilhado', () => {

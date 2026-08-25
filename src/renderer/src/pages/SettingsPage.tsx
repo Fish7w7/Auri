@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { BackupPreview, BackupState, CoverCacheUsage, ImportPreview, LibrarySort, LibraryView, SystemDiagnostics, SystemStatus, Work } from '@shared/contracts'
+import type { BackupPreview, BackupRecord, BackupState, CoverCacheUsage, ImportPreview, LibraryView, SystemDiagnostics, SystemStatus, Work } from '@shared/contracts'
 import { APP_BRAND } from '@shared/constants/app-branding'
 import { useAppContext } from '../app/app-context'
 import { BrandMark } from '../components/shell/BrandMark'
@@ -7,20 +7,21 @@ import { SettingRow } from '../components/settings/SettingRow'
 import { UpdatesSettings } from '../components/settings/UpdatesSettings'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog, Dialog } from '../components/ui/Dialog'
+import { Icon, type IconName } from '../components/ui/Icon'
 import { Select } from '../components/ui/Select'
 import { ErrorState, LoadingState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
 import { applyLibraryImport } from '../lib/apply-library-import'
 
 export const SETTINGS_SECTIONS = [
-  { id: 'appearance', label: 'Aparência' },
-  { id: 'library', label: 'Biblioteca' },
-  { id: 'backup-data', label: 'Backup e dados' },
-  { id: 'updates', label: 'Atualizações' },
-  { id: 'shortcuts', label: 'Atalhos' },
-  { id: 'maintenance', label: 'Manutenção' },
-  { id: 'about', label: 'Sobre' }
-] as const
+  { id: 'appearance', label: 'Aparência', icon: 'grid' },
+  { id: 'library', label: 'Biblioteca e Home', icon: 'home' },
+  { id: 'backup-data', label: 'Backup e dados', icon: 'library' },
+  { id: 'updates', label: 'Atualizações', icon: 'rotate' },
+  { id: 'shortcuts', label: 'Atalhos', icon: 'panel-left' },
+  { id: 'maintenance', label: 'Manutenção', icon: 'settings' },
+  { id: 'about', label: 'Sobre', icon: 'alert' }
+] as const satisfies ReadonlyArray<{ id: string; label: string; icon: IconName }>
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]['id']
 
@@ -32,15 +33,12 @@ export function adjacentSettingsSection(current: SettingsSection, key: 'ArrowUp'
   return SETTINGS_SECTIONS[(index + offset + SETTINGS_SECTIONS.length) % SETTINGS_SECTIONS.length].id
 }
 
-const sortLabels: Record<LibrarySort, string> = {
-  last_read_desc: 'Última leitura',
-  last_read_asc: 'Mais tempo sem ler',
-  title_asc: 'Título A–Z',
-  title_desc: 'Título Z–A',
-  created_desc: 'Adicionado recentemente',
-  updated_desc: 'Atualizado recentemente',
-  chapter_desc: 'Capítulo',
-  rating_desc: 'Nota'
+export function backupCountLabel(count: number): string {
+  return count + (count === 1 ? ' backup armazenado' : ' backups armazenados')
+}
+
+export function cardPreviewCount(size: 'small' | 'medium' | 'large'): number {
+  return ({ small: 5, medium: 4, large: 3 })[size]
 }
 
 export function SettingsPage() {
@@ -51,9 +49,11 @@ export function SettingsPage() {
   const [diagnosticError, setDiagnosticError] = useState(false)
   const [cache, setCache] = useState<CoverCacheUsage | null>(null)
   const [backup, setBackup] = useState<BackupState | null>(null)
-  const [restorePreview, setRestorePreview] = useState<BackupPreview | null>(null)
+  const [backupManagerOpen, setBackupManagerOpen] = useState(false)
+  const [restorePreview, setRestorePreview] = useState<BackupPreview | BackupRecord | null>(null)
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
-  const [deleteBackup, setDeleteBackup] = useState<BackupState['backups'][number] | null>(null)
+  const [deleteBackup, setDeleteBackup] = useState<BackupRecord | null>(null)
+  const [returnToBackupManager, setReturnToBackupManager] = useState(false)
   const [hiddenWorks, setHiddenWorks] = useState<Work[]>([])
   const [hiddenManagerOpen, setHiddenManagerOpen] = useState(false)
   const [hiddenLoading, setHiddenLoading] = useState(false)
@@ -68,6 +68,7 @@ export function SettingsPage() {
     finally { setHiddenLoading(false) }
   }, [])
   const loadCache = useCallback(() => void window.auri.covers.usage().then(setCache).catch(() => setCache(null)), [])
+  const loadBackup = useCallback(() => void window.auri.backup.state().then(setBackup).catch((error) => showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível carregar os backups.' })), [showToast])
   const loadDiagnostics = async () => {
     const next = await window.auri.system.getDiagnostics()
     setDiagnostics(next)
@@ -88,8 +89,8 @@ export function SettingsPage() {
     if (section === 'library') void loadHiddenWorks().catch(() => showToast({ kind: 'error', message: 'Não foi possível carregar as obras ocultas.' }))
   }, [loadHiddenWorks, section, showToast])
   useEffect(() => {
-    if (section === 'backup-data') void window.auri.backup.state().then(setBackup).catch((error) => showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível carregar os backups.' }))
-  }, [section, settings, showToast])
+    if (section === 'backup-data' || section === 'maintenance') loadBackup()
+  }, [loadBackup, section, settings])
   useEffect(() => {
     if (section === 'maintenance') void loadDiagnostics().catch(() => {
       setDiagnostics(null)
@@ -102,7 +103,7 @@ export function SettingsPage() {
 
   const navigateSection = (next: SettingsSection, focus = false) => {
     setSection(next)
-    if (focus) window.requestAnimationFrame(() => navRef.current?.querySelector<HTMLElement>(`[data-settings-section="${next}"]`)?.focus())
+    if (focus) window.requestAnimationFrame(() => navRef.current?.querySelector<HTMLElement>('[data-settings-section="' + next + '"]')?.focus())
   }
 
   const handleNavigationKey = (event: KeyboardEvent<HTMLElement>) => {
@@ -120,9 +121,7 @@ export function SettingsPage() {
       showToast({ kind: 'success', message: success })
     } catch (error) {
       showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível concluir a operação.' })
-    } finally {
-      setBusy(false)
-    }
+    } finally { setBusy(false) }
   }
 
   const createBackup = async () => {
@@ -144,6 +143,41 @@ export function SettingsPage() {
     setBackup(await window.auri.backup.state())
     showToast({ kind: 'success', message: 'Backup excluído', dedupeKey: 'backup-delete' })
     setDeleteBackup(null)
+    if (returnToBackupManager) setBackupManagerOpen(true)
+    setReturnToBackupManager(false)
+  }
+
+  const openStoredBackupAction = (item: BackupRecord, action: 'restore' | 'delete') => {
+    setReturnToBackupManager(true)
+    setBackupManagerOpen(false)
+    if (action === 'restore') setRestorePreview(item)
+    else setDeleteBackup(item)
+  }
+
+  const closeDeleteBackup = () => {
+    setDeleteBackup(null)
+    if (returnToBackupManager) setBackupManagerOpen(true)
+    setReturnToBackupManager(false)
+  }
+
+  const closeRestoreBackup = () => {
+    setRestorePreview(null)
+    if (returnToBackupManager) setBackupManagerOpen(true)
+    setReturnToBackupManager(false)
+  }
+
+  const chooseRestoreBackup = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const preview = await window.auri.backup.chooseRestore()
+      if (preview) {
+        setReturnToBackupManager(false)
+        setRestorePreview(preview)
+      }
+    } catch (error) {
+      showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível abrir este backup.' })
+    } finally { setBusy(false) }
   }
 
   const showOnHome = async (work: Work) => {
@@ -175,103 +209,100 @@ export function SettingsPage() {
     if (!restorePreview) return
     await window.auri.backup.restore({ path: restorePreview.path })
     setRestorePreview(null)
+    setReturnToBackupManager(false)
   }
 
   return <div className="page settings-page">
-    <header className="page-header"><div><span className="page-kicker">Preferências do aplicativo</span><h1>Configurações</h1></div></header>
     <div className="settings-layout">
       <nav ref={navRef} aria-label="Seções de Configurações" onKeyDown={handleNavigationKey}>
-        {SETTINGS_SECTIONS.map((item) => <button key={item.id} data-settings-section={item.id} aria-current={section === item.id ? 'page' : undefined} className={section === item.id ? 'is-active' : ''} onClick={() => navigateSection(item.id)}>{item.label}</button>)}
+        <span className="settings-nav-label">Configurações</span>
+        {SETTINGS_SECTIONS.map((item) => <button key={item.id} data-settings-section={item.id} aria-current={section === item.id ? 'page' : undefined} className={section === item.id ? 'is-active' : ''} onClick={() => navigateSection(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}
       </nav>
       <section ref={panelRef} className="settings-panel" aria-live="polite">
         {section === 'appearance' && <>
-          <SettingsHeading title="Aparência" description="Ajuste a densidade visual do Auri sem alterar seus dados." />
-          <SettingsGroup title="Biblioteca em grade" description="Escolha o espaço ocupado por cada capa na visualização em grade.">
-            <SettingRow title="Tamanho dos cards" description="Cards menores mostram mais obras por linha; cards maiores destacam as capas.">
-              <div className="size-segmented" role="group" aria-label="Tamanho dos cards">{([['small', 'Pequeno'], ['medium', 'Médio'], ['large', 'Grande']] as const).map(([cardSize, label]) => <button key={cardSize} className={settings.cardSize === cardSize ? 'is-active' : ''} aria-pressed={settings.cardSize === cardSize} onClick={() => void updateSettings({ cardSize })}>{label}</button>)}</div>
-            </SettingRow>
+          <SettingsHeading title="Aparência" description="Personalize a apresentação visual do Auri." />
+          <SettingsGroup title="Biblioteca">
+            <div className="card-size-options" role="radiogroup" aria-label="Tamanho dos cards">
+              {([['small', 'Pequeno', 'Mais obras por linha'], ['medium', 'Médio', 'Equilibrado'], ['large', 'Grande', 'Mais destaque para capas']] as const).map(([cardSize, label, description]) => <button key={cardSize} role="radio" aria-checked={settings.cardSize === cardSize} className={settings.cardSize === cardSize ? 'is-active' : ''} onClick={() => void updateSettings({ cardSize })}><span className={'card-size-icon card-size-icon--' + cardSize} aria-hidden="true">{Array.from({ length: cardSize === 'small' ? 6 : cardSize === 'medium' ? 4 : 1 }, (_, index) => <i key={index} />)}</span><strong>{label}</strong><small>{description}</small><span className="card-size-check" aria-hidden="true">✓</span></button>)}
+            </div>
+            <div className="card-size-preview" data-card-size={settings.cardSize} aria-label={'Prévia do tamanho ' + settings.cardSize}>
+              <span>Prévia em tempo real</span>
+              <div aria-hidden="true">{Array.from({ length: cardPreviewCount(settings.cardSize) }, (_, index) => <article key={index}><div /><i /></article>)}</div>
+            </div>
           </SettingsGroup>
         </>}
 
         {section === 'library' && <>
-          <SettingsHeading title="Biblioteca" description="Defina como sua coleção aparece quando a Biblioteca é aberta." />
-          <SettingsGroup title="Visualização inicial" description="Filtros temporários continuam valendo apenas durante o uso atual.">
-            <SettingRow title="Modo de visualização" description="Exibe as obras em uma grade de capas ou em uma lista compacta.">
-              <Select label="Visualização padrão" value={settings.libraryView} onChange={(libraryView) => void updateSettings({ libraryView: libraryView as LibraryView })} options={[{ value: 'grid', label: 'Grade' }, { value: 'list', label: 'Lista' }]} />
+          <SettingsHeading title="Biblioteca e Home" description="Defina como sua biblioteca é apresentada e controle o que aparece na Home." />
+          <SettingsGroup title="Biblioteca">
+            <SettingRow title="Visualização padrão" description="Escolha como a Biblioteca deve abrir.">
+              <div className="view-choice" role="group" aria-label="Visualização padrão"><button aria-pressed={settings.libraryView === 'grid'} className={settings.libraryView === 'grid' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'grid' })}><Icon name="grid" />Grade</button><button aria-pressed={settings.libraryView === 'list'} className={settings.libraryView === 'list' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'list' })}><Icon name="list" />Lista</button></div>
             </SettingRow>
-            <SettingRow title="Ordenação padrão" description="Ordem usada ao abrir a Biblioteca sem uma ordenação temporária.">
-              <Select label="Ordenação padrão" value={settings.librarySort} onChange={(librarySort) => void updateSettings({ librarySort: librarySort as LibrarySort })} options={Object.entries(sortLabels).map(([value, label]) => ({ value, label }))} />
-            </SettingRow>
+            <p className="settings-info-note">O Auri lembra automaticamente a última ordenação usada na Biblioteca.</p>
           </SettingsGroup>
-          <SettingsGroup title="Home" description="A visibilidade na Home é independente do status, progresso e favoritos.">
-            <SettingRow title="Obras ocultas da Home" description={`${hiddenWorks.length} ${hiddenWorks.length === 1 ? 'obra oculta' : 'obras ocultas'}. Elas continuam normalmente na Biblioteca.`}>
-              <Button onClick={() => { setHiddenManagerOpen(true); void loadHiddenWorks() }}>Gerenciar</Button>
+          <SettingsGroup title="Home">
+            <SettingRow title="Obras ocultas da Home" description="Obras ocultas deixam de aparecer nas seções da Home, mas continuam normalmente disponíveis na Biblioteca.">
+              <div className="setting-inline"><span className="settings-count">{hiddenWorks.length} {hiddenWorks.length === 1 ? 'obra oculta' : 'obras ocultas'}</span><Button onClick={() => { setHiddenManagerOpen(true); void loadHiddenWorks() }}>Gerenciar</Button></div>
             </SettingRow>
           </SettingsGroup>
         </>}
 
         {section === 'backup-data' && <>
-          <SettingsHeading title="Backup e dados" description="Proteja a instalação completa ou mova sua Biblioteca entre instalações do Auri." />
-
-          <SettingsActionGroup title="Backup manual" description="Cria agora uma cópia completa do banco, preferências e arquivos permanentes.">
-            <Button variant="primary" disabled={busy} onClick={() => void createBackup()}>Criar backup</Button>
-          </SettingsActionGroup>
-
-          <SettingsGroup title="Backups automáticos" description="Cópias de recuperação criadas sem incluir caches temporários.">
-            <SettingRow title="Criar automaticamente" description="Mantém cópias recentes sem exigir uma ação manual.">
-              <label className="setting-toggle"><input type="checkbox" checked={settings.backupAutomatic} onChange={(event) => void updateSettings({ backupAutomatic: event.target.checked })} /><span>{settings.backupAutomatic ? 'Ativado' : 'Desativado'}</span></label>
-            </SettingRow>
-            <SettingRow title="Frequência" description="Intervalo entre os backups automáticos.">
-              <Select label="Frequência" value={settings.backupFrequency} onChange={(backupFrequency) => void updateSettings({ backupFrequency: backupFrequency as 'daily' | 'weekly' })} options={[{ value: 'daily', label: 'Diário' }, { value: 'weekly', label: 'Semanal' }]} />
-            </SettingRow>
-            <SettingRow title="Retenção" description="Quantidade máxima de backups automáticos mantidos.">
-              <Select label="Retenção" value={String(settings.backupRetention)} onChange={(backupRetention) => void updateSettings({ backupRetention: Number(backupRetention) })} options={[5, 10, 20, 30].map((value) => ({ value: String(value), label: `${value} backups` }))} />
-            </SettingRow>
-            <SettingRow title="Pasta dos backups" description={<span className={!backup?.directoryAvailable ? 'setting-warning' : ''}>{backup?.directory ?? 'Carregando…'}{backup && !backup.directoryAvailable ? ' · Pasta indisponível; o Auri usará a pasta padrão.' : ''}</span>}>
-              <div className="setting-inline"><Button disabled={busy} onClick={() => void dataAction(() => window.auri.backup.openFolder(), 'Pasta de backups aberta.')}>Abrir pasta</Button><Button disabled={busy} onClick={() => void dataAction(async () => { const state = await window.auri.backup.chooseDirectory(); if (!state) return false; setBackup(state) }, 'Pasta de backups atualizada.')}>Alterar pasta</Button></div>
-            </SettingRow>
+          <SettingsHeading title="Backup e dados" description="Proteja sua biblioteca, restaure dados e mova sua instalação com segurança." />
+          <SettingsGroup title="Backup manual">
+            <SettingRow title="Criar backup" description="Cria uma cópia completa do banco, preferências e arquivos permanentes."><Button variant="primary" disabled={busy} onClick={() => void createBackup()}>Criar backup</Button></SettingRow>
           </SettingsGroup>
-
-          <SettingsActionGroup title="Restauração" description="Substitui os dados atuais pelos dados de um backup completo. Antes disso, o Auri cria uma cópia de segurança.">
-            <Button disabled={busy} onClick={() => void dataAction(async () => { const preview = await window.auri.backup.chooseRestore(); if (!preview) return false; setRestorePreview(preview); return false }, '')}>Escolher backup</Button>
-          </SettingsActionGroup>
-
-          <SettingsActionGroup title="Portabilidade" description="JSON transfere a Biblioteca editável; CSV cria um resumo para consulta.">
-            <Button disabled={busy} onClick={() => void dataAction(async () => Boolean(await window.auri.transfer.exportJson()), 'Biblioteca exportada em JSON.')}>Exportar JSON</Button>
-            <Button disabled={busy} onClick={() => void dataAction(async () => Boolean(await window.auri.transfer.exportCsv()), 'Resumo exportado em CSV.')}>Exportar CSV</Button>
-            <Button disabled={busy} onClick={async () => { try { const preview = await window.auri.transfer.chooseImport(); if (preview) setImportPreview(preview) } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Arquivo de importação inválido.' }) } }}>Importar biblioteca</Button>
-          </SettingsActionGroup>
-
-          <div className="backup-list"><h3>Backups disponíveis</h3><p className="settings-section-copy">Cópias completas armazenadas na pasta configurada.</p>{backup?.backups.length ? backup.backups.map((item) => <article key={item.path}><div><strong>{backupTypeLabel(item.type)}</strong><span className="backup-file" title={item.fileName}>{item.fileName}</span><p>{new Date(item.createdAt).toLocaleString('pt-BR')} · {formatBytes(item.size)} · {item.workCount} obras</p></div><Button variant="danger" disabled={busy} onClick={() => setDeleteBackup(item)}>Excluir</Button></article>) : <p className="muted-copy">Nenhum backup criado nesta pasta.</p>}</div>
+          <SettingsGroup title="Backups automáticos">
+            <SettingRow title="Criar automaticamente" description="Mantém cópias recentes sem exigir uma ação manual."><label className="setting-toggle"><input type="checkbox" checked={settings.backupAutomatic} onChange={(event) => void updateSettings({ backupAutomatic: event.target.checked })} /><span>{settings.backupAutomatic ? 'Ativado' : 'Desativado'}</span></label></SettingRow>
+            <SettingRow title="Frequência" description="Intervalo entre os backups automáticos."><Select label="Frequência" value={settings.backupFrequency} onChange={(backupFrequency) => void updateSettings({ backupFrequency: backupFrequency as 'daily' | 'weekly' })} options={[{ value: 'daily', label: 'Diário' }, { value: 'weekly', label: 'Semanal' }]} /></SettingRow>
+            <SettingRow title="Manter os últimos" description="Quantidade máxima de backups automáticos mantidos."><Select label="Manter os últimos" value={String(settings.backupRetention)} onChange={(backupRetention) => void updateSettings({ backupRetention: Number(backupRetention) })} options={[5, 10, 20, 30].map((value) => ({ value: String(value), label: value + ' backups' }))} /></SettingRow>
+          </SettingsGroup>
+          <SettingsGroup title="Local dos backups">
+            <SettingRow title="Pasta atual" description={<span className={!backup?.directoryAvailable ? 'setting-warning diagnostic-path' : 'diagnostic-path'} title={backup?.directory}>{backup?.directory ?? 'Carregando…'}{backup && !backup.directoryAvailable ? ' · Pasta indisponível; o Auri usará a pasta padrão.' : ''}</span>}><div className="setting-inline"><Button disabled={busy} onClick={() => void dataAction(() => window.auri.backup.openFolder(), 'Pasta de backups aberta.')}>Abrir pasta</Button><Button disabled={busy} onClick={() => void dataAction(async () => { const state = await window.auri.backup.chooseDirectory(); if (!state) return false; setBackup(state) }, 'Pasta de backups atualizada.')}>Alterar</Button></div></SettingRow>
+          </SettingsGroup>
+          <SettingsGroup title="Restaurar e transferir dados">
+            <SettingRow title="Restaurar backup" description="Substitui os dados atuais por uma cópia completa validada."><Button disabled={busy} onClick={() => void chooseRestoreBackup()}>Escolher backup</Button></SettingRow>
+            <SettingRow title="Exportar biblioteca" description="Exporta sua biblioteca completa para um arquivo JSON."><Button disabled={busy} onClick={() => void dataAction(async () => Boolean(await window.auri.transfer.exportJson()), 'Biblioteca exportada em JSON.')}>Exportar JSON</Button></SettingRow>
+            <SettingRow title="Exportar resumo" description="Cria um resumo da biblioteca em formato CSV."><Button disabled={busy} onClick={() => void dataAction(async () => Boolean(await window.auri.transfer.exportCsv()), 'Resumo exportado em CSV.')}>Exportar CSV</Button></SettingRow>
+            <SettingRow title="Importar biblioteca" description="Importa uma biblioteca anteriormente exportada em JSON."><Button disabled={busy} onClick={async () => { try { const preview = await window.auri.transfer.chooseImport(); if (preview) setImportPreview(preview) } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Arquivo de importação inválido.' }) } }}>Importar</Button></SettingRow>
+          </SettingsGroup>
+          <SettingsGroup title="Backups disponíveis">
+            <SettingRow title={backupCountLabel(backup?.backups.length ?? 0)} description="Consulte, restaure ou exclua as cópias armazenadas na pasta configurada."><Button disabled={!backup?.backups.length} onClick={() => setBackupManagerOpen(true)}>Gerenciar backups</Button></SettingRow>
+          </SettingsGroup>
         </>}
 
         {section === 'updates' && <UpdatesSettings />}
 
         {section === 'shortcuts' && <>
-          <SettingsHeading title="Atalhos" description="Comandos de teclado para navegar e editar com mais rapidez." />
-          <dl className="shortcut-list"><div><dt><kbd>Ctrl</kbd> + <kbd>K</kbd></dt><dd>Abrir a busca rápida da Biblioteca</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>N</kbd></dt><dd>Adicionar uma nova obra</dd></div><div><dt><kbd>/</kbd></dt><dd>Focar a pesquisa da página atual</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Fechar o elemento atual ou sair da seleção</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt><dd>Salvar o formulário em edição</dd></div></dl>
+          <SettingsHeading title="Atalhos" description="Consulte os comandos de teclado disponíveis no Auri." />
+          <SettingsGroup title="Atalhos disponíveis">
+            <dl className="shortcut-list"><Shortcut keys={['Ctrl', 'K']} description="Abrir a busca rápida da Biblioteca" /><Shortcut keys={['Ctrl', 'N']} description="Adicionar uma nova obra" /><Shortcut keys={['/']} description="Focar a pesquisa da página atual" /><Shortcut keys={['Ctrl', 'S']} description="Salvar alterações ou formulário em edição" /><Shortcut keys={['Esc']} description="Fechar o elemento atual ou sair da seleção" /></dl>
+          </SettingsGroup>
         </>}
 
-        {section === 'maintenance' && <MaintenanceSettings diagnostics={diagnostics} cache={cache} cacheLimitMb={settings.coverCacheMaxMb} loadError={diagnosticError} busy={busy} onBusy={setBusy} reload={loadDiagnostics} showToast={showToast} />}
+        {section === 'maintenance' && <MaintenanceSettings diagnostics={diagnostics} cache={cache} cacheLimitMb={settings.coverCacheMaxMb} backupDirectory={backup?.directory} loadError={diagnosticError} busy={busy} onBusy={setBusy} reload={loadDiagnostics} showToast={showToast} />}
 
         {section === 'about' && <>
-          <SettingsHeading title="Sobre" description={`Informações desta instalação do ${APP_BRAND.name}.`} />
-          <div className="about-brand"><BrandMark large /><div><strong>{APP_BRAND.name}</strong><p>{APP_BRAND.tagline}</p></div></div>
-          {system && <dl className="about-details"><div><dt>Versão do aplicativo</dt><dd>{system.appVersion}</dd></div><div><dt>Banco de dados</dt><dd>Schema {system.database.schemaVersion}</dd></div><div><dt>Formato de backup</dt><dd>Versão {system.backupFormatVersion}</dd></div><div><dt>Plataforma</dt><dd>{system.platform.label}</dd></div></dl>}
+          <SettingsHeading title="Sobre" description="Informações sobre o Auri e esta instalação." />
+          <SettingsGroup title="Auri">
+            <div className="about-brand"><BrandMark large /><div><strong>{APP_BRAND.name}</strong><p>{APP_BRAND.tagline}</p><span>Versão {system?.appVersion ?? '—'}</span></div></div>
+          </SettingsGroup>
+          <SettingsGroup title="Esta instalação">
+            {system ? <dl className="settings-info-list"><div><dt>Versão do aplicativo</dt><dd>{system.appVersion}</dd></div><div><dt>Banco de dados</dt><dd>Schema {system.database.schemaVersion}</dd></div><div><dt>Formato de backup</dt><dd>Versão {system.backupFormatVersion}</dd></div><div><dt>Plataforma</dt><dd>{system.platform.label}</dd></div></dl> : <LoadingState />}
+          </SettingsGroup>
         </>}
       </section>
     </div>
 
-    <Dialog open={hiddenManagerOpen} title="Obras ocultas da Home" description="Restaure apenas a presença nas seções automáticas da Home; nenhum outro dado será alterado." busy={busy} onClose={() => { if (!busy) setHiddenManagerOpen(false) }} footer={<><Button disabled={busy} onClick={() => setHiddenManagerOpen(false)}>Fechar</Button>{hiddenWorks.length > 1 && <Button variant="primary" disabled={busy} onClick={() => void showAllOnHome()}>Mostrar todas na Home</Button>}</>}>
-      <div className="hidden-home-list">
-        {hiddenLoading && <p className="muted-copy">Carregando obras ocultas…</p>}
-        {!hiddenLoading && hiddenWorks.length === 0 && <p className="muted-copy">Nenhuma obra está oculta da Home.</p>}
-        {!hiddenLoading && hiddenWorks.map((work) => <article key={work.id}><div><strong title={work.title}>{work.title}</strong><span>{work.userStatus.replaceAll('_', ' ')}</span></div><Button disabled={busy} onClick={() => void showOnHome(work)}>Mostrar na Home</Button></article>)}
-      </div>
+    <Dialog open={backupManagerOpen} title="Gerenciar backups" description={backupCountLabel(backup?.backups.length ?? 0)} busy={busy} onClose={() => { if (!busy) setBackupManagerOpen(false) }} footer={<Button disabled={busy} onClick={() => setBackupManagerOpen(false)}>Fechar</Button>}>
+      <div className="backup-manager-list">{backup?.backups.length ? backup.backups.map((item) => <article key={item.path}><div><strong>{backupTypeLabel(item.type)}</strong><span className="backup-file" title={item.fileName}>{item.fileName}</span><p>{new Date(item.createdAt).toLocaleString('pt-BR')} · {formatBytes(item.size)} · {item.workCount} {item.workCount === 1 ? 'obra' : 'obras'}</p></div><div className="setting-inline"><Button disabled={busy} onClick={() => openStoredBackupAction(item, 'restore')}>Restaurar</Button><Button variant="danger" disabled={busy} onClick={() => openStoredBackupAction(item, 'delete')}>Excluir</Button></div></article>) : <p className="muted-copy">Nenhum backup criado nesta pasta.</p>}</div>
     </Dialog>
-    <ConfirmDialog open={!!deleteBackup} title="Excluir backup?" description={deleteBackup ? <>O backup <span className="dialog__filename" title={deleteBackup.fileName}>“{deleteBackup.fileName}”</span> será excluído permanentemente.</> : ''} confirmLabel="Excluir backup" danger onClose={() => setDeleteBackup(null)} onConfirm={confirmBackupDeletion} />
-    <ConfirmDialog open={!!restorePreview} title="Restaurar backup?" description={restorePreview ? `Este backup foi criado em ${new Date(restorePreview.createdAt).toLocaleString('pt-BR')} e contém ${restorePreview.workCount} obras. O ${APP_BRAND.name} criará uma cópia de segurança dos dados atuais e reiniciará após a restauração.` : ''} confirmLabel="Restaurar e reiniciar" danger onClose={() => setRestorePreview(null)} onConfirm={confirmRestore} />
-    <Dialog open={!!importPreview} title="Revisar importação" description={importPreview ? `${importPreview.total} obras: ${importPreview.newWorks} novas, ${importPreview.exactMatches} correspondências exatas, ${importPreview.probableMatches} prováveis, ${importPreview.trashMatches} na Lixeira e ${importPreview.conflicts} conflitos.` : ''} busy={busy} onClose={() => { if (!busy) setImportPreview(null) }}><div className="import-preview"><p>Correspondências prováveis ficam separadas para evitar duplicação silenciosa. Escolha como tratar conflitos exatos:</p><label><input type="checkbox" id="restore-import-trash" disabled={busy} /> Restaurar correspondências encontradas na Lixeira</label><div className="data-actions"><Button disabled={busy} onClick={() => void applyImportChoice('keep_current')}>Manter dados atuais</Button><Button variant="primary" disabled={busy} onClick={() => void applyImportChoice('use_imported')}>{busy ? 'Importando…' : 'Usar dados importados'}</Button></div></div></Dialog>
+    <Dialog open={hiddenManagerOpen} title="Obras ocultas da Home" description="Restaure apenas a presença nas seções automáticas da Home; nenhum outro dado será alterado." busy={busy} onClose={() => { if (!busy) setHiddenManagerOpen(false) }} footer={<><Button disabled={busy} onClick={() => setHiddenManagerOpen(false)}>Fechar</Button>{hiddenWorks.length > 1 && <Button variant="primary" disabled={busy} onClick={() => void showAllOnHome()}>Mostrar todas na Home</Button>}</>}>
+      <div className="hidden-home-list">{hiddenLoading && <p className="muted-copy">Carregando obras ocultas…</p>}{!hiddenLoading && hiddenWorks.length === 0 && <p className="muted-copy">Nenhuma obra está oculta da Home.</p>}{!hiddenLoading && hiddenWorks.map((work) => <article key={work.id}><div><strong title={work.title}>{work.title}</strong><span>{work.userStatus.replaceAll('_', ' ')}</span></div><Button disabled={busy} onClick={() => void showOnHome(work)}>Mostrar na Home</Button></article>)}</div>
+    </Dialog>
+    <ConfirmDialog open={!!deleteBackup} title="Excluir backup?" description={deleteBackup ? <>O backup <span className="dialog__filename" title={deleteBackup.fileName}>“{deleteBackup.fileName}”</span> será excluído permanentemente.</> : ''} confirmLabel="Excluir backup" danger onClose={closeDeleteBackup} onConfirm={confirmBackupDeletion} />
+    <ConfirmDialog open={!!restorePreview} title="Restaurar backup?" description={restorePreview ? 'Este backup foi criado em ' + new Date(restorePreview.createdAt).toLocaleString('pt-BR') + ' e contém ' + restorePreview.workCount + ' obras. O ' + APP_BRAND.name + ' criará uma cópia de segurança dos dados atuais e reiniciará após a restauração.' : ''} confirmLabel="Restaurar e reiniciar" danger onClose={closeRestoreBackup} onConfirm={confirmRestore} />
+    <Dialog open={!!importPreview} title="Revisar importação" description={importPreview ? importPreview.total + ' obras: ' + importPreview.newWorks + ' novas, ' + importPreview.exactMatches + ' correspondências exatas, ' + importPreview.probableMatches + ' prováveis, ' + importPreview.trashMatches + ' na Lixeira e ' + importPreview.conflicts + ' conflitos.' : ''} busy={busy} onClose={() => { if (!busy) setImportPreview(null) }}><div className="import-preview"><p>Correspondências prováveis ficam separadas para evitar duplicação silenciosa. Escolha como tratar conflitos exatos:</p><label><input type="checkbox" id="restore-import-trash" disabled={busy} /> Restaurar correspondências encontradas na Lixeira</label><div className="data-actions"><Button disabled={busy} onClick={() => void applyImportChoice('keep_current')}>Manter dados atuais</Button><Button variant="primary" disabled={busy} onClick={() => void applyImportChoice('use_imported')}>{busy ? 'Importando…' : 'Usar dados importados'}</Button></div></div></Dialog>
   </div>
 
   async function applyImportChoice(strategy: 'keep_current' | 'use_imported') {
@@ -280,7 +311,7 @@ export function SettingsPage() {
     await dataAction(async () => {
       const result = await applyLibraryImport(window.auri.transfer.applyImport, { path: importPreview.path, strategy, restoreTrash }, refreshData)
       setImportPreview(null)
-      if (result.skipped) showToast({ kind: 'info', message: `${result.skipped} correspondências prováveis ou itens da Lixeira não foram alterados.` })
+      if (result.skipped) showToast({ kind: 'info', message: result.skipped + ' correspondências prováveis ou itens da Lixeira não foram alterados.' })
     }, 'Importação concluída.')
   }
 }
@@ -289,18 +320,19 @@ function SettingsHeading({ title, description }: { title: string; description: s
   return <div className="settings-heading"><h2>{title}</h2><p>{description}</p></div>
 }
 
-function SettingsGroup({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return <section className="settings-group"><header><h3>{title}</h3><p>{description}</p></header>{children}</section>
+function SettingsGroup({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return <section className="settings-group"><header><h3>{title}</h3>{description && <p>{description}</p>}</header><div className="settings-group__body">{children}</div></section>
 }
 
-function SettingsActionGroup({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return <section className="settings-action-group"><div><h3>{title}</h3><p>{description}</p></div><div className="data-actions">{children}</div></section>
+function Shortcut({ keys, description }: { keys: string[]; description: string }) {
+  return <div><dt>{keys.map((key, index) => <span key={key + '-' + index}>{index > 0 && <i aria-hidden="true">+</i>}<kbd>{key}</kbd></span>)}</dt><dd>{description}</dd></div>
 }
 
-function MaintenanceSettings({ diagnostics, cache, cacheLimitMb, loadError, busy, onBusy, reload, showToast }: {
+function MaintenanceSettings({ diagnostics, cache, cacheLimitMb, backupDirectory, loadError, busy, onBusy, reload, showToast }: {
   diagnostics: SystemDiagnostics | null
   cache: CoverCacheUsage | null
   cacheLimitMb: number
+  backupDirectory?: string
   loadError: boolean
   busy: boolean
   onBusy(value: boolean): void
@@ -309,7 +341,7 @@ function MaintenanceSettings({ diagnostics, cache, cacheLimitMb, loadError, busy
 }) {
   const [clearCacheOpen, setClearCacheOpen] = useState(false)
 
-  if (!diagnostics) return <><SettingsHeading title="Armazenamento e manutenção" description={`Consulte o uso local e mantenha o ${APP_BRAND.name} funcionando com segurança.`} />{loadError ? <ErrorState title="Não foi possível carregar o diagnóstico." description="A Biblioteca não foi alterada." onRetry={() => void reload().catch(() => undefined)} /> : <LoadingState />}</>
+  if (!diagnostics) return <><SettingsHeading title="Manutenção" description="Ferramentas para verificar, limpar e diagnosticar o Auri." />{loadError ? <ErrorState title="Não foi possível carregar o diagnóstico." description="A Biblioteca não foi alterada." onRetry={() => void reload().catch(() => undefined)} /> : <LoadingState />}</>
 
   const { status, storage, integrity } = diagnostics
   const run = async (action: () => Promise<unknown>, success: string, refresh = false) => {
@@ -320,9 +352,7 @@ function MaintenanceSettings({ diagnostics, cache, cacheLimitMb, loadError, busy
       showToast({ kind: 'success', message: success })
     } catch (error) {
       showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível concluir a operação.' })
-    } finally {
-      onBusy(false)
-    }
+    } finally { onBusy(false) }
   }
   const clearCache = async () => {
     onBusy(true)
@@ -332,46 +362,43 @@ function MaintenanceSettings({ diagnostics, cache, cacheLimitMb, loadError, busy
       await reload()
       showToast({ kind: 'success', message: 'Cache de capas limpo.' })
       setClearCacheOpen(false)
-    } finally {
-      onBusy(false)
-    }
+    } finally { onBusy(false) }
   }
 
   return <>
-    <SettingsHeading title="Armazenamento e manutenção" description={`Consulte o uso local e mantenha o ${APP_BRAND.name} funcionando com segurança.`} />
-
-    <SettingsGroup title="Pastas do aplicativo" description={`Abra somente diretórios administrados pelo ${APP_BRAND.name}.`}>
-      <SettingRow title="Dados do aplicativo" description={<span className="diagnostic-path" title={status.paths.root}>{status.paths.root}</span>}><Button disabled={busy} onClick={() => void run(() => window.auri.system.openDataFolder(), 'Pasta de dados aberta.')}>Abrir pasta</Button></SettingRow>
-      <SettingRow title="Backups" description="Cópias completas criadas manual ou automaticamente."><Button disabled={busy} onClick={() => void run(() => window.auri.system.openBackupsFolder(), 'Pasta de backups aberta.')}>Abrir pasta</Button></SettingRow>
-      <SettingRow title="Logs" description="Registros técnicos locais úteis para suporte."><Button disabled={busy} onClick={() => void run(() => window.auri.system.openLogsFolder(), 'Pasta de logs aberta.')}>Abrir pasta</Button></SettingRow>
+    <SettingsHeading title="Manutenção" description="Ferramentas para verificar, limpar e diagnosticar o Auri." />
+    <SettingsGroup title="Pastas do Auri">
+      <SettingRow title="Dados do aplicativo" description={<span className="diagnostic-path" title={status.paths.root}>{status.paths.root}</span>}><Button disabled={busy} onClick={() => void run(() => window.auri.system.openDataFolder(), 'Pasta de dados aberta.')}>Abrir</Button></SettingRow>
+      <SettingRow title="Backups" description={<span className="diagnostic-path" title={backupDirectory ?? status.paths.backups}>{backupDirectory ?? status.paths.backups}</span>}><Button disabled={busy} onClick={() => void run(() => window.auri.system.openBackupsFolder(), 'Pasta de backups aberta.')}>Abrir</Button></SettingRow>
+      <SettingRow title="Logs" description={<span className="diagnostic-path" title={status.paths.logs}>{status.paths.logs}</span>}><Button disabled={busy} onClick={() => void run(() => window.auri.system.openLogsFolder(), 'Pasta de logs aberta.')}>Abrir</Button></SettingRow>
     </SettingsGroup>
-
-    <SettingsGroup title="Uso de armazenamento" description="Valores calculados ao abrir esta página; itens inexistentes aparecem como 0 B.">
-      <SettingRow title="Banco de dados" description="Obras, progresso e demais informações permanentes."><span className="storage-value">{formatBytes(storage.databaseBytes)}</span></SettingRow>
-      <SettingRow title="Capas personalizadas" description="Arquivos permanentes escolhidos por você."><span className="storage-value">{formatBytes(storage.customCoversBytes)}</span></SettingRow>
-      <SettingRow title="Cache de capas" description={`${cache ? `${cache.files} arquivos · ${formatBytes(cache.bytes)} usados` : 'Arquivos temporários que podem ser recriados'} · limite de ${cacheLimitMb} MB.`}><span className="storage-value storage-value--cache">{formatBytes(storage.coverCacheBytes)}</span></SettingRow>
-      <SettingRow title="Backups" description="Cópias permanentes mantidas na pasta configurada."><span className="storage-value">{formatBytes(storage.backupsBytes)}</span></SettingRow>
+    <SettingsGroup title="Armazenamento">
+      <dl className="settings-info-list"><div><dt>Banco de dados</dt><dd>{formatBytes(storage.databaseBytes)}</dd></div><div><dt>Capas personalizadas</dt><dd>{formatBytes(storage.customCoversBytes)}</dd></div><div><dt>Cache de capas</dt><dd>{cache ? formatBytes(cache.bytes) + ' / ' + cacheLimitMb + ' MB' : formatBytes(storage.coverCacheBytes)}</dd></div><div><dt>Backups</dt><dd>{formatBytes(storage.backupsBytes)}</dd></div></dl>
     </SettingsGroup>
-
-    <SettingsGroup title="Manutenção segura" description="Estas ações não removem obras, progresso ou metadados.">
-      <SettingRow title="Limpar cache de capas" description="Remove apenas arquivos temporários e regeneráveis. Capas personalizadas são preservadas."><Button variant="danger" disabled={busy} onClick={() => setClearCacheOpen(true)}>Limpar cache</Button></SettingRow>
+    <SettingsGroup title="Manutenção segura">
+      <SettingRow title="Limpar cache de capas" description="Remove apenas arquivos temporários e regeneráveis. Capas personalizadas são preservadas."><Button disabled={busy} onClick={() => setClearCacheOpen(true)}>Limpar cache</Button></SettingRow>
       <SettingRow title="Verificar integridade da Biblioteca" description="Executa verificações somente de leitura; nenhuma correção automática é aplicada."><Button disabled={busy} onClick={() => void run(() => window.auri.system.checkIntegrity(), 'Verificação concluída.', true)}>Verificar integridade</Button></SettingRow>
-      {integrity && <div className={`integrity-result ${integrity.healthy ? 'is-healthy' : 'has-issues'}`}><strong>{integrity.summary}</strong><p>Verificado em {new Date(integrity.checkedAt).toLocaleString('pt-BR')}.</p>{!integrity.healthy && <details><summary>Ver detalhes técnicos</summary><ul>{integrity.quickCheck.filter((item) => item !== 'ok').map((item, index) => <li key={`quick-${index}`}>{item}</li>)}{integrity.foreignKeyIssues.map((item, index) => <li key={`fk-${index}`}>Referência inválida em {item.table} → {item.parent} (FK {item.foreignKeyId})</li>)}</ul></details>}</div>}
+      {integrity && <div className={'integrity-result ' + (integrity.healthy ? 'is-healthy' : 'has-issues')}><strong>{integrity.summary}</strong><p>{formatIntegrityCheckedAt(integrity.checkedAt)}</p>{!integrity.healthy && <details><summary>Ver detalhes técnicos</summary><ul>{integrity.quickCheck.filter((item) => item !== 'ok').map((item, index) => <li key={'quick-' + index}>{item}</li>)}{integrity.foreignKeyIssues.map((item, index) => <li key={'fk-' + index}>Referência inválida em {item.table} → {item.parent} (FK {item.foreignKeyId})</li>)}</ul></details>}</div>}
     </SettingsGroup>
-
-    <SettingsActionGroup title="Suporte e diagnóstico" description="Gere informações técnicas sem incluir o conteúdo pessoal da sua Biblioteca.">
-      <Button disabled={busy} onClick={() => void run(() => window.auri.system.copySystemInfo(), 'Informações do sistema copiadas.')}>Copiar informações</Button>
-      <Button disabled={busy} onClick={async () => { onBusy(true); try { const path = await window.auri.system.exportDiagnostic(); if (path) showToast({ kind: 'success', message: 'Diagnóstico exportado.' }) } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível exportar o diagnóstico.' }) } finally { onBusy(false) } }}>Exportar diagnóstico</Button>
-    </SettingsActionGroup>
-
-    <ConfirmDialog open={clearCacheOpen} title="Limpar cache de capas?" description="Os arquivos temporários de capas serão removidos e recriados conforme necessário. Obras e capas personalizadas não serão alteradas." confirmLabel="Limpar cache" danger busy={busy} onClose={() => setClearCacheOpen(false)} onConfirm={clearCache} />
+    <SettingsGroup title="Suporte e diagnóstico">
+      <SettingRow title="Informações técnicas" description="Copia detalhes do ambiente e da instalação sem incluir sua Biblioteca."><Button disabled={busy} onClick={() => void run(() => window.auri.system.copySystemInfo(), 'Informações do sistema copiadas.')}>Copiar informações</Button></SettingRow>
+      <SettingRow title="Diagnóstico" description="Gera um relatório sanitizado para suporte."><Button disabled={busy} onClick={async () => { onBusy(true); try { const path = await window.auri.system.exportDiagnostic(); if (path) showToast({ kind: 'success', message: 'Diagnóstico exportado.' }) } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível exportar o diagnóstico.' }) } finally { onBusy(false) } }}>Exportar diagnóstico</Button></SettingRow>
+    </SettingsGroup>
+    <ConfirmDialog open={clearCacheOpen} title="Limpar cache de capas?" description="Os arquivos temporários de capas serão removidos e recriados conforme necessário. Obras e capas personalizadas não serão alteradas." confirmLabel="Limpar cache" busy={busy} onClose={() => setClearCacheOpen(false)} onConfirm={clearCache} />
   </>
+}
+
+export function formatIntegrityCheckedAt(value: string, now = new Date()): string {
+  const checkedAt = new Date(value)
+  const sameDay = checkedAt.getFullYear() === now.getFullYear() && checkedAt.getMonth() === now.getMonth() && checkedAt.getDate() === now.getDate()
+  const date = sameDay ? 'hoje' : checkedAt.toLocaleDateString('pt-BR')
+  return 'Verificado ' + date + ', ' + checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes < 1024) return bytes + ' B'
+  return bytes < 1024 * 1024 ? Math.round(bytes / 1024) + ' KB' : (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
 function backupTypeLabel(type: BackupState['backups'][number]['type']): string {
