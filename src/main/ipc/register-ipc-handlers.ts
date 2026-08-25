@@ -78,6 +78,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     }],
     [IPC_CHANNELS.bulk.setStatus, (request) => services.bulk.setStatus(request)],
     [IPC_CHANNELS.bulk.setFavorite, (request) => services.bulk.setFavorite(request)],
+    [IPC_CHANNELS.bulk.setHomeVisibility, (request) => services.bulk.setHomeVisibility(request)],
     [IPC_CHANNELS.bulk.addTag, (request) => services.bulk.addTag(request)],
     [IPC_CHANNELS.bulk.removeTag, (request) => services.bulk.removeTag(request)],
     [IPC_CHANNELS.bulk.addCollection, (request) => services.bulk.addCollection(request)],

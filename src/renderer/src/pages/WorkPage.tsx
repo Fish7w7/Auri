@@ -72,17 +72,30 @@ export function WorkPage({ id }: { id: string }) {
     try { await window.auri.works.update({ id: work.id, userStatus }); refreshData() }
     catch (error) { setDetails(previous); showToast({ kind: 'error', message: mapDomainError(error) }) }
   }
+  async function updateHomeVisibility() {
+    const previous = details!
+    const hiddenFromHome = !work.hiddenFromHome
+    setDetails({ ...details!, work: { ...work, hiddenFromHome } })
+    try {
+      await window.auri.works.update({ id: work.id, hiddenFromHome })
+      refreshData()
+      showToast({ kind: 'info', message: hiddenFromHome ? 'Obra ocultada da Home' : 'Obra visível na Home' })
+    } catch (error) {
+      setDetails(previous)
+      showToast({ kind: 'error', message: mapDomainError(error) })
+    }
+  }
   async function numeric(action: 'increment' | 'decrement') {
     try {
       const result = await window.auri.progress[action]({ workId: work.id })
       if (!result.applied) return
-      showToast({ kind: 'success', message: `Progresso atualizado para ${result.progress.chapter?.label}.`, action: { label: 'Desfazer', onClick: async () => { await window.auri.progress.undo({ historyId: result.history.id }); reload(); showToast({ kind: 'info', message: 'Alteração desfeita.' }) } } }); reload()
+      showToast({ kind: 'success', message: `Progresso atualizado para ${result.progress.chapter?.label}.`, dedupeKey: `progress:${work.id}`, action: { label: 'Desfazer', onClick: async () => { await window.auri.progress.undo({ historyId: result.history.id }); reload(); showToast({ kind: 'info', message: 'Alteração desfeita.' }) } } }); reload()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) }
   }
   async function openSource(source: Source) { const url = source.lastReadUrl || source.seriesUrl; if (!url) return; try { await window.auri.shell.openExternal({ url }) } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }
 
   return <div className="page work-page">
-    <div className="work-page__topbar"><Button variant="ghost" icon="chevron-left" onClick={() => navigate('/library')}>Biblioteca</Button><KeyboardMenu className="work-overflow" label="Mais ações"><button onClick={() => setDialog('edit')}>Editar obra</button>{syncedReference && <button onClick={() => setDialog('metadata')}>Atualizar metadados</button>}<button onClick={() => { setEditingSource(null); setDialog('source') }}>Gerenciar fontes</button><button onClick={() => setDialog('cover')}>Alterar capa</button><button className="is-danger" onClick={() => setTrashOpen(true)}>Mover para Lixeira</button></KeyboardMenu></div>
+    <div className="work-page__topbar"><Button variant="ghost" icon="chevron-left" onClick={() => navigate('/library')}>Biblioteca</Button><KeyboardMenu className="work-overflow" label="Mais ações"><button onClick={() => setDialog('edit')}>Editar obra</button>{syncedReference && <button onClick={() => setDialog('metadata')}>Atualizar metadados</button>}<button onClick={() => { setEditingSource(null); setDialog('source') }}>Gerenciar fontes</button><button onClick={() => setDialog('cover')}>Alterar capa</button><button onClick={() => void updateHomeVisibility()}>{work.hiddenFromHome ? 'Mostrar na Home' : 'Ocultar da Home'}</button><button className="is-danger" onClick={() => setTrashOpen(true)}>Mover para Lixeira</button></KeyboardMenu></div>
 
     <header className="work-hero"><WorkCover work={work} /><div className="work-hero__content"><div className="work-title-line"><div><span className="page-kicker">{MEDIA_TYPE_LABELS[work.mediaType]}</span><h1>{work.title}</h1>{originalAlias && <p className="work-original-title">{originalAlias.name}</p>}</div><IconButton icon="star" className={work.favorite ? 'is-favorite' : ''} label={work.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'} onClick={() => void updateFavorite()} /></div><div className="work-meta-line"><span>{MEDIA_TYPE_LABELS[work.mediaType]}</span>{work.startDate && <span>{work.startDate.slice(0, 4)}</span>}{work.publicationStatus && <span>{PUBLICATION_LABELS[work.publicationStatus]}</span>}{syncedReference && <span title={syncedReference.lastSyncedAt ?? undefined}>AniList</span>}</div><label className="status-select"><span>Status pessoal</span><Select label="Status pessoal" value={work.userStatus} onChange={(value) => void updateStatus(value as UserStatus)} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label></div></header>
 

@@ -2,6 +2,7 @@ export const IPC_CHANNELS = {
   bulk: {
     setStatus: 'auri:bulk:set-status',
     setFavorite: 'auri:bulk:set-favorite',
+    setHomeVisibility: 'auri:bulk:set-home-visibility',
     addTag: 'auri:bulk:add-tag',
     removeTag: 'auri:bulk:remove-tag',
     addCollection: 'auri:bulk:add-collection',

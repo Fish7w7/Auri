@@ -1,23 +1,32 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { HomeData, Work } from '@shared/contracts'
+import { APP_BRAND } from '@shared/constants/app-branding'
 import { useAppContext } from '../app/app-context'
 import { navigate } from '../app/navigation'
 import { HomeWorkCard } from '../components/home/HomeWorkCard'
 import { Button } from '../components/ui/Button'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/States'
+import { useToast } from '../components/ui/Toast'
 import { useWorkActions } from '../hooks/use-work-actions'
+import { mapDomainError } from '../lib/format'
 import { getVisibleHomeSections } from '../lib/home-sections'
 import type { HomeSectionModel } from '../lib/home-sections'
 import { selectBestReadingSource } from '../lib/source-selection'
-import { mapDomainError } from '../lib/format'
-import { useToast } from '../components/ui/Toast'
-import { APP_BRAND } from '@shared/constants/app-branding'
 
 const EMPTY_HOME: HomeData = { continueReading: [], staleReading: [], waiting: [], recentlyAdded: [] }
 
-function HomeSection({ section, actions, onContinue }: { section: HomeSectionModel; actions: ReturnType<typeof useWorkActions>['handlers']; onContinue(work: Work): void }) {
+export function excludeWorkFromHome(data: HomeData, workId: string): HomeData {
+  return {
+    continueReading: data.continueReading.filter((work) => work.id !== workId),
+    staleReading: data.staleReading.filter((work) => work.id !== workId),
+    waiting: data.waiting.filter((work) => work.id !== workId),
+    recentlyAdded: data.recentlyAdded.filter((work) => work.id !== workId)
+  }
+}
+
+function HomeSection({ section, actions, onContinue, onHide }: { section: HomeSectionModel; actions: ReturnType<typeof useWorkActions>['handlers']; onContinue(work: Work): void; onHide(work: Work): void }) {
   const columnCount = Math.min(section.works.length, 4)
-  return <section className={`home-section home-section--${columnCount}-columns`}><div className="section-heading"><div><h2>{section.title}</h2>{section.subtitle && <p>{section.subtitle}</p>}</div>{section.viewAllPath && <Button variant="ghost" onClick={() => navigate(section.viewAllPath!)}>Ver todas</Button>}</div><div className="home-work-grid">{section.works.map((work) => <HomeWorkCard key={work.id} work={work} showLastReadNote={section.key === 'continueReading' || section.key === 'staleReading'} onOpen={actions.onOpen} onIncrement={actions.onIncrement} onContinue={onContinue} />)}</div></section>
+  return <section className={`home-section home-section--${columnCount}-columns`}><div className="section-heading"><div><h2>{section.title}</h2>{section.subtitle && <p>{section.subtitle}</p>}</div>{section.viewAllPath && <Button variant="ghost" onClick={() => navigate(section.viewAllPath!)}>Ver todas</Button>}</div><div className="home-work-grid">{section.works.map((work) => <HomeWorkCard key={work.id} work={work} showLastReadNote={section.key === 'continueReading' || section.key === 'staleReading'} onOpen={actions.onOpen} onIncrement={actions.onIncrement} onContinue={onContinue} onHide={onHide} />)}</div></section>
 }
 
 export function HomePage() {
@@ -45,13 +54,36 @@ export function HomePage() {
     }
   }
 
+  async function hideFromHome(work: Work) {
+    setData((current) => excludeWorkFromHome(current, work.id))
+    try {
+      await window.auri.works.update({ id: work.id, hiddenFromHome: true })
+      refreshData()
+      showToast({
+        kind: 'info',
+        message: 'Obra ocultada da Home',
+        dedupeKey: `home-hidden-${work.id}`,
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            await window.auri.works.update({ id: work.id, hiddenFromHome: false })
+            refreshData()
+          }
+        }
+      })
+    } catch (error) {
+      await load()
+      showToast({ kind: 'error', message: mapDomainError(error) })
+    }
+  }
+
   if (state === 'loading') return <div className="page"><LoadingState label="Organizando sua leitura…" /></div>
   if (state === 'error') return <div className="page"><ErrorState onRetry={() => void load()} /></div>
   if (summary.total === 0) return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Bem-vindo ao {APP_BRAND.name}</span><h1>Home</h1></div></header><EmptyState title="Sua biblioteca ainda está vazia." description="Adicione sua primeira obra para começar a acompanhar suas leituras." action={<Button variant="primary" icon="plus" title="Adicionar obra (Ctrl+N)" onClick={openAddWork}>Adicionar obra</Button>} /></div>
-  if (sections.length === 0) return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Sua leitura, no seu ritmo</span><h1>Home</h1></div></header><EmptyState title="Sua biblioteca ainda não tem leituras para continuar." description="Abra a Biblioteca para escolher o que ler a seguir." action={<Button icon="library" onClick={() => navigate('/library')}>Ver Biblioteca</Button>} /></div>
+  if (sections.length === 0) return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Sua leitura, no seu ritmo</span><h1>Home</h1></div></header><EmptyState title="Sua biblioteca ainda não tem leituras visíveis para continuar." description="Abra a Biblioteca ou as Configurações para escolher o que mostrar novamente." action={<Button icon="library" onClick={() => navigate('/library')}>Ver Biblioteca</Button>} /></div>
 
   return <div className="page home-page"><header className="page-header"><div><span className="page-kicker">Sua leitura, no seu ritmo</span><h1>Home</h1><p>Retome de onde parou.</p></div><Button icon="library" onClick={() => navigate('/library')}>Ver Biblioteca</Button></header>
-    {sections.map((section) => <HomeSection key={section.key} section={section} actions={actions.handlers} onContinue={(work) => void continueReading(work)} />)}
+    {sections.map((section) => <HomeSection key={section.key} section={section} actions={actions.handlers} onContinue={(work) => void continueReading(work)} onHide={(work) => void hideFromHome(work)} />)}
     {actions.dialog}
   </div>
 }

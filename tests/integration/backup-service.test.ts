@@ -22,7 +22,7 @@ function setup(now: () => Date = () => new Date('2026-08-17T12:00:00.000Z')) {
   const fixture = createDomainFixture(paths.database)
   databases.push(fixture.db)
   const settings = new SettingsService(paths.settings, new TestLogger())
-  const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 1, { now })
+  const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 2, { now })
   return { root, paths, fixture, settings, service }
 }
 
@@ -52,7 +52,7 @@ describe('BackupService', () => {
     const backup = await service.createBackup()
     expect(backup.fileName).toMatch(/^auri-manual-.+\.auri-backup$/)
     const preview = await service.previewBackup(backup.path)
-    expect(preview).toMatchObject({ schemaVersion: 1, workCount: 1, includesSettings: true, assetCount: 1 })
+    expect(preview).toMatchObject({ schemaVersion: 2, workCount: 1, includesSettings: true, assetCount: 1 })
     const extracted = mkdtempSync(join(tmpdir(), 'auri-extract-')); roots.push(extracted)
     const entries = await extractZip(backup.path, extracted)
     expect(entries).toContain('checksums.json')
@@ -81,7 +81,12 @@ describe('BackupService', () => {
       const manifestPath = join(stage, 'manifest.json')
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
       manifest.format = 'lumi-backup'
+      manifest.schemaVersion = 1
+      const legacyDatabase = new Database(join(stage, 'library.db'))
+      legacyDatabase.exec('DROP INDEX idx_works_home_visibility; ALTER TABLE works DROP COLUMN hidden_from_home; DELETE FROM schema_migrations WHERE version = 2')
+      legacyDatabase.close()
       writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+      updateChecksum(stage, 'library.db')
       updateChecksum(stage, 'manifest.json')
     })
     const legacy = join(paths.backups, current.fileName.replace(/^auri-/, 'lumi-').replace(/\.auri-backup$/, '.lumi-backup'))
@@ -90,14 +95,14 @@ describe('BackupService', () => {
     await expect(service.previewBackup(legacy)).resolves.toMatchObject({ workCount: 1, schemaVersion: 1 })
 
     let restarted = false
-    const restore = new BackupService(fixture.db, paths, settings, new TestLogger(), '1.2.0', 1, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
+    const restore = new BackupService(fixture.db, paths, settings, new TestLogger(), '1.2.0', 2, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
     await restore.restoreBackup(legacy)
     const restored = new Database(paths.database, { readonly: true })
     try {
       for (const table of ['works', 'reading_history', 'aliases', 'work_creators', 'genres', 'work_genres', 'tags', 'work_tags', 'collections', 'collection_items', 'sources', 'external_refs']) {
         expect((restored.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count).toBeGreaterThan(0)
       }
-      expect(restored.prepare('SELECT favorite, notes, last_read_note, cover_type, cover_custom_path FROM works').get()).toMatchObject({ favorite: 1, notes: 'Nota preservada', last_read_note: 'Parei aqui', cover_type: 'custom', cover_custom_path: 'covers/custom/legacy.webp' })
+      expect(restored.prepare('SELECT favorite, hidden_from_home, notes, last_read_note, cover_type, cover_custom_path FROM works').get()).toMatchObject({ favorite: 1, hidden_from_home: 0, notes: 'Nota preservada', last_read_note: 'Parei aqui', cover_type: 'custom', cover_custom_path: 'covers/custom/legacy.webp' })
       expect(restored.prepare('SELECT is_preferred FROM sources').get()).toMatchObject({ is_preferred: 1 })
     } finally { restored.close() }
     expect(readFileSync(join(paths.assets, 'covers', 'custom', 'legacy.webp'), 'utf8')).toBe('capa legada')
@@ -154,11 +159,12 @@ describe('BackupService', () => {
 
   it('restaura o banco validado e cria um backup before_restore', async () => {
     const { paths, fixture, settings } = setup()
-    createMinimalWork(fixture, 'Antes')
+    const before = createMinimalWork(fixture, 'Antes')
+    fixture.services.works.updateWork({ id: before.id, hiddenFromHome: true })
     settings.updateSettings({ cardSize: 'large' })
     writeFileSync(join(paths.assets, 'custom.webp'), 'custom original')
     let restarted = false
-    const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 1, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
+    const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 2, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
     const backup = await service.createBackup()
     createMinimalWork(fixture, 'Depois')
     settings.updateSettings({ cardSize: 'small' })
@@ -167,6 +173,7 @@ describe('BackupService', () => {
     await service.restoreBackup(backup.path)
     const restored = new Database(paths.database, { readonly: true })
     expect((restored.prepare('SELECT COUNT(*) AS count FROM works').get() as { count: number }).count).toBe(1)
+    expect(restored.prepare('SELECT hidden_from_home FROM works').pluck().get()).toBe(1)
     restored.close()
     expect(readFileSync(join(paths.assets, 'custom.webp'), 'utf8')).toBe('custom original')
     expect(() => readFileSync(join(paths.assets, 'stale.webp'))).toThrow()

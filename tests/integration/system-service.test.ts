@@ -49,7 +49,7 @@ describe('SystemService', () => {
   it('retorna ambiente real e integridade saudável', async () => {
     const { service } = setup()
     const status = service.getStatus()
-    expect(status).toMatchObject({ appVersion: '0.4.1', backupFormatVersion: 1, database: { state: 'ready', schemaVersion: 1 } })
+    expect(status).toMatchObject({ appVersion: '0.4.1', backupFormatVersion: 1, database: { state: 'ready', schemaVersion: 2 } })
     expect(status.database.sqliteVersion).toMatch(/^3\./)
     await expect(service.checkIntegrity()).resolves.toMatchObject({ healthy: true, summary: 'Nenhum problema encontrado.', quickCheck: ['ok'], foreignKeyIssues: [] })
   })

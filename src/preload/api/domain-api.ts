@@ -19,6 +19,7 @@ export const domainApi: Omit<AuriApi, 'system' | 'settings'> = {
   bulk: {
     setStatus: (request) => invoke(IPC_CHANNELS.bulk.setStatus, request),
     setFavorite: (request) => invoke(IPC_CHANNELS.bulk.setFavorite, request),
+    setHomeVisibility: (request) => invoke(IPC_CHANNELS.bulk.setHomeVisibility, request),
     addTag: (request) => invoke(IPC_CHANNELS.bulk.addTag, request),
     removeTag: (request) => invoke(IPC_CHANNELS.bulk.removeTag, request),
     addCollection: (request) => invoke(IPC_CHANNELS.bulk.addCollection, request),

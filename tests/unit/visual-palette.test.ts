@@ -37,7 +37,7 @@ describe('paleta visual do Auri', () => {
     }
 
     expect(windowSetup).toContain("backgroundColor: '#090d15'")
-    expect(windowSetup).toContain("color: '#131b2a'")
+    expect(windowSetup).toContain("color: '#00000000'")
     expect(windowSetup).toContain("symbolColor: '#f7f0da'")
   })
 

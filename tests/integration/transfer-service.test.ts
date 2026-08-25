@@ -21,14 +21,14 @@ function setup(name: string) {
   const fixture = createDomainFixture(paths.database)
   databases.push(fixture.db)
   const settings = new SettingsService(paths.settings, new TestLogger())
-  const backups = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 1)
+  const backups = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 2)
   const transfer = new TransferService(fixture.db, { ...fixture.repositories }, fixture.services.details, backups, new TestLogger(), () => '2026-08-17T12:00:00.000Z')
   return { root, paths, fixture, transfer }
 }
 
 function createRichWork(target: ReturnType<typeof setup>, title = 'The Shepherd Wizard') {
   const details = target.fixture.services.details.createDetailed({
-    title, mediaType: 'manhwa', userStatus: 'reading', chapter: '42', rating: 8.5, favorite: true,
+    title, mediaType: 'manhwa', userStatus: 'reading', chapter: '42', rating: 8.5, favorite: true, hiddenFromHome: true,
     aliases: [{ name: 'Yangchigi Mabeopsa', kind: 'romanized', source: 'anilist' }],
     externalRefs: [{ provider: 'anilist', externalId: '123', canonicalUrl: 'https://anilist.co/manga/123' }],
     creators: [{ name: 'Autora', role: 'author' }], genres: ['Fantasia'], tags: ['Magia']
@@ -55,6 +55,19 @@ describe('TransferService', () => {
     expect(details.tags.map((item) => item.name)).toContain('Magia')
     expect(details.collections.map((item) => item.name)).toContain('Favoritos')
     expect(target.fixture.repositories.history.listByWork(imported.id).length).toBeGreaterThan(0)
+    expect(imported.hiddenFromHome).toBe(true)
+  })
+
+  it('assume visível quando um JSON antigo não possui hiddenFromHome', async () => {
+    const source = setup('legacy-json-source'); createRichWork(source)
+    const file = join(source.root, 'legacy-library.json'); source.transfer.exportJson(file)
+    const payload = JSON.parse(readFileSync(file, 'utf8')) as AuriLibraryExport
+    expect(payload.works[0].work.hiddenFromHome).toBe(true)
+    Reflect.deleteProperty(payload.works[0].work, 'hiddenFromHome')
+    writeFileSync(file, JSON.stringify(payload))
+    const target = setup('legacy-json-target')
+    await target.transfer.applyImport(file)
+    expect(target.fixture.services.library.queryWorks({})[0].hiddenFromHome).toBe(false)
   })
 
   it('exporta CSV com BOM e escape correto', () => {

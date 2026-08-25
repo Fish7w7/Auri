@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import type {
   BulkCollectionRequest,
   BulkFavoriteRequest,
+  BulkHomeVisibilityRequest,
   BulkOperationResult,
   BulkStatusRequest,
   BulkTagRequest,
@@ -11,6 +12,7 @@ import { DomainError } from '@shared/errors/domain-error'
 import {
   bulkCollectionSchema,
   bulkFavoriteSchema,
+  bulkHomeVisibilitySchema,
   bulkStatusSchema,
   bulkTagSchema,
   bulkTrashSchema
@@ -48,6 +50,15 @@ export class BulkLibraryService {
     return this.updateWorks(request.workIds, (work, updatedAt) => ({
       ...work,
       favorite: request.favorite,
+      updatedAt
+    }))
+  }
+
+  setHomeVisibility(input: unknown): BulkOperationResult {
+    const request = parseDomainInput(bulkHomeVisibilitySchema, input) as BulkHomeVisibilityRequest
+    return this.updateWorks(request.workIds, (work, updatedAt) => ({
+      ...work,
+      hiddenFromHome: request.hiddenFromHome,
       updatedAt
     }))
   }

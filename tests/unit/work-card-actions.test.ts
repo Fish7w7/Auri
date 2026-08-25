@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { Work } from '@shared/contracts'
+import { HomeWorkCard } from '@renderer/components/home/HomeWorkCard'
 import { WorkCard } from '@renderer/components/work/WorkCard'
 import { WorkListRow } from '@renderer/components/work/WorkListRow'
 import { stopWorkActionPropagation } from '@renderer/components/work/WorkActions'
@@ -23,6 +24,7 @@ const work: Work = {
   lastReadAt: null,
   rating: null,
   favorite: false,
+  hiddenFromHome: false,
   notes: null,
   lastReadNote: null,
   cover: { type: 'remote', sourceUrl: 'https://example.test/cover.jpg', customPath: null, updatedAt: null },
@@ -67,6 +69,27 @@ describe('ações rápidas dos cards da Biblioteca', () => {
     expect(css).toContain('.work-card:hover .work-cover, .work-card:focus-within .work-cover')
     expect(css).not.toContain('.work-card__open:hover .work-cover')
     expect(css).toContain('.work-card:hover .work-actions, .work-card:focus-within .work-actions')
+  })
+
+  it('mantém Ocultar da Home somente dentro do menu secundário', () => {
+    const html = renderToStaticMarkup(createElement(HomeWorkCard, { work, showLastReadNote: false, onOpen() {}, onContinue() {}, onIncrement() {}, onHide() {} }))
+    expect(html).toContain('class="home-work-card__actions"')
+    expect(html).toContain('class="work-overflow home-work-menu"')
+    expect(html).toContain('role="menu"><button>Ocultar da Home</button>')
+    expect(html.match(/Ocultar da Home/g)).toHaveLength(1)
+  })
+
+  it('fecha menus ao clicar fora e preserva a fronteira contra click-through', () => {
+    const source = readFileSync(join(process.cwd(), 'src/renderer/src/components/ui/KeyboardMenu.tsx'), 'utf8')
+    expect(source).toContain("document.addEventListener('pointerdown', closeOutside)")
+    expect(source).toContain("document.removeEventListener('pointerdown', closeOutside)")
+    expect(source).toContain('onPointerDown={(event) => event.stopPropagation()}')
+    expect(source).toContain("event.key === 'Escape'")
+  })
+
+  it('mantém o menu da Home flutuando acima das ações', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/src/styles/global.css'), 'utf8')
+    expect(css).toMatch(/\.work-overflow\.home-work-menu > div \{ top: auto; bottom: calc\(100% \+ 6px\); \}/)
   })
 
   it('remove as ações no modo de seleção múltipla', () => {

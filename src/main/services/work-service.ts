@@ -58,6 +58,7 @@ export class WorkService {
       lastReadAt: initialChapter ? now : null,
       rating: request.rating ?? null,
       favorite: request.favorite ?? false,
+      hiddenFromHome: request.hiddenFromHome ?? false,
       notes: requireText(request.notes),
       lastReadNote: requireText(request.lastReadNote),
       cover: {
@@ -130,6 +131,7 @@ export class WorkService {
       endDate: request.endDate === undefined ? current.endDate : request.endDate,
       rating: request.rating === undefined ? current.rating : request.rating,
       favorite: request.favorite ?? current.favorite,
+      hiddenFromHome: request.hiddenFromHome ?? current.hiddenFromHome,
       notes: request.notes === undefined ? current.notes : request.notes,
       lastReadNote:
         request.lastReadNote === undefined ? current.lastReadNote : request.lastReadNote,

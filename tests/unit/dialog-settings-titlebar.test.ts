@@ -99,6 +99,7 @@ describe('modais, Configurações e title bar do Auri', () => {
     expect(css).toMatch(/\.window-titlebar \{[^}]*box-shadow: inset 0 -1px var\(--shimmer-highlight\)/)
     expect(windowSetup).toContain("titleBarStyle: 'hidden'")
     expect(windowSetup).toContain('titleBarOverlay: {')
+    expect(windowSetup).toContain("color: '#00000000'")
     expect(windowSetup).not.toMatch(/titleBarOverlay:\s*\{[^}]*height:/s)
   })
 })

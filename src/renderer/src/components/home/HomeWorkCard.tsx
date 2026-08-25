@@ -1,6 +1,7 @@
 import type { Work } from '@shared/contracts'
 import { formatChapter, formatRelativeDate } from '../../lib/format'
 import { Button } from '../ui/Button'
+import { KeyboardMenu } from '../ui/KeyboardMenu'
 import { WorkCover } from '../work/WorkCover'
 import { WorkStatusBadge } from '../work/WorkStatusBadge'
 
@@ -10,9 +11,10 @@ interface Props {
   onOpen(work: Work): void
   onContinue(work: Work): void
   onIncrement(work: Work): void
+  onHide(work: Work): void
 }
 
-export function HomeWorkCard({ work, showLastReadNote, onOpen, onContinue, onIncrement }: Props) {
+export function HomeWorkCard({ work, showLastReadNote, onOpen, onContinue, onIncrement, onHide }: Props) {
   const numericProgress = work.lastReadChapter?.number != null
   return <article className="work-card home-work-card">
     <button className="work-card__open" onClick={() => onOpen(work)} aria-label={`Abrir ${work.title}`}>
@@ -27,6 +29,7 @@ export function HomeWorkCard({ work, showLastReadNote, onOpen, onContinue, onInc
     <div className="home-work-card__actions">
       <Button variant="primary" onClick={() => onContinue(work)}>Continuar</Button>
       {numericProgress && <Button onClick={() => onIncrement(work)}>+1</Button>}
+      <KeyboardMenu className="work-overflow home-work-menu" label={`Mais ações de ${work.title}`}><button onClick={() => onHide(work)}>Ocultar da Home</button></KeyboardMenu>
     </div>
   </article>
 }

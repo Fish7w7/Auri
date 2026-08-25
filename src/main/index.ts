@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { app, BrowserWindow, clipboard, dialog, shell } from 'electron'
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, shell } from 'electron'
 import { createAppContext, type AppContext } from './app/create-app-context'
 import { registerIpcHandlers } from './ipc/register-ipc-handlers'
 import { createMainWindow } from './windows/create-main-window'
@@ -38,6 +38,14 @@ const testUpdaterAdapter = {
   checkForUpdates: async () => null, downloadUpdate: async () => [], quitAndInstall: () => undefined
 } as UpdaterAdapter
 const testReleaseNotes = '<h1>Auri v1.2.0</h1><p>Uma atualização com <strong>melhorias importantes</strong> e <em>mais clareza</em>.</p><h2>Novidades</h2><ul><li>Janela integrada ao Auri</li><li>Identidade Auri no Windows</li><li>Notas de versão legíveis</li><li>Links externos seguros</li><li>Melhor apresentação do progresso</li><li>Controles nativos preservados</li><li>Atalhos do instalador atualizados</li><li>Restauração de backups legados</li></ul><p>Consulte os <a href="https://example.com/auri-release">detalhes completos</a> ou use <code>Ctrl+K</code>.</p><script>window.__auriUnsafeReleaseNote = true</script><iframe src="https://example.com"></iframe>'
+
+async function captureNativeWindow(window: BrowserWindow, destination: string): Promise<void> {
+  const bounds = window.getBounds()
+  const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: bounds.width, height: bounds.height }, fetchWindowIcons: false })
+  const source = sources.find((candidate) => candidate.name === APP_BRAND.name) ?? sources.find((candidate) => candidate.name.includes(APP_BRAND.name))
+  if (!source || source.thumbnail.isEmpty()) throw new Error('A captura nativa da janela do Auri não foi encontrada.')
+  writeFileSync(destination, source.thumbnail.toPNG())
+}
 
 function emitTestUpdate(event: string, value: unknown): void {
   for (const handler of testUpdateHandlers.get(event) ?? []) handler(value)
@@ -599,6 +607,57 @@ if (!singleInstanceLock) {
                 confirmBackupDelete.click()
                 await waitFor(async () => !document.querySelector('dialog[open]') && (await window.auri.backup.state()).backups.length === backupsBeforeDelete - 1, 'exclusão única do backup')
 
+                // Home — ocultação independente, menu sem click-through, fila única e callbacks corretos de Desfazer.
+                while (document.querySelector('.toast__close')) { document.querySelector('.toast__close').click(); await sleep(40) }
+                const homeTargets = await Promise.all([imported.work.id, offlineWork.id, urlWork.id].map((workId) => window.auri.works.get({ workId })))
+                for (const target of homeTargets) await window.auri.works.update({ id: target.id, userStatus: 'waiting', hiddenFromHome: false })
+                window.dispatchEvent(new Event('auri:data-changed'))
+                window.location.hash = '/'
+                await waitFor(() => document.querySelector('.home-section'), 'Home para ocultação')
+                const findHomeCard = (title) => Array.from(document.querySelectorAll('.home-work-card')).find((card) => card.querySelector('h3')?.textContent === title)
+                const hideCard = async (target, testKeyboard = false) => {
+                  const card = await waitFor(() => findHomeCard(target.title), 'card da Home ' + target.title)
+                  const menu = card.querySelector('details[data-keyboard-menu]')
+                  const summary = menu.querySelector('summary')
+                  const hashBefore = window.location.hash
+                  summary.focus(); summary.click()
+                  if (!menu.open || window.location.hash !== hashBefore) throw new Error('Menu da Home abriu a obra ou não abriu no primeiro clique.')
+                  if (testKeyboard) {
+                    menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+                    if (menu.open || document.activeElement !== summary) throw new Error('Escape/foco do menu da Home falhou.')
+                    summary.click()
+                  }
+                  byText(menu, 'Ocultar da Home').click()
+                  await waitFor(async () => (await window.auri.works.get({ workId: target.id })).hiddenFromHome && !findHomeCard(target.title), 'ocultar ' + target.title)
+                  if (window.location.hash !== hashBefore) throw new Error('Ocultar da Home causou click-through.')
+                }
+                await hideCard(homeTargets[0], true)
+                await hideCard(homeTargets[1])
+                await hideCard(homeTargets[2])
+                if (document.querySelectorAll('.toast').length !== 2) throw new Error('Toaster não respeitou os dois slots visíveis.')
+                let activeToast = await waitFor(() => document.querySelector('.toast:has(.toast__action)'), 'toast com Desfazer')
+                activeToast.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+                await sleep(9300)
+                if (!document.body.contains(activeToast)) throw new Error('Hover não pausou o timeout do toast com ação.')
+                activeToast.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }))
+                byText(activeToast, 'Desfazer').click()
+                await waitFor(async () => !(await window.auri.works.get({ workId: homeTargets[0].id })).hiddenFromHome, 'Desfazer da primeira obra')
+                await sleep(120)
+                activeToast = await waitFor(() => document.querySelector('.toast:has(.toast__action)'), 'toast promovido da terceira obra')
+                byText(activeToast, 'Desfazer').click()
+                await waitFor(async () => !(await window.auri.works.get({ workId: homeTargets[2].id })).hiddenFromHome, 'Desfazer da terceira obra')
+                if (!(await window.auri.works.get({ workId: homeTargets[1].id })).hiddenFromHome) throw new Error('Callback de Desfazer restaurou a obra errada.')
+
+                // Configurações oferece um gerenciador enxuto para restaurar obras ocultas.
+                window.location.hash = '/settings'
+                await waitFor(() => document.querySelector('.settings-page'), 'Configurações para obras ocultas')
+                document.querySelector('[data-settings-section="library"]').click()
+                const hiddenManagerButton = await waitFor(() => byText(document.querySelector('.settings-panel'), 'Gerenciar'), 'gerenciador de obras ocultas')
+                hiddenManagerButton.click()
+                modal = await waitFor(() => document.querySelector('dialog[open]:has(.hidden-home-list)'), 'dialog de obras ocultas')
+                if (!modal.textContent.includes(homeTargets[1].title)) throw new Error('Obra ocultada não apareceu no gerenciador.')
+                byText(modal, 'Mostrar na Home').click()
+                await waitFor(async () => !(await window.auri.works.get({ workId: homeTargets[1].id })).hiddenFromHome, 'restauração em Configurações')
                 await window.auri.works.deletePermanently({ workId: imported.work.id })
                 await window.auri.works.deletePermanently({ workId: offlineWork.id })
                 await window.auri.works.deletePermanently({ workId: urlWork.id })
@@ -748,6 +807,7 @@ if (!singleInstanceLock) {
         mainWindow.webContents.once('did-finish-load', () => {
           const output = join(process.cwd(), 'artifacts')
           mkdirSync(output, { recursive: true })
+          let focusProbe: BrowserWindow | null = null
           void mainWindow.webContents
             .executeJavaScript(`
                 new Promise((resolve, reject) => {
@@ -768,13 +828,39 @@ if (!singleInstanceLock) {
             .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'auri-home.png'), image.toPNG()))
-            .then(() => { mainWindow.blur(); return new Promise((resolve) => setTimeout(resolve, 200)) })
+            .then(() => mainWindow.webContents.executeJavaScript(`
+              new Promise((resolve, reject) => {
+                const menu = document.querySelector('.home-work-menu')
+                const summary = menu?.querySelector('summary')
+                summary?.click()
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  const panel = menu?.querySelector('[role="menu"]')
+                  const panelBounds = panel?.getBoundingClientRect()
+                  const summaryBounds = summary?.getBoundingClientRect()
+                  if (!menu?.open || !panel || !panelBounds || !summaryBounds) return reject(new Error('Menu da Home não abriu para o smoke visual.'))
+                  if (getComputedStyle(panel).position !== 'absolute' || panelBounds.bottom > summaryBounds.top - 4 || panelBounds.height > 100) return reject(new Error('Menu da Home entrou no fluxo ou ficou esticado.'))
+                  resolve(true)
+                }))
+              })
+            `))
+            .then(() => mainWindow.webContents.capturePage())
+            .then((image) => writeFileSync(join(output, 'auri-home-menu.png'), image.toPNG()))
+            .then(() => mainWindow.webContents.executeJavaScript(`document.querySelector('.home-work-menu')?.removeAttribute('open')`))
+            .then(() => captureNativeWindow(mainWindow, join(output, 'auri-titlebar-native-restored.png')))
+            .then(async () => {
+              focusProbe = new BrowserWindow({ width: 80, height: 80, show: false, frame: false, skipTaskbar: true })
+              await focusProbe.loadURL('data:text/html,<title>Focus probe</title>')
+              focusProbe.show()
+              focusProbe.focus()
+              await new Promise((resolve) => setTimeout(resolve, 250))
+            })
             .then(() => mainWindow.webContents.executeJavaScript(`
               document.querySelector('.window-titlebar.is-inactive') ? true : Promise.reject(new Error('Estado inativo da title bar não foi aplicado.'))
             `))
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'auri-window-inactive.png'), image.toPNG()))
-            .then(() => { mainWindow.focus(); mainWindow.maximize(); return new Promise((resolve) => setTimeout(resolve, 300)) })
+            .then(() => captureNativeWindow(mainWindow, join(output, 'auri-titlebar-native-inactive.png')))
+            .then(() => { focusProbe?.close(); focusProbe = null; mainWindow.focus(); mainWindow.maximize(); return new Promise((resolve) => setTimeout(resolve, 300)) })
             .then(() => mainWindow.webContents.executeJavaScript(`
               (() => {
                 const frame = document.querySelector('.window-frame')
@@ -788,6 +874,7 @@ if (!singleInstanceLock) {
             `))
             .then(() => mainWindow.webContents.capturePage())
             .then((image) => writeFileSync(join(output, 'auri-window-maximized.png'), image.toPNG()))
+            .then(() => captureNativeWindow(mainWindow, join(output, 'auri-titlebar-native-maximized.png')))
             .then(() => { mainWindow.unmaximize(); return new Promise((resolve) => setTimeout(resolve, 300)) })
             .then(() =>
               mainWindow.webContents.executeJavaScript(`

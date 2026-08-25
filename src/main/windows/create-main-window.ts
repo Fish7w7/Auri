@@ -20,7 +20,7 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     icon: resolveWindowIcon(),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#131b2a',
+      color: '#00000000',
       symbolColor: '#f7f0da'
     },
     webPreferences: {
