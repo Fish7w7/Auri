@@ -19,6 +19,7 @@ interface WorkRow {
   last_read_at: string | null
   rating: number | null
   favorite: number
+  hidden_from_home: number
   notes: string | null
   last_read_note: string | null
   cover_type: Work['cover']['type']
@@ -35,7 +36,7 @@ const WORK_COLUMNS = `
   id, title, normalized_title, media_type, user_status, publication_status,
   description, country_code, start_date, end_date,
   last_read_chapter_label, last_read_chapter_number, last_read_at,
-  rating, favorite, notes, last_read_note,
+  rating, favorite, hidden_from_home, notes, last_read_note,
   cover_type, cover_source_url, cover_custom_path, cover_updated_at,
   metadata_updated_at, created_at, updated_at, deleted_at
 `
@@ -50,7 +51,7 @@ export class WorkRepository {
           @id, @title, @normalizedTitle, @mediaType, @userStatus, @publicationStatus,
           @description, @countryCode, @startDate, @endDate,
           @chapterLabel, @chapterNumber, @lastReadAt,
-          @rating, @favorite, @notes, @lastReadNote,
+          @rating, @favorite, @hiddenFromHome, @notes, @lastReadNote,
           @coverType, @coverSourceUrl, @coverCustomPath, @coverUpdatedAt,
           @metadataUpdatedAt, @createdAt, @updatedAt, @deletedAt
         )
@@ -85,6 +86,7 @@ export class WorkRepository {
           last_read_at = @lastReadAt,
           rating = @rating,
           favorite = @favorite,
+          hidden_from_home = @hiddenFromHome,
           notes = @notes,
           last_read_note = @lastReadNote,
           cover_type = @coverType,
@@ -184,6 +186,10 @@ export class WorkRepository {
       clauses.push('w.favorite = ?')
       values.push(query.favorite ? 1 : 0)
     }
+    if (query.hiddenFromHome !== undefined) {
+      clauses.push('w.hidden_from_home = ?')
+      values.push(query.hiddenFromHome ? 1 : 0)
+    }
     if (query.hasProgress !== undefined) {
       clauses.push(query.hasProgress ? 'w.last_read_chapter_label IS NOT NULL' : 'w.last_read_chapter_label IS NULL')
     }
@@ -215,7 +221,7 @@ export class WorkRepository {
       : 'last_read_at IS NULL ASC, last_read_at DESC, created_at DESC'
     return this.findMany(
       `SELECT ${WORK_COLUMNS} FROM works
-       WHERE deleted_at IS NULL AND user_status = 'reading' AND ${dateClause}
+       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status = 'reading' AND ${dateClause}
        ORDER BY ${orderBy} LIMIT ?`,
       staleBefore,
       limit
@@ -225,7 +231,7 @@ export class WorkRepository {
   listHomeWaiting(limit: number): Work[] {
     return this.findMany(
       `SELECT ${WORK_COLUMNS} FROM works
-       WHERE deleted_at IS NULL AND user_status = 'waiting'
+       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status = 'waiting'
        ORDER BY last_read_at IS NULL ASC, last_read_at ASC, created_at DESC LIMIT ?`,
       limit
     )
@@ -234,7 +240,7 @@ export class WorkRepository {
   listHomeRecentlyAdded(limit: number): Work[] {
     return this.findMany(
       `SELECT ${WORK_COLUMNS} FROM works
-       WHERE deleted_at IS NULL AND user_status NOT IN ('reading', 'waiting')
+       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status NOT IN ('reading', 'waiting')
        ORDER BY created_at DESC LIMIT ?`,
       limit
     )
@@ -343,6 +349,7 @@ export class WorkRepository {
       lastReadAt: work.lastReadAt,
       rating: work.rating,
       favorite: work.favorite ? 1 : 0,
+      hiddenFromHome: work.hiddenFromHome ? 1 : 0,
       notes: work.notes,
       lastReadNote: work.lastReadNote,
       coverType: work.cover.type,
@@ -375,6 +382,7 @@ export class WorkRepository {
       lastReadAt: row.last_read_at,
       rating: row.rating,
       favorite: row.favorite === 1,
+      hiddenFromHome: row.hidden_from_home === 1,
       notes: row.notes,
       lastReadNote: row.last_read_note,
       cover: {

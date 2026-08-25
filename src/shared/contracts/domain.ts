@@ -19,6 +19,7 @@ import type {
   collectionIdSchema,
   bulkStatusSchema,
   bulkFavoriteSchema,
+  bulkHomeVisibilitySchema,
   bulkTagSchema,
   bulkCollectionSchema,
   bulkTrashSchema,
@@ -83,6 +84,7 @@ export type RemoteCoverRequest = z.infer<typeof remoteCoverSchema>
 export type OpenExternalRequest = z.infer<typeof openExternalSchema>
 export type BulkStatusRequest = z.infer<typeof bulkStatusSchema>
 export type BulkFavoriteRequest = z.infer<typeof bulkFavoriteSchema>
+export type BulkHomeVisibilityRequest = z.infer<typeof bulkHomeVisibilitySchema>
 export type BulkTagRequest = z.infer<typeof bulkTagSchema>
 export type BulkCollectionRequest = z.infer<typeof bulkCollectionSchema>
 export type BulkTrashRequest = z.infer<typeof bulkTrashSchema>
@@ -142,6 +144,7 @@ export interface DomainApi {
   bulk: {
     setStatus(request: BulkStatusRequest): Promise<BulkOperationResult>
     setFavorite(request: BulkFavoriteRequest): Promise<BulkOperationResult>
+    setHomeVisibility(request: BulkHomeVisibilityRequest): Promise<BulkOperationResult>
     addTag(request: BulkTagRequest): Promise<BulkOperationResult>
     removeTag(request: BulkTagRequest): Promise<BulkOperationResult>
     addCollection(request: BulkCollectionRequest): Promise<BulkOperationResult>

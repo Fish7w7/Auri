@@ -31,7 +31,7 @@ const exportedWorkSchema = z.object({
     publicationStatus: z.enum(['ongoing', 'completed', 'hiatus', 'cancelled', 'unknown']).nullable(),
     description: z.string().nullable(), countryCode: z.string().nullable(), startDate: z.string().nullable(), endDate: z.string().nullable(),
     lastReadChapter: z.object({ label: z.string(), number: z.number().nullable() }).nullable(), lastReadAt: z.string().nullable(),
-    rating: z.number().nullable(), favorite: z.boolean(), notes: z.string().nullable(), lastReadNote: z.string().nullable(),
+    rating: z.number().nullable(), favorite: z.boolean(), hiddenFromHome: z.boolean().default(false), notes: z.string().nullable(), lastReadNote: z.string().nullable(),
     cover: z.object({ type: z.enum(['none', 'remote', 'custom']), sourceUrl: z.string().nullable(), customPath: z.string().nullable(), updatedAt: z.string().nullable() }),
     metadataUpdatedAt: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(), deletedAt: z.string().nullable()
   }),
@@ -178,7 +178,7 @@ export class TransferService {
   }
 
   private hasPersonalConflict(current: Work, imported: Work): boolean {
-    return current.userStatus !== imported.userStatus || current.rating !== imported.rating || current.favorite !== imported.favorite || current.notes !== imported.notes || current.lastReadChapter?.label !== imported.lastReadChapter?.label
+    return current.userStatus !== imported.userStatus || current.rating !== imported.rating || current.favorite !== imported.favorite || current.hiddenFromHome !== imported.hiddenFromHome || current.notes !== imported.notes || current.lastReadChapter?.label !== imported.lastReadChapter?.label
   }
 
   private insertWork(item: AuriExportWork): string {

@@ -28,6 +28,7 @@ export function useWorkActions(refresh: () => void) {
       showToast({
         kind: 'success',
         message: `Progresso atualizado para ${result.progress.chapter?.label}.`,
+        dedupeKey: `progress:${work.id}`,
         action: {
           label: 'Desfazer',
           onClick: async () => {

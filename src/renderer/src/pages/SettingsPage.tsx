@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { BackupPreview, BackupState, CoverCacheUsage, ImportPreview, LibrarySort, LibraryView, SystemDiagnostics, SystemStatus } from '@shared/contracts'
+import type { BackupPreview, BackupState, CoverCacheUsage, ImportPreview, LibrarySort, LibraryView, SystemDiagnostics, SystemStatus, Work } from '@shared/contracts'
 import { APP_BRAND } from '@shared/constants/app-branding'
 import { useAppContext } from '../app/app-context'
 import { BrandMark } from '../components/shell/BrandMark'
@@ -54,11 +54,19 @@ export function SettingsPage() {
   const [restorePreview, setRestorePreview] = useState<BackupPreview | null>(null)
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [deleteBackup, setDeleteBackup] = useState<BackupState['backups'][number] | null>(null)
+  const [hiddenWorks, setHiddenWorks] = useState<Work[]>([])
+  const [hiddenManagerOpen, setHiddenManagerOpen] = useState(false)
+  const [hiddenLoading, setHiddenLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
   const navRef = useRef<HTMLElement>(null)
-  const { showToast } = useToast()
+  const { showToast, updateToast } = useToast()
 
+  const loadHiddenWorks = useCallback(async () => {
+    setHiddenLoading(true)
+    try { setHiddenWorks(await window.auri.library.query({ hiddenFromHome: true, sort: 'title_asc' })) }
+    finally { setHiddenLoading(false) }
+  }, [])
   const loadCache = useCallback(() => void window.auri.covers.usage().then(setCache).catch(() => setCache(null)), [])
   const loadDiagnostics = async () => {
     const next = await window.auri.system.getDiagnostics()
@@ -76,6 +84,9 @@ export function SettingsPage() {
     window.addEventListener('auri:cover-cache-changed', refresh)
     return () => window.removeEventListener('auri:cover-cache-changed', refresh)
   }, [loadCache])
+  useEffect(() => {
+    if (section === 'library') void loadHiddenWorks().catch(() => showToast({ kind: 'error', message: 'Não foi possível carregar as obras ocultas.' }))
+  }, [loadHiddenWorks, section, showToast])
   useEffect(() => {
     if (section === 'backup-data') void window.auri.backup.state().then(setBackup).catch((error) => showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível carregar os backups.' }))
   }, [section, settings, showToast])
@@ -114,12 +125,50 @@ export function SettingsPage() {
     }
   }
 
+  const createBackup = async () => {
+    if (busy) return
+    const toastId = showToast({ kind: 'progress', message: 'Criando backup…', dedupeKey: 'backup-create' })
+    setBusy(true)
+    try {
+      await window.auri.backup.create()
+      setBackup(await window.auri.backup.state())
+      updateToast(toastId, { kind: 'success', message: 'Backup criado' })
+    } catch (error) {
+      updateToast(toastId, { kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível criar o backup.' })
+    } finally { setBusy(false) }
+  }
+
   const confirmBackupDeletion = async () => {
     if (!deleteBackup) return
     await window.auri.backup.delete({ path: deleteBackup.path })
     setBackup(await window.auri.backup.state())
-    showToast({ kind: 'success', message: 'Backup excluído.' })
+    showToast({ kind: 'success', message: 'Backup excluído', dedupeKey: 'backup-delete' })
     setDeleteBackup(null)
+  }
+
+  const showOnHome = async (work: Work) => {
+    setBusy(true)
+    try {
+      await window.auri.works.update({ id: work.id, hiddenFromHome: false })
+      setHiddenWorks((current) => current.filter((item) => item.id !== work.id))
+      refreshData()
+      showToast({ kind: 'info', message: 'Obra visível na Home' })
+    } catch (error) {
+      showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível atualizar a obra.' })
+    } finally { setBusy(false) }
+  }
+
+  const showAllOnHome = async () => {
+    if (!hiddenWorks.length) return
+    setBusy(true)
+    try {
+      await window.auri.bulk.setHomeVisibility({ workIds: hiddenWorks.map((work) => work.id), hiddenFromHome: false })
+      setHiddenWorks([])
+      refreshData()
+      showToast({ kind: 'info', message: 'Todas as obras estão visíveis na Home' })
+    } catch (error) {
+      showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível atualizar as obras.' })
+    } finally { setBusy(false) }
   }
 
   const confirmRestore = async () => {
@@ -154,13 +203,18 @@ export function SettingsPage() {
               <Select label="Ordenação padrão" value={settings.librarySort} onChange={(librarySort) => void updateSettings({ librarySort: librarySort as LibrarySort })} options={Object.entries(sortLabels).map(([value, label]) => ({ value, label }))} />
             </SettingRow>
           </SettingsGroup>
+          <SettingsGroup title="Home" description="A visibilidade na Home é independente do status, progresso e favoritos.">
+            <SettingRow title="Obras ocultas da Home" description={`${hiddenWorks.length} ${hiddenWorks.length === 1 ? 'obra oculta' : 'obras ocultas'}. Elas continuam normalmente na Biblioteca.`}>
+              <Button onClick={() => { setHiddenManagerOpen(true); void loadHiddenWorks() }}>Gerenciar</Button>
+            </SettingRow>
+          </SettingsGroup>
         </>}
 
         {section === 'backup-data' && <>
           <SettingsHeading title="Backup e dados" description="Proteja a instalação completa ou mova sua Biblioteca entre instalações do Auri." />
 
           <SettingsActionGroup title="Backup manual" description="Cria agora uma cópia completa do banco, preferências e arquivos permanentes.">
-            <Button variant="primary" disabled={busy} onClick={() => void dataAction(async () => { await window.auri.backup.create() }, 'Backup criado com sucesso.')}>Criar backup</Button>
+            <Button variant="primary" disabled={busy} onClick={() => void createBackup()}>Criar backup</Button>
           </SettingsActionGroup>
 
           <SettingsGroup title="Backups automáticos" description="Cópias de recuperação criadas sem incluir caches temporários.">
@@ -208,6 +262,13 @@ export function SettingsPage() {
       </section>
     </div>
 
+    <Dialog open={hiddenManagerOpen} title="Obras ocultas da Home" description="Restaure apenas a presença nas seções automáticas da Home; nenhum outro dado será alterado." busy={busy} onClose={() => { if (!busy) setHiddenManagerOpen(false) }} footer={<><Button disabled={busy} onClick={() => setHiddenManagerOpen(false)}>Fechar</Button>{hiddenWorks.length > 1 && <Button variant="primary" disabled={busy} onClick={() => void showAllOnHome()}>Mostrar todas na Home</Button>}</>}>
+      <div className="hidden-home-list">
+        {hiddenLoading && <p className="muted-copy">Carregando obras ocultas…</p>}
+        {!hiddenLoading && hiddenWorks.length === 0 && <p className="muted-copy">Nenhuma obra está oculta da Home.</p>}
+        {!hiddenLoading && hiddenWorks.map((work) => <article key={work.id}><div><strong title={work.title}>{work.title}</strong><span>{work.userStatus.replaceAll('_', ' ')}</span></div><Button disabled={busy} onClick={() => void showOnHome(work)}>Mostrar na Home</Button></article>)}
+      </div>
+    </Dialog>
     <ConfirmDialog open={!!deleteBackup} title="Excluir backup?" description={deleteBackup ? <>O backup <span className="dialog__filename" title={deleteBackup.fileName}>“{deleteBackup.fileName}”</span> será excluído permanentemente.</> : ''} confirmLabel="Excluir backup" danger onClose={() => setDeleteBackup(null)} onConfirm={confirmBackupDeletion} />
     <ConfirmDialog open={!!restorePreview} title="Restaurar backup?" description={restorePreview ? `Este backup foi criado em ${new Date(restorePreview.createdAt).toLocaleString('pt-BR')} e contém ${restorePreview.workCount} obras. O ${APP_BRAND.name} criará uma cópia de segurança dos dados atuais e reiniciará após a restauração.` : ''} confirmLabel="Restaurar e reiniciar" danger onClose={() => setRestorePreview(null)} onConfirm={confirmRestore} />
     <Dialog open={!!importPreview} title="Revisar importação" description={importPreview ? `${importPreview.total} obras: ${importPreview.newWorks} novas, ${importPreview.exactMatches} correspondências exatas, ${importPreview.probableMatches} prováveis, ${importPreview.trashMatches} na Lixeira e ${importPreview.conflicts} conflitos.` : ''} busy={busy} onClose={() => { if (!busy) setImportPreview(null) }}><div className="import-preview"><p>Correspondências prováveis ficam separadas para evitar duplicação silenciosa. Escolha como tratar conflitos exatos:</p><label><input type="checkbox" id="restore-import-trash" disabled={busy} /> Restaurar correspondências encontradas na Lixeira</label><div className="data-actions"><Button disabled={busy} onClick={() => void applyImportChoice('keep_current')}>Manter dados atuais</Button><Button variant="primary" disabled={busy} onClick={() => void applyImportChoice('use_imported')}>{busy ? 'Importando…' : 'Usar dados importados'}</Button></div></div></Dialog>

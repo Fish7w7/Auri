@@ -54,6 +54,7 @@ export interface Work {
   lastReadAt: string | null
   rating: number | null
   favorite: boolean
+  hiddenFromHome: boolean
   notes: string | null
   lastReadNote: string | null
   cover: {

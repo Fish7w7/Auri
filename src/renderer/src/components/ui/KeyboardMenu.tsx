@@ -1,9 +1,16 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 export function KeyboardMenu({ className, label, children }: { className: string; label: string; children: ReactNode }) {
   const ref = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (ref.current?.open && event.target instanceof Node && !ref.current.contains(event.target)) ref.current.open = false
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => document.removeEventListener('pointerdown', closeOutside)
+  }, [])
   const buttons = () => Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menu"] > button:not(:disabled)') ?? [])
-  return <details ref={ref} className={className} data-keyboard-menu onToggle={() => buttons().forEach((button) => button.setAttribute('role', 'menuitem'))} onKeyDown={(event) => {
+  return <details ref={ref} className={className} data-keyboard-menu onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onToggle={() => buttons().forEach((button) => button.setAttribute('role', 'menuitem'))} onKeyDown={(event) => {
     if (!ref.current?.open) return
     const items = buttons()
     const current = items.indexOf(document.activeElement as HTMLButtonElement)

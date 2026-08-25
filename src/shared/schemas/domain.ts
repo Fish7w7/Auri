@@ -58,6 +58,7 @@ export const createWorkSchema = z.object({
   chapter: z.string().nullable().optional(),
   rating: z.number().finite().min(0).max(10).nullable().optional(),
   favorite: z.boolean().optional(),
+  hiddenFromHome: z.boolean().optional(),
   notes: nullableText,
   lastReadNote: nullableText,
   cover: z
@@ -110,6 +111,7 @@ export const collectionIdSchema = z.object({ collectionId: z.string().uuid() })
 const bulkWorkIdsSchema = z.array(z.string().uuid()).min(1)
 export const bulkStatusSchema = z.object({ workIds: bulkWorkIdsSchema, userStatus: userStatusSchema })
 export const bulkFavoriteSchema = z.object({ workIds: bulkWorkIdsSchema, favorite: z.boolean() })
+export const bulkHomeVisibilitySchema = z.object({ workIds: bulkWorkIdsSchema, hiddenFromHome: z.boolean() })
 export const bulkTagSchema = z.object({ workIds: bulkWorkIdsSchema, tagId: z.string().uuid() })
 export const bulkCollectionSchema = z.object({ workIds: bulkWorkIdsSchema, collectionId: z.string().uuid() })
 export const bulkTrashSchema = z.object({ workIds: bulkWorkIdsSchema })
@@ -208,6 +210,7 @@ export const libraryQuerySchema = z.object({
   mediaTypes: z.array(mediaTypeSchema).optional(),
   publicationStatuses: z.array(publicationStatusSchema.nullable()).optional(),
   favorite: z.boolean().optional(),
+  hiddenFromHome: z.boolean().optional(),
   hasProgress: z.boolean().optional(),
   collectionIds: z.array(z.string().uuid()).optional(),
   sort: librarySortSchema.optional()
