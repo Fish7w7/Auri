@@ -11,6 +11,7 @@ interface Props {
   onFavorite(work: Work): void
   onIncrement(work: Work): void
   onTrash(work: Work): void
+  onRemoveFromCollection?(work: Work): void
   selectionMode?: boolean
   selectedIds?: ReadonlySet<string>
   onSelect?(work: Work, extendRange: boolean): void

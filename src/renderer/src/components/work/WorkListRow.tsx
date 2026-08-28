@@ -10,12 +10,13 @@ interface Props {
   onFavorite(work: Work): void
   onIncrement(work: Work): void
   onTrash(work: Work): void
+  onRemoveFromCollection?(work: Work): void
   selectionMode?: boolean
   selected?: boolean
   onSelect?(work: Work, extendRange: boolean): void
 }
 
-export function WorkListRow({ work, onOpen, onFavorite, onIncrement, onTrash, selectionMode = false, selected = false, onSelect }: Props) {
+export function WorkListRow({ work, onOpen, onFavorite, onIncrement, onTrash, onRemoveFromCollection, selectionMode = false, selected = false, onSelect }: Props) {
   const activate = () => { if (!selectionMode) onOpen(work) }
   return (
     <article className={`work-list-row ${selectionMode ? 'is-selection-mode' : ''} ${selected ? 'is-selected' : ''}`} onClick={selectionMode ? (event) => onSelect?.(work, event.shiftKey) : undefined}>
@@ -26,7 +27,7 @@ export function WorkListRow({ work, onOpen, onFavorite, onIncrement, onTrash, se
       <span>{formatChapter(work.lastReadChapter?.label)}</span>
       <WorkStatusBadge status={work.userStatus} />
       <span className="work-list-row__date">{formatRelativeDate(work.lastReadAt)}</span>
-      {!selectionMode && <WorkActions work={work} onFavorite={onFavorite} onIncrement={onIncrement} onTrash={onTrash} />}
+      {!selectionMode && <WorkActions work={work} onFavorite={onFavorite} onIncrement={onIncrement} onTrash={onTrash} onRemoveFromCollection={onRemoveFromCollection} />}
     </article>
   )
 }

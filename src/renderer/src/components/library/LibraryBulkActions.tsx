@@ -16,9 +16,10 @@ interface Props {
   onClear(): void
   onExit(): void
   onApplied(affectedIds: string[]): void
+  currentCollection?: { id: string; name: string }
 }
 
-export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClear, onExit, onApplied }: Props) {
+export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClear, onExit, onApplied, currentCollection }: Props) {
   const { showToast } = useToast()
   const workIds = [...selectedIds]
   const [dialog, setDialog] = useState<DialogKind>(null)
@@ -71,6 +72,7 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
       <Button disabled={disabled} onClick={() => setDialog('status')}>Status</Button>
       <Button disabled={disabled} onClick={() => setDialog('tag')}>Tags</Button>
       <Button disabled={disabled} onClick={() => setDialog('collection')}>Coleções</Button>
+      {currentCollection && <Button disabled={disabled} onClick={() => void run(() => window.auri.bulk.removeCollection({ workIds, collectionId: currentCollection.id }), `${countLabel} removida de “${currentCollection.name}”.`)}>Remover desta coleção</Button>}
       <KeyboardMenu className="bulk-overflow" label="Mais ações"><button disabled={disabled} onClick={() => void run(() => window.auri.bulk.setFavorite({ workIds, favorite: true }), `${countLabel} como favorita.`)}>Favoritar</button><button disabled={disabled} onClick={() => void run(() => window.auri.bulk.setFavorite({ workIds, favorite: false }), `Favorito removido de ${countLabel}.`)}>Remover dos favoritos</button><button disabled={disabled} onClick={() => void run(() => window.auri.bulk.setHomeVisibility({ workIds, hiddenFromHome: true }), `${countLabel} ocultada da Home.`)}>Ocultar da Home</button><button disabled={disabled} onClick={() => void run(() => window.auri.bulk.setHomeVisibility({ workIds, hiddenFromHome: false }), `${countLabel} visível na Home.`)}>Mostrar na Home</button><button className="is-danger" disabled={disabled} onClick={() => setDialog('trash')}>Mover para a Lixeira</button></KeyboardMenu>
       <Button variant="ghost" disabled={busy} onClick={onExit}>Sair da seleção</Button>
     </div>
