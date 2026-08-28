@@ -6,7 +6,7 @@ export function stopWorkActionPropagation(event: Pick<SyntheticEvent, 'stopPropa
   event.stopPropagation()
 }
 
-export function WorkActions({ work, onFavorite, onIncrement, onTrash }: { work: Work; onFavorite(work: Work): void; onIncrement(work: Work): void; onTrash(work: Work): void }) {
+export function WorkActions({ work, onFavorite, onIncrement, onTrash, onRemoveFromCollection }: { work: Work; onFavorite(work: Work): void; onIncrement(work: Work): void; onTrash(work: Work): void; onRemoveFromCollection?(work: Work): void }) {
   return (
     <div
       className="work-actions"
@@ -18,6 +18,7 @@ export function WorkActions({ work, onFavorite, onIncrement, onTrash }: { work: 
     >
       <IconButton label={work.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'} icon="star" className={work.favorite ? 'is-favorite' : ''} onClick={() => onFavorite(work)} />
       <IconButton label="Avançar um capítulo" icon="plus" disabled={work.lastReadChapter?.number == null} onClick={() => onIncrement(work)} />
+      {onRemoveFromCollection && <IconButton label="Remover desta coleção" icon="x-circle" onClick={() => onRemoveFromCollection(work)} />}
       <IconButton label="Mover para a Lixeira" icon="trash" onClick={() => onTrash(work)} />
     </div>
   )
