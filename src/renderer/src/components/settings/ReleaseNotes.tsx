@@ -1,10 +1,24 @@
-import { createElement, useMemo, type MouseEvent, type ReactNode } from 'react'
+import { createElement, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { parseReleaseNotes, type ReleaseNoteNode } from '../../lib/release-notes'
 import { useToast } from '../ui/Toast'
 
 export function ReleaseNotes({ notes }: { notes: string }) {
   const parsed = useMemo(() => parseReleaseNotes(notes), [notes])
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [canExpand, setCanExpand] = useState(false)
   const { showToast } = useToast()
+
+  useEffect(() => {
+    setExpanded(false)
+  }, [notes])
+
+  useEffect(() => {
+    if (expanded) return
+    const content = contentRef.current
+    setCanExpand(Boolean(content && content.scrollHeight > content.clientHeight + 1))
+  }, [expanded, notes])
+
   if (!parsed.length) return null
 
   const openLink = (event: MouseEvent<HTMLAnchorElement>, url: string) => {
@@ -13,7 +27,8 @@ export function ReleaseNotes({ notes }: { notes: string }) {
   }
 
   return <div className="release-notes" aria-label="Novidades da versão">
-    <div className="release-notes__content">{parsed.map((node, index) => renderNode(node, String(index), openLink))}</div>
+    <div ref={contentRef} className={`release-notes__content ${expanded ? 'is-expanded' : ''}`}>{parsed.map((node, index) => renderNode(node, String(index), openLink))}</div>
+    {canExpand && <button className="release-notes__toggle" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Ocultar notas completas' : 'Ver notas completas'}</button>}
   </div>
 }
 

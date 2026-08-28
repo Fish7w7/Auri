@@ -4,12 +4,10 @@ import { APP_BRAND } from '@shared/constants/app-branding'
 import { Button } from '../ui/Button'
 import { LoadingState } from '../ui/States'
 import { useToast } from '../ui/Toast'
-import { SettingRow } from './SettingRow'
 import { ReleaseNotes } from './ReleaseNotes'
 
 export function UpdatesSettings() {
   const [state, setState] = useState<UpdateState | null>(null)
-  const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null)
   const [busy, setBusy] = useState(false)
   const { showToast } = useToast()
   const load = useCallback(() => void window.auri.updates.state().then(setState), [])
@@ -21,51 +19,68 @@ export function UpdatesSettings() {
     return () => window.clearInterval(timer)
   }, [load, state?.status])
 
-  async function run(operation: () => Promise<UpdateState>, pendingStatus: 'checking' | 'downloading', errorMessage: string, markChecked = false) {
+  async function run(operation: () => Promise<UpdateState>, pendingStatus: 'checking' | 'downloading', errorMessage: string) {
     setBusy(true)
     setState((current) => current ? { ...current, status: pendingStatus, errorMessage: null } : current)
     try {
       setState(await operation())
-      if (markChecked) setLastCheckedAt(new Date())
-    } catch (error) {
-      if (markChecked) setLastCheckedAt(new Date())
-      showToast({ kind: 'error', message: error instanceof Error ? error.message : errorMessage })
+    } catch {
+      setState((current) => current ? { ...current, status: 'error', errorMessage } : current)
       load()
-    } finally { setBusy(false) }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function install() {
+    setBusy(true)
+    try {
+      await window.auri.updates.install()
+    } catch {
+      showToast({ kind: 'error', message: 'Não foi possível instalar a atualização agora.' })
+      setBusy(false)
+      load()
+    }
   }
 
   if (!state) return <><SettingsHeading /><LoadingState /></>
-  const unavailableMessage = state.availability === 'development'
-    ? 'Atualizações não estão disponíveis nesta build de desenvolvimento do ' + APP_BRAND.name + '.'
-    : 'Esta compilação não possui uma fonte de atualizações configurada.'
   const readyForActions = state.availability === 'ready'
+  const checkedAt = state.lastCheckedAt ? formatUpdateCheckedAt(state.lastCheckedAt) : null
+  const progress = Math.round(state.progressPercent ?? 0)
+  const availableVersion = state.availableVersion ?? state.currentVersion
 
   return <>
     <SettingsHeading />
     <section className="settings-group">
       <header><h3>Versão</h3></header>
-      <div className="settings-group__body update-version-panel">
-        <SettingRow title="Versão instalada" description={APP_BRAND.name + ' ' + state.currentVersion}><strong className="update-installed-version">{state.currentVersion}</strong></SettingRow>
-        <SettingRow title="Estado da atualização" description={state.errorMessage ?? statusDescription(state)}><span className={'update-status update-status--' + state.status}>{statusLabel(state)}</span></SettingRow>
-        <SettingRow title="Última verificação" description={lastCheckedAt ? formatUpdateCheckedAt(lastCheckedAt) : 'Ainda não verificada nesta sessão.'}>
-          {readyForActions && (state.status === 'idle' || state.status === 'up_to_date' || state.status === 'error') ? <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.', true)}>Verificar atualizações</Button> : state.status === 'checking' ? <Button disabled>Verificando…</Button> : <span className="update-passive">—</span>}
-        </SettingRow>
-        {!readyForActions && <p className="update-message">{unavailableMessage}</p>}
-        {readyForActions && state.availableVersion && ['available', 'downloading', 'ready'].includes(state.status) && <SettingRow title="Versão disponível" description={'A atualização ' + state.availableVersion + ' está disponível.'}><strong className="update-available-version">{state.availableVersion}</strong></SettingRow>}
-        {readyForActions && state.status === 'downloading' && <div className="update-progress" aria-label={'Download da atualização: ' + Math.round(state.progressPercent ?? 0) + '%'}><div style={{ width: (state.progressPercent ?? 0) + '%' }} /><span>{Math.round(state.progressPercent ?? 0)}%</span></div>}
-        {readyForActions && <div className="data-actions update-actions">
+      <div className={`settings-group__body update-summary update-summary--${state.status}`}>
+        <div className="update-summary__body">
+          <span className="update-summary__current">{APP_BRAND.name} {state.currentVersion}</span>
+          {state.status === 'downloading' ? <div className="update-download">
+            <div className="update-download__heading"><strong>Baixando {APP_BRAND.name} {availableVersion}</strong><span>{progress}%</span></div>
+            <div className="update-progress" role="progressbar" aria-label="Progresso do download da atualização" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{ width: progress + '%' }} /></div>
+            <p>Você pode continuar usando o {APP_BRAND.name} durante o download.</p>
+          </div> : <>
+            <strong className="update-summary__message">{updateStatusMessage(state)}</strong>
+            {state.status === 'idle' && !checkedAt && <p className="update-summary__checked">Ainda não verificada nesta sessão.</p>}
+            {checkedAt && (state.status === 'up_to_date' || state.status === 'available') && <p className="update-summary__checked">{checkedAt}</p>}
+          </>}
+        </div>
+
+        {readyForActions && <div className="update-summary__actions">
+          {state.status === 'idle' && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Verificar atualizações</Button>}
+          {state.status === 'up_to_date' && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Verificar novamente</Button>}
           {state.status === 'available' && <Button variant="primary" disabled={busy} onClick={() => void run(() => window.auri.updates.download(), 'downloading', 'Não foi possível baixar a atualização.')}>Baixar atualização</Button>}
-          {state.status === 'downloading' && <Button disabled>Baixando…</Button>}
-          {state.status === 'ready' && <><Button variant="primary" disabled={busy} onClick={async () => { setBusy(true); try { await window.auri.updates.install() } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Não foi possível instalar agora.' }); setBusy(false); load() } }}>Reiniciar e instalar</Button><span className="update-later">A atualização permanecerá pronta caso prefira instalar depois.</span></>}
+          {state.status === 'ready' && <Button variant="primary" disabled={busy} onClick={() => void install()}>Reiniciar e instalar</Button>}
+          {state.status === 'error' && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Tentar novamente</Button>}
         </div>}
       </div>
     </section>
-    <section className="settings-group">
-      <header><h3>Novidades</h3></header>
-      <div className="settings-group__body">
-        {state.releaseNotes ? <ReleaseNotes notes={state.releaseNotes} /> : <p className="settings-empty-note">As notas reais da versão aparecerão aqui quando forem fornecidas pelo updater.</p>}
-      </div>
-    </section>
+
+    {state.releaseNotes && <section className="settings-group update-release-section">
+      <header><h3>Novidades da versão {state.availableVersion}</h3></header>
+      <div className="settings-group__body"><ReleaseNotes notes={state.releaseNotes} /></div>
+    </section>}
   </>
 }
 
@@ -77,26 +92,27 @@ export function shouldPollUpdateState(status: UpdateState['status']): boolean {
   return status === 'checking' || status === 'downloading'
 }
 
-export function formatUpdateCheckedAt(value: Date, now = new Date()): string {
-  const sameDay = value.getFullYear() === now.getFullYear() && value.getMonth() === now.getMonth() && value.getDate() === now.getDate()
-  const date = sameDay ? 'hoje' : value.toLocaleDateString('pt-BR')
-  return date + ', ' + value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+export function formatUpdateCheckedAt(value: string | Date, now = new Date()): string {
+  const checkedAt = value instanceof Date ? value : new Date(value)
+  const sameDay = checkedAt.getFullYear() === now.getFullYear() && checkedAt.getMonth() === now.getMonth() && checkedAt.getDate() === now.getDate()
+  const date = sameDay ? 'hoje' : checkedAt.toLocaleDateString('pt-BR')
+  return 'Verificado ' + date + ', ' + checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function statusLabel(state: UpdateState): string {
-  if (state.status === 'unavailable') return 'Indisponível nesta build'
-  return ({ idle: 'Pronto para verificar', checking: 'Verificando…', up_to_date: 'Atualizado', available: 'Atualização disponível', downloading: 'Baixando…', ready: 'Pronta para instalar', error: 'Erro ao verificar' } as const)[state.status]
-}
-
-function statusDescription(state: UpdateState): string {
+export function updateStatusMessage(state: UpdateState): string {
+  const availableVersion = state.availableVersion ?? state.currentVersion
+  if (state.status === 'unavailable') {
+    return state.availability === 'development'
+      ? `Atualizações não estão disponíveis nesta build de desenvolvimento do ${APP_BRAND.name}.`
+      : 'Esta compilação não possui uma fonte de atualizações configurada.'
+  }
   return ({
-    unavailable: 'O updater não está disponível neste ambiente.',
-    idle: 'Nenhuma verificação foi iniciada nesta sessão.',
-    checking: 'Consultando o canal estável do Auri.',
-    up_to_date: 'Você está usando a versão mais recente disponível.',
-    available: 'Uma nova versão está pronta para download.',
-    downloading: 'O download está em andamento.',
-    ready: 'A atualização foi baixada e pode ser instalada.',
-    error: 'A última verificação não pôde ser concluída.'
+    idle: 'Verifique quando quiser se há uma nova versão.',
+    checking: 'Verificando atualizações...',
+    up_to_date: 'Você está usando a versão mais recente.',
+    available: `${availableVersion} está disponível`,
+    downloading: `Baixando ${APP_BRAND.name} ${availableVersion}`,
+    ready: `${APP_BRAND.name} ${availableVersion} está pronta para instalar`,
+    error: state.errorMessage ?? 'Não foi possível verificar atualizações.'
   } as const)[state.status]
 }

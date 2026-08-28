@@ -40,7 +40,7 @@ export class UpdateService {
   constructor(private readonly logger: Logger, private readonly options: UpdateServiceOptions) {
     this.updater = options.updater ?? (electronUpdater.autoUpdater as unknown as UpdaterAdapter)
     const availability = !options.isPackaged ? 'development' : options.isConfigured ? 'ready' : 'not_configured'
-    this.state = { status: availability === 'ready' ? 'idle' : 'unavailable', currentVersion: options.currentVersion, availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, availability }
+    this.state = { status: availability === 'ready' ? 'idle' : 'unavailable', currentVersion: options.currentVersion, availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, lastCheckedAt: null, availability }
     this.updater.autoDownload = false
     this.updater.autoInstallOnAppQuit = false
     this.registerEvents()
@@ -59,7 +59,11 @@ export class UpdateService {
     this.patch({ status: 'checking', errorMessage: null, progressPercent: null })
     try {
       await this.updater.checkForUpdates()
-      if (this.getState().status === 'checking') this.patch({ status: 'up_to_date' })
+      const status = this.getState().status
+      this.patch({
+        ...(status === 'checking' ? { status: 'up_to_date' as const } : {}),
+        lastCheckedAt: new Date().toISOString()
+      })
       return this.getState()
     } catch (error) {
       this.fail('Não foi possível verificar atualizações.', 'updater.check_failed', error)
@@ -98,10 +102,10 @@ export class UpdateService {
   private registerEvents(): void {
     this.updater.on('checking-for-update', () => this.patch({ status: 'checking', errorMessage: null }))
     this.updater.on('update-available', (info) => {
-      this.patch({ status: 'available', availableVersion: info.version, releaseNotes: normalizeReleaseNotes(info.releaseNotes), progressPercent: null })
+      this.patch({ status: 'available', availableVersion: info.version, releaseNotes: normalizeReleaseNotes(info.releaseNotes), progressPercent: null, lastCheckedAt: new Date().toISOString() })
       this.logger.info('updater', 'Atualização disponível.', { event: 'updater.update_available', version: info.version })
     })
-    this.updater.on('update-not-available', () => this.patch({ status: 'up_to_date', availableVersion: null, releaseNotes: null, progressPercent: null }))
+    this.updater.on('update-not-available', () => this.patch({ status: 'up_to_date', availableVersion: null, releaseNotes: null, progressPercent: null, lastCheckedAt: new Date().toISOString() }))
     this.updater.on('download-progress', (progress) => this.patch({ status: 'downloading', progressPercent: Math.max(0, Math.min(100, progress.percent)) }))
     this.updater.on('update-downloaded', (info) => {
       this.patch({ status: 'ready', availableVersion: info.version, releaseNotes: normalizeReleaseNotes(info.releaseNotes), progressPercent: 100 })
