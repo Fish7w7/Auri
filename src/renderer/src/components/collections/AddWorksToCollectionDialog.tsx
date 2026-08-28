@@ -96,10 +96,11 @@ export function AddWorksToCollectionDialog({ open, collection, onClose, onAdded 
         {!loading && works.length === 0 && <p className="collection-work-picker__state">Nenhuma obra encontrada.</p>}
         {works.map((work) => {
           const alreadyAdded = existingIds.has(work.id)
-          return <label className={alreadyAdded ? 'is-added' : ''} key={work.id}>
+          const selected = selectedIds.has(work.id)
+          return <label className={alreadyAdded ? 'is-added' : selected ? 'is-selected' : ''} key={work.id}>
             <input type="checkbox" checked={alreadyAdded || selectedIds.has(work.id)} disabled={alreadyAdded || busy} onChange={() => toggle(work.id)} />
             <WorkCover work={work} compact />
-            <span><strong>{work.title}</strong><small>{alreadyAdded ? 'Já está nesta coleção' : work.lastReadChapter ? `Cap. ${work.lastReadChapter.label}` : 'Sem progresso'}</small></span>
+            <span><strong>{work.title}</strong><small>{alreadyAdded ? 'Já adicionada' : work.lastReadChapter ? `Cap. ${work.lastReadChapter.label}` : 'Sem progresso'}</small></span>
           </label>
         })}
       </div>
