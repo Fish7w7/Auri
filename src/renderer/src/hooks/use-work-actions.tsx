@@ -61,7 +61,7 @@ export function useWorkActions(refresh: () => void) {
       onIncrement: (work: Work) => void increment(work),
       onTrash: (work: Work) => setTrashTarget(work)
     },
-    dialog: <ConfirmDialog open={trashTarget !== null} title={trashTarget ? `Mover “${trashTarget.title}” para a Lixeira?` : 'Mover para a Lixeira?'} description="A obra e todos os seus dados serão preservados e poderão ser restaurados." confirmLabel="Mover para a Lixeira" busy={busy} onConfirm={confirmTrash} onClose={() => setTrashTarget(null)} />
+    dialog: <ConfirmDialog open={trashTarget !== null} title="Mover para a Lixeira?" context={trashTarget ? <strong>{trashTarget.title}</strong> : undefined} description="A obra poderá ser restaurada depois. Seu progresso, histórico, fontes e notas serão preservados." confirmLabel="Mover para a Lixeira" danger busy={busy} onConfirm={confirmTrash} onClose={() => setTrashTarget(null)} />
   }
 }
 

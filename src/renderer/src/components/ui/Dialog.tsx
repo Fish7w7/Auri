@@ -17,7 +17,9 @@ export async function runDialogAction(action: () => void | Promise<void>, onErro
   }
 }
 
-export function Dialog({ open, title, description, children, onClose, footer, busy = false, error }: { open: boolean; title: string; description?: ReactNode; children?: ReactNode; onClose(): void; footer?: ReactNode; busy?: boolean; error?: string | null }) {
+type DialogSize = 'small' | 'medium' | 'large'
+
+export function Dialog({ open, title, description, children, onClose, footer, busy = false, error, size = 'medium' }: { open: boolean; title: string; description?: ReactNode; children?: ReactNode; onClose(): void; footer?: ReactNode; busy?: boolean; error?: string | null; size?: DialogSize }) {
   const ref = useRef<HTMLDialogElement>(null)
   const opener = useRef<HTMLElement | null>(null)
   const titleId = useId()
@@ -67,7 +69,7 @@ export function Dialog({ open, title, description, children, onClose, footer, bu
   return (
     <dialog
       ref={ref}
-      className="dialog"
+      className={`dialog dialog--${size}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -86,7 +88,7 @@ export function Dialog({ open, title, description, children, onClose, footer, bu
     >
       <div className="dialog__body">
         <h2 id={titleId}>{title}</h2>
-        {description && <p id={descriptionId} className="dialog__description">{description}</p>}
+        {description && <div id={descriptionId} className="dialog__description">{description}</div>}
         {error && <p className="dialog__error" role="alert">{error}</p>}
         {children}
       </div>
@@ -95,7 +97,7 @@ export function Dialog({ open, title, description, children, onClose, footer, bu
   )
 }
 
-export function ConfirmDialog({ open, title, description, confirmLabel, cancelLabel = 'Cancelar', danger = false, busy = false, onConfirm, onClose }: { open: boolean; title: string; description: ReactNode; confirmLabel: string; cancelLabel?: string; danger?: boolean; busy?: boolean; onConfirm(): void | Promise<void>; onClose(): void }) {
+export function ConfirmDialog({ open, title, description, context, warning, confirmLabel, cancelLabel = 'Cancelar', danger = false, busy = false, onConfirm, onClose }: { open: boolean; title: string; description: ReactNode; context?: ReactNode; warning?: ReactNode; confirmLabel: string; cancelLabel?: string; danger?: boolean; busy?: boolean; onConfirm(): void | Promise<void>; onClose(): void }) {
   const [pending, setPending] = useState(false)
   const pendingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,5 +124,6 @@ export function ConfirmDialog({ open, title, description, confirmLabel, cancelLa
     }
   }
 
-  return <Dialog open={open} title={title} description={description} busy={loading} error={error} onClose={onClose} footer={<><Button data-dialog-initial-focus disabled={loading} onClick={onClose}>{cancelLabel}</Button><Button variant={danger ? 'danger' : 'primary'} disabled={loading} onClick={() => void confirm()}>{loading ? 'Aguarde…' : confirmLabel}</Button></>} />
+  const copy = <div className="confirm-dialog__copy">{context && <div className="confirm-dialog__context">{context}</div>}<p>{description}</p>{warning && <strong className="confirm-dialog__warning">{warning}</strong>}</div>
+  return <Dialog open={open} title={title} description={copy} size="small" busy={loading} error={error} onClose={onClose} footer={<><Button data-dialog-initial-focus disabled={loading} onClick={onClose}>{cancelLabel}</Button><Button variant={danger ? 'danger' : 'primary'} disabled={loading} onClick={() => void confirm()}>{loading ? 'Aguarde…' : confirmLabel}</Button></>} />
 }
