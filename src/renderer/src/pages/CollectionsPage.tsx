@@ -85,9 +85,9 @@ export function CollectionsPage({ collectionId }: { collectionId?: string }) {
       busy={busy}
       footer={<><Button disabled={busy} onClick={() => setEditing(null)}>Cancelar</Button><Button variant="primary" disabled={busy || !name.trim()} onClick={() => void save()}>{busy ? 'Salvando…' : editing === 'new' ? 'Criar coleção' : 'Salvar alterações'}</Button></>}
     >
-      <div className="form-grid">
+      <div className="form-grid collection-editor">
         <label className="field field--wide"><span>Nome *</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label className="field field--wide"><span>Descrição</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+        <label className="field field--wide"><span>Descrição</span><textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       </div>
     </Dialog>
     <ConfirmDialog
