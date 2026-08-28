@@ -319,7 +319,7 @@ export class WorkRepository {
           WHEN 'completed' THEN 5
           WHEN 'dropped' THEN 6
           ELSE 7
-        END, ${prefix}last_read_at IS NULL ASC, ${prefix}last_read_at DESC, ${fallback}`
+        END, ${prefix}last_read_chapter_number IS NULL ASC, ${prefix}last_read_chapter_number DESC, ${fallback}`
       case 'title_asc':
         return fallback
       default:
