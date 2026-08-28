@@ -167,6 +167,8 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin:
 .search-field input { flex: 1; min-width: 0; border: 0; outline: none; color: var(--text-primary); background: transparent; box-shadow: none; }
 .search-field input:focus-visible { outline: none; box-shadow: none; }
 .search-field input::placeholder { color: var(--text-muted); }
+.search-field .search-field__clear { width: 28px; height: 28px; }
+.search-field .search-field__clear:focus-visible { outline: none; box-shadow: none; color: var(--accent); background: var(--accent-subtle); }
 kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); background: var(--surface-soft); font-size: .65rem; }
 .filter-anchor { position: static; }
 .button.has-indicator::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -320,6 +322,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .empty-state__mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .empty-state h2, .error-state h2 { max-width: 520px; margin: 0; font-size: 1.15rem; }
 .empty-state p, .error-state p { max-width: 480px; margin: 8px 0 18px; color: var(--text-muted); font-size: .84rem; line-height: 1.55; }
+.empty-state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 
 .dialog { width: min(560px, calc(100vw - 48px)); max-height: calc(100vh - var(--titlebar-height) - 32px); padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); color: var(--text-primary); background: var(--surface-elevated); box-shadow: 0 24px 72px color-mix(in srgb, var(--shadow) 88%, transparent); transform: translateY(calc(var(--titlebar-height) / 2)); }
 .dialog.dialog--small { width: min(460px, calc(100vw - 48px)); }

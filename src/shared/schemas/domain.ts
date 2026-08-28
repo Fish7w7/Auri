@@ -213,7 +213,8 @@ export const libraryQuerySchema = z.object({
   hiddenFromHome: z.boolean().optional(),
   hasProgress: z.boolean().optional(),
   collectionIds: z.array(z.string().uuid()).optional(),
-  sort: librarySortSchema.optional()
+  sort: librarySortSchema.optional(),
+  limit: z.number().int().min(1).max(100).optional()
 })
 
 export const listWorksSchema = libraryQuerySchema.optional()

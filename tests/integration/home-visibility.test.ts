@@ -58,7 +58,7 @@ describe('visibilidade individual na Home', () => {
     legacy.prepare(`INSERT INTO works (
       id, title, normalized_title, media_type, user_status, cover_type, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run('legacy', 'Legada', 'legada', 'manhwa', 'reading', 'none', '2026-08-17', '2026-08-17')
-    expect(new MigrationRunner(legacy, new TestLogger(), createMigrations(legacy)).run()).toBe(2)
+    expect(new MigrationRunner(legacy, new TestLogger(), createMigrations(legacy)).run()).toBe(3)
     expect(legacy.prepare('SELECT hidden_from_home FROM works WHERE id = ?').pluck().get('legacy')).toBe(0)
     legacy.close()
 

@@ -9,12 +9,12 @@ describe('schema SQLite atual', () => {
 
   afterEach(() => db?.close())
 
-  it('migra schema 0 para 2 e cria todas as tabelas', () => {
+  it('migra schema 0 para 3 e cria todas as tabelas', () => {
     db = new Database(':memory:')
     db.pragma('foreign_keys = ON')
     const runner = new MigrationRunner(db, new TestLogger(), createMigrations(db))
 
-    expect(runner.run()).toBe(2)
+    expect(runner.run()).toBe(3)
 
     const tables = new Set(
       (
@@ -48,8 +48,8 @@ describe('schema SQLite atual', () => {
   it('cria os índices obrigatórios e não reaplica a migration', () => {
     db = new Database(':memory:')
     const runner = new MigrationRunner(db, new TestLogger(), createMigrations(db))
-    expect(runner.run()).toBe(2)
-    expect(runner.run()).toBe(2)
+    expect(runner.run()).toBe(3)
+    expect(runner.run()).toBe(3)
 
     const indexes = new Set(
       (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>).map(
@@ -78,5 +78,23 @@ describe('schema SQLite atual', () => {
       expect(indexes.has(name), name).toBe(true)
     }
   })
-})
 
+  it('migra uma base existente e normaliza nome e domínio das fontes no backfill', () => {
+    db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    const migrations = createMigrations(db)
+    expect(new MigrationRunner(db, new TestLogger(), migrations.slice(0, 2)).run()).toBe(2)
+    db.prepare(`INSERT INTO works (
+      id, title, normalized_title, media_type, user_status, cover_type, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run('work', 'Obra', 'obra', 'manga', 'reading', 'none', '2026-08-01', '2026-08-01')
+    db.prepare(`INSERT INTO sources (
+      id, work_id, name, domain, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`).run('source', 'work', 'Leitor Ágil', 'MangaDex.ORG', 'archived', '2026-08-01', '2026-08-01')
+
+    expect(new MigrationRunner(db, new TestLogger(), migrations).run()).toBe(3)
+    expect(db.prepare('SELECT normalized_name, normalized_domain FROM sources WHERE id = ?').get('source')).toEqual({
+      normalized_name: 'leitor agil',
+      normalized_domain: 'mangadex org'
+    })
+  })
+})

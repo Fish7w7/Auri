@@ -22,7 +22,7 @@ function setup(now: () => Date = () => new Date('2026-08-17T12:00:00.000Z')) {
   const fixture = createDomainFixture(paths.database)
   databases.push(fixture.db)
   const settings = new SettingsService(paths.settings, new TestLogger())
-  const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 2, { now })
+  const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 3, { now })
   return { root, paths, fixture, settings, service }
 }
 
@@ -52,7 +52,7 @@ describe('BackupService', () => {
     const backup = await service.createBackup()
     expect(backup.fileName).toMatch(/^auri-manual-.+\.auri-backup$/)
     const preview = await service.previewBackup(backup.path)
-    expect(preview).toMatchObject({ schemaVersion: 2, workCount: 1, includesSettings: true, assetCount: 1 })
+    expect(preview).toMatchObject({ schemaVersion: 3, workCount: 1, includesSettings: true, assetCount: 1 })
     const extracted = mkdtempSync(join(tmpdir(), 'auri-extract-')); roots.push(extracted)
     const entries = await extractZip(backup.path, extracted)
     expect(entries).toContain('checksums.json')

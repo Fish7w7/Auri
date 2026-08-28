@@ -150,10 +150,10 @@ export class WorkRepository {
   queryActive(query: LibraryQuery = {}): Work[] {
     const clauses = ['w.deleted_at IS NULL']
     const values: Array<string | number> = []
-    const search = query.search?.trim()
+    const terms = [...new Set(query.search?.trim().split(/\s+/).filter(Boolean) ?? [])]
 
-    if (search) {
-      const like = `%${search}%`
+    for (const term of terms) {
+      const like = `%${this.escapeLike(term)}%`
       clauses.push(`(
         w.normalized_title LIKE ? ESCAPE '\\'
         OR EXISTS (
@@ -164,8 +164,15 @@ export class WorkRepository {
           SELECT 1 FROM work_creators c
           WHERE c.work_id = w.id AND c.normalized_name LIKE ? ESCAPE '\\'
         )
+        OR EXISTS (
+          SELECT 1 FROM sources s
+          WHERE s.work_id = w.id AND (
+            s.normalized_name LIKE ? ESCAPE '\\'
+            OR s.normalized_domain LIKE ? ESCAPE '\\'
+          )
+        )
       )`)
-      values.push(like, like, like)
+      values.push(like, like, like, like, like)
     }
 
     this.addInFilter(clauses, values, 'w.user_status', query.userStatuses)
@@ -201,12 +208,15 @@ export class WorkRepository {
       values.push(...query.collectionIds)
     }
 
+    const limitClause = query.limit === undefined ? '' : 'LIMIT ?'
+    if (query.limit !== undefined) values.push(query.limit)
     return this.findMany(
       `
         SELECT DISTINCT ${this.prefixedColumns()}
         FROM works w
         WHERE ${clauses.join(' AND ')}
         ORDER BY ${this.getOrderBy(query.sort, 'w.')}
+        ${limitClause}
       `,
       ...values
     )
@@ -286,24 +296,29 @@ export class WorkRepository {
   }
 
   private getOrderBy(sort: LibrarySort | undefined, prefix = ''): string {
+    const fallback = `${prefix}normalized_title ASC, ${prefix}id ASC`
     switch (sort) {
       case 'last_read_asc':
-        return `${prefix}last_read_at IS NULL ASC, ${prefix}last_read_at ASC`
+        return `${prefix}last_read_at IS NULL DESC, ${prefix}last_read_at ASC, ${fallback}`
       case 'title_desc':
-        return `${prefix}normalized_title DESC`
+        return `${prefix}normalized_title DESC, ${prefix}id ASC`
       case 'created_desc':
-        return `${prefix}created_at DESC`
+        return `${prefix}created_at DESC, ${fallback}`
       case 'updated_desc':
-        return `${prefix}updated_at DESC`
+        return `${prefix}updated_at DESC, ${fallback}`
       case 'chapter_desc':
-        return `${prefix}last_read_chapter_number IS NULL ASC, ${prefix}last_read_chapter_number DESC`
+        return `${prefix}last_read_chapter_number IS NULL ASC, ${prefix}last_read_chapter_number DESC, ${fallback}`
       case 'rating_desc':
-        return `${prefix}rating IS NULL ASC, ${prefix}rating DESC`
+        return `${prefix}rating IS NULL ASC, ${prefix}rating DESC, ${fallback}`
       case 'title_asc':
-        return `${prefix}normalized_title ASC`
+        return fallback
       default:
-        return `${prefix}last_read_at IS NULL ASC, ${prefix}last_read_at DESC`
+        return `${prefix}last_read_at IS NULL ASC, ${prefix}last_read_at DESC, ${fallback}`
     }
+  }
+
+  private escapeLike(value: string): string {
+    return value.replace(/[\\%_]/g, (character) => `\\${character}`)
   }
 
   private addInFilter(

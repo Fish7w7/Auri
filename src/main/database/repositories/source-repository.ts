@@ -1,11 +1,14 @@
 import type Database from 'better-sqlite3'
 import type { Source } from '@shared/types/domain'
+import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 
 interface SourceRow {
   id: string
   work_id: string
   name: string | null
+  normalized_name: string | null
   domain: string
+  normalized_domain: string
   language: string | null
   series_url: string | null
   last_read_url: string | null
@@ -17,7 +20,7 @@ interface SourceRow {
   updated_at: string
 }
 
-const SOURCE_COLUMNS = `id, work_id, name, domain, language, series_url, last_read_url,
+const SOURCE_COLUMNS = `id, work_id, name, normalized_name, domain, normalized_domain, language, series_url, last_read_url,
   translator_group, status, is_preferred, last_used_at, created_at, updated_at`
 
 export class SourceRepository {
@@ -28,7 +31,7 @@ export class SourceRepository {
     this.db
       .prepare(`
         INSERT INTO sources (${SOURCE_COLUMNS}) VALUES (
-          @id, @workId, @name, @domain, @language, @seriesUrl, @lastReadUrl,
+          @id, @workId, @name, @normalizedName, @domain, @normalizedDomain, @language, @seriesUrl, @lastReadUrl,
           @translatorGroup, @status, @isPreferred, @lastUsedAt, @createdAt, @updatedAt
         )
       `)
@@ -62,7 +65,8 @@ export class SourceRepository {
     this.db
       .prepare(`
         UPDATE sources SET
-          name = @name, domain = @domain, language = @language,
+          name = @name, normalized_name = @normalizedName,
+          domain = @domain, normalized_domain = @normalizedDomain, language = @language,
           series_url = @seriesUrl, last_read_url = @lastReadUrl,
           translator_group = @translatorGroup, status = @status,
           is_preferred = @isPreferred, last_used_at = @lastUsedAt,
@@ -129,7 +133,9 @@ export class SourceRepository {
       id: source.id,
       workId: source.workId,
       name: source.name,
+      normalizedName: source.name ? normalizeSearchText(source.name) : null,
       domain: source.domain,
+      normalizedDomain: normalizeSearchText(source.domain),
       language: source.language,
       seriesUrl: source.seriesUrl,
       lastReadUrl: source.lastReadUrl,
