@@ -92,8 +92,9 @@ export function CollectionsPage({ collectionId }: { collectionId?: string }) {
     </Dialog>
     <ConfirmDialog
       open={deleting !== null}
-      title={deleting ? `Excluir “${deleting.name}”?` : 'Excluir coleção?'}
-      description={deleting ? `A coleção será excluída, mas suas ${deleting.workCount ?? 0} ${(deleting.workCount ?? 0) === 1 ? 'obra continuará' : 'obras continuarão'} normalmente na Biblioteca.` : 'As obras continuarão na Biblioteca.'}
+      title="Excluir coleção?"
+      context={deleting ? <strong>{deleting.name}</strong> : undefined}
+      description={deleting ? `A coleção será excluída, mas ${(deleting.workCount ?? 0) === 1 ? 'sua 1 obra continuará' : `suas ${deleting.workCount ?? 0} obras continuarão`} normalmente na Biblioteca.` : 'As obras continuarão na Biblioteca.'}
       confirmLabel="Excluir coleção"
       danger
       busy={busy}

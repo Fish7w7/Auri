@@ -322,7 +322,6 @@ export function SettingsPage() {
           <div className="backup-manager-item__heading"><strong>{backupTypeLabel(item.type)}</strong><time dateTime={item.createdAt}>{formatBackupDate(item.createdAt)}</time></div>
           {backupTypeDescription(item.type) && <p className="backup-manager-item__description">{backupTypeDescription(item.type)}</p>}
           <p className="backup-manager-item__metadata">{formatBackupMetadata(item)}</p>
-          <span className="backup-file" title={item.fileName}>Arquivo: {item.fileName}</span>
         </div>
         <div className="backup-manager-item__actions">
           <Button variant="primary" disabled={busy} onClick={() => openStoredBackupAction(item, 'restore')}>Restaurar</Button>
@@ -425,7 +424,7 @@ export function formatIntegrityCheckedAt(value: string, now = new Date()): strin
   const checkedAt = new Date(value)
   const sameDay = checkedAt.getFullYear() === now.getFullYear() && checkedAt.getMonth() === now.getMonth() && checkedAt.getDate() === now.getDate()
   const date = sameDay ? 'hoje' : checkedAt.toLocaleDateString('pt-BR')
-  return 'Verificado ' + date + ', ' + checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return 'Verificado ' + date + ' às ' + checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 export function formatBytes(bytes: number): string {

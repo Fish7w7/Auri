@@ -51,7 +51,7 @@ describe('SystemService', () => {
     const status = service.getStatus()
     expect(status).toMatchObject({ appVersion: '0.4.1', backupFormatVersion: 1, database: { state: 'ready', schemaVersion: 2 } })
     expect(status.database.sqliteVersion).toMatch(/^3\./)
-    await expect(service.checkIntegrity()).resolves.toMatchObject({ healthy: true, summary: 'Nenhum problema encontrado.', quickCheck: ['ok'], foreignKeyIssues: [] })
+    await expect(service.checkIntegrity()).resolves.toMatchObject({ healthy: true, summary: 'Nenhum problema foi encontrado.', quickCheck: ['ok'], foreignKeyIssues: [] })
   })
 
   it('trata resultado inválido do quick_check como inconsistência', async () => {

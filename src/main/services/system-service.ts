@@ -61,7 +61,7 @@ export class SystemService {
       this.integrity = {
         healthy,
         checkedAt: new Date().toISOString(),
-        summary: healthy ? 'Nenhum problema encontrado.' : 'A biblioteca apresentou inconsistências.',
+        summary: healthy ? 'Nenhum problema foi encontrado.' : 'A biblioteca apresentou inconsistências.',
         ...details
       }
       this.logger[healthy ? 'info' : 'warn']('database', healthy ? 'Verificação de integridade concluída.' : 'Verificação de integridade encontrou inconsistências.', {
