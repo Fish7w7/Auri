@@ -310,6 +310,16 @@ export class WorkRepository {
         return `${prefix}last_read_chapter_number IS NULL ASC, ${prefix}last_read_chapter_number DESC, ${fallback}`
       case 'rating_desc':
         return `${prefix}rating IS NULL ASC, ${prefix}rating DESC, ${fallback}`
+      case 'user_status':
+        return `CASE ${prefix}user_status
+          WHEN 'reading' THEN 1
+          WHEN 'waiting' THEN 2
+          WHEN 'want_to_read' THEN 3
+          WHEN 'paused' THEN 4
+          WHEN 'completed' THEN 5
+          WHEN 'dropped' THEN 6
+          ELSE 7
+        END, ${prefix}last_read_at IS NULL ASC, ${prefix}last_read_at DESC, ${fallback}`
       case 'title_asc':
         return fallback
       default:

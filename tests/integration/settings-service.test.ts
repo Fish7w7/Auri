@@ -16,9 +16,9 @@ describe('SettingsService', () => {
     expect(service.getSettings()).toMatchObject({ libraryView: 'grid', librarySort: 'last_read_desc' })
     expect(service.updateSettings({ libraryView: 'list', sidebarCompact: true })).toMatchObject({ libraryView: 'list', sidebarCompact: true })
     expect(service.updateSettings({ cardSize: 'small' })).toMatchObject({ cardSize: 'small', libraryView: 'list', sidebarCompact: true })
-    expect(service.updateSettings({ librarySort: 'title_asc', coverCacheMaxMb: 750, backupAutomatic: false, backupFrequency: 'weekly', backupRetention: 20 })).toMatchObject({
+    expect(service.updateSettings({ librarySort: 'user_status', coverCacheMaxMb: 750, backupAutomatic: false, backupFrequency: 'weekly', backupRetention: 20 })).toMatchObject({
       libraryView: 'list',
-      librarySort: 'title_asc',
+      librarySort: 'user_status',
       cardSize: 'small',
       sidebarCompact: true,
       coverCacheMaxMb: 750,
@@ -26,6 +26,6 @@ describe('SettingsService', () => {
       backupFrequency: 'weekly',
       backupRetention: 20
     })
-    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ libraryView: 'list', librarySort: 'title_asc', cardSize: 'small', sidebarCompact: true, coverCacheMaxMb: 750, backupAutomatic: false, backupFrequency: 'weekly', backupRetention: 20 })
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ libraryView: 'list', librarySort: 'user_status', cardSize: 'small', sidebarCompact: true, coverCacheMaxMb: 750, backupAutomatic: false, backupFrequency: 'weekly', backupRetention: 20 })
   })
 })

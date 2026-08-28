@@ -171,6 +171,59 @@ describe('LibraryService — filtros, resumo e Home', () => {
     expect(results.map((work) => work.id)).toEqual(works.slice(0, 8).map((work) => work.id))
   })
 
+  it('ordena por prioridade do status pessoal e última leitura dentro do status', () => {
+    fixture = createDomainFixture()
+    const readingNever = create({ title: 'Lendo nunca', userStatus: 'reading' })
+    const readingOlder = create({ title: 'Lendo antiga', userStatus: 'reading', chapter: '2' })
+    const readingRecent = create({ title: 'Lendo recente', userStatus: 'reading', chapter: '3' })
+    const waiting = create({ title: 'Esperando', userStatus: 'waiting' })
+    const wantToRead = create({ title: 'Quero ler', userStatus: 'want_to_read' })
+    const paused = create({ title: 'Pausada', userStatus: 'paused' })
+    const completed = create({ title: 'Finalizada', userStatus: 'completed' })
+    const dropped = create({ title: 'Abandonada', userStatus: 'dropped' })
+    fixture.repositories.works.updateProgress(readingOlder.id, readingOlder.lastReadChapter, '2026-01-01T00:00:00.000Z', fixture.clock())
+    fixture.repositories.works.updateProgress(readingRecent.id, readingRecent.lastReadChapter, '2026-08-01T00:00:00.000Z', fixture.clock())
+
+    expect(fixture.services.library.queryWorks({ sort: 'user_status' }).map((work) => work.id)).toEqual([
+      readingRecent.id,
+      readingOlder.id,
+      readingNever.id,
+      waiting.id,
+      wantToRead.id,
+      paused.id,
+      completed.id,
+      dropped.id
+    ])
+  })
+
+  it('desempata status pessoal por título e ID e combina com filtro e coleção', () => {
+    fixture = createDomainFixture()
+    const waiting = create({ title: 'Beta', userStatus: 'waiting', mediaType: 'manhwa' })
+    const reading = create({ title: 'Alpha', userStatus: 'reading', mediaType: 'manhwa' })
+    const excludedType = create({ title: 'Manga', userStatus: 'reading', mediaType: 'manga' })
+    create({ title: 'Fora da coleção', userStatus: 'reading', mediaType: 'manhwa' })
+    const collection = fixture.services.details.createCollection({ workId: waiting.id, name: 'Ordenada' })
+    fixture.repositories.collections.addWork(collection.id, reading.id, fixture.clock())
+    fixture.repositories.collections.addWork(collection.id, excludedType.id, fixture.clock())
+
+    expect(fixture.services.library.queryWorks({
+      sort: 'user_status',
+      mediaTypes: ['manhwa'],
+      collectionIds: [collection.id]
+    }).map((work) => work.id)).toEqual([reading.id, waiting.id])
+
+    const first = create({ title: 'Mesmo status', userStatus: 'completed', chapter: '10' })
+    const second = create({ title: 'Mesmo status', userStatus: 'completed', chapter: '10' })
+    const timestamp = '2026-08-20T00:00:00.000Z'
+    fixture.repositories.works.updateProgress(first.id, first.lastReadChapter, timestamp, fixture.clock())
+    fixture.repositories.works.updateProgress(second.id, second.lastReadChapter, timestamp, fixture.clock())
+    expect(fixture.services.library.queryWorks({
+      sort: 'user_status',
+      userStatuses: ['completed'],
+      search: 'mesmo status'
+    }).map((work) => work.id)).toEqual([first.id, second.id].sort((left, right) => left.localeCompare(right)))
+  })
+
   it('classifica a Home por continuidade sem repetir obras entre seções', () => {
     fixture = createDomainFixture()
     const recent = create({ title: 'Recente', userStatus: 'reading', favorite: true, chapter: '2', notes: 'Nota geral', lastReadNote: 'Chegaram à seita do norte.' })

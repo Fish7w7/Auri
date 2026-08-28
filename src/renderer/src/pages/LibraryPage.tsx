@@ -19,7 +19,7 @@ import { useToast } from '../components/ui/Toast'
 import { formatFilteredWorkCount, formatWorkCount, getLibraryEmptyStateKind } from '../lib/library-results'
 
 const SORT_LABELS: Record<LibrarySort, string> = {
-  last_read_desc: 'Última leitura', last_read_asc: 'Mais tempo sem ler', title_asc: 'Título A–Z', title_desc: 'Título Z–A', created_desc: 'Adicionado recentemente', updated_desc: 'Atualizado recentemente', chapter_desc: 'Capítulo', rating_desc: 'Nota'
+  last_read_desc: 'Última leitura', last_read_asc: 'Mais tempo sem ler', title_asc: 'Título A–Z', title_desc: 'Título Z–A', created_desc: 'Adicionado recentemente', updated_desc: 'Atualizado recentemente', chapter_desc: 'Capítulo', rating_desc: 'Nota', user_status: 'Status pessoal'
 }
 
 export function LibraryPage({ initialStatus, initialFavorite, initialSort, collection, onEditCollection, onDeleteCollection }: { initialStatus?: UserStatus; initialFavorite?: boolean; initialSort?: LibrarySort; collection?: Collection; onEditCollection?(): void; onDeleteCollection?(): void }) {

@@ -29,6 +29,7 @@ export type LibrarySort =
   | 'updated_desc'
   | 'chapter_desc'
   | 'rating_desc'
+  | 'user_status'
 
 export type LibraryView = 'grid' | 'list'
 export type CardSize = 'small' | 'medium' | 'large'

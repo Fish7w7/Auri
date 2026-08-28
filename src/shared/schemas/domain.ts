@@ -201,7 +201,8 @@ export const librarySortSchema = z.enum([
   'created_desc',
   'updated_desc',
   'chapter_desc',
-  'rating_desc'
+  'rating_desc',
+  'user_status'
 ])
 
 export const libraryQuerySchema = z.object({
