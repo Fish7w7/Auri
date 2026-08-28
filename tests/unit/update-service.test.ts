@@ -26,6 +26,33 @@ describe('UpdateService', () => {
     expect(updater.adapter.autoInstallOnAppQuit).toBe(false)
   })
 
+  it('registra na sessão o horário de uma verificação concluída com atualização disponível', async () => {
+    const updater = createUpdater()
+    const service = new UpdateService(new TestLogger(), { currentVersion: '1.7.0', isPackaged: true, isConfigured: true, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter })
+    updater.adapter.checkForUpdates = vi.fn().mockImplementation(async () => {
+      updater.emit('update-available', { version: '1.7.1', releaseNotes: 'Correções do updater' })
+    })
+
+    const state = await service.checkForUpdates()
+
+    expect(state).toMatchObject({ status: 'available', availableVersion: '1.7.1' })
+    expect(state.lastCheckedAt).not.toBeNull()
+    expect(Number.isNaN(new Date(state.lastCheckedAt!).getTime())).toBe(false)
+  })
+
+  it('mantém um único progresso e conclui o download como pronto para instalar', async () => {
+    const updater = createUpdater()
+    const service = new UpdateService(new TestLogger(), { currentVersion: '1.7.0', isPackaged: true, isConfigured: true, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter })
+    updater.emit('update-available', { version: '1.7.1', releaseNotes: 'Correções do updater' })
+
+    await service.downloadUpdate()
+    updater.emit('download-progress', { percent: 59.4 })
+    expect(service.getState()).toMatchObject({ status: 'downloading', availableVersion: '1.7.1', progressPercent: 59.4 })
+
+    updater.emit('update-downloaded', { version: '1.7.1', releaseNotes: 'Correções do updater' })
+    expect(service.getState()).toMatchObject({ status: 'ready', availableVersion: '1.7.1', progressPercent: 100 })
+  })
+
   it('bloqueia instalação durante operação crítica e com edição suja', async () => {
     const updater = createUpdater()
     const critical = new CriticalOperationCoordinator()
