@@ -55,7 +55,10 @@ export function UpdatesSettings() {
       <header><h3>Versão</h3></header>
       <div className={`settings-group__body update-summary update-summary--${state.status}`}>
         <div className="update-summary__body">
-          <span className="update-summary__current">{APP_BRAND.name} {state.currentVersion}</span>
+          <div className="update-summary__identity">
+            <span className="update-summary__current">{APP_BRAND.name} {state.currentVersion}</span>
+            {state.isDevelopmentMock && <span className="update-mock-badge">Simulação de atualização</span>}
+          </div>
           {state.status === 'downloading' ? <div className="update-download">
             <div className="update-download__heading"><strong>Baixando {APP_BRAND.name} {availableVersion}</strong><span>{progress}%</span></div>
             <div className="update-progress" role="progressbar" aria-label="Progresso do download da atualização" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{ width: progress + '%' }} /></div>

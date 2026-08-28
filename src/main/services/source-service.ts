@@ -63,7 +63,8 @@ export class SourceService {
     const seriesUrl = request.seriesUrl === undefined ? current.seriesUrl : this.normalizeUrl(request.seriesUrl)
     const lastReadUrl = request.lastReadUrl === undefined ? current.lastReadUrl : this.normalizeUrl(request.lastReadUrl)
     this.assertUrlAvailable(current.workId, seriesUrl, lastReadUrl, current.id)
-    if (request.status === 'archived' && request.isPreferred) {
+    const status = request.status ?? current.status
+    if (status === 'archived' && request.isPreferred === true) {
       throw new DomainError('INVALID_STATUS', 'Uma fonte arquivada não pode ser preferida.')
     }
     const updated: Source = {
@@ -75,8 +76,8 @@ export class SourceService {
       lastReadUrl,
       translatorGroup:
         request.translatorGroup === undefined ? current.translatorGroup : request.translatorGroup,
-      status: request.status ?? current.status,
-      isPreferred: request.status === 'archived' ? false : request.isPreferred ?? current.isPreferred,
+      status,
+      isPreferred: status === 'archived' ? false : request.isPreferred ?? current.isPreferred,
       updatedAt: this.clock()
     }
     const update = this.db.transaction(() => {
@@ -101,7 +102,9 @@ export class SourceService {
     const now = this.clock()
     const setPreferred = this.db.transaction(() => {
       this.sources.clearPreferred(source.workId, now)
-      this.sources.setPreferred(source.id, now)
+      if (!this.sources.setPreferred(source.id, now)) {
+        throw new DomainError('INVALID_STATUS', 'Uma fonte arquivada não pode ser preferida.')
+      }
     })
     setPreferred.immediate()
     return this.requireSource(source.id)
@@ -119,6 +122,21 @@ export class SourceService {
     this.requireSource(sourceId)
     this.sources.markUnavailable(sourceId, this.clock())
     return this.requireSource(sourceId)
+  }
+
+  reactivateSource(input: unknown): Source {
+    const { sourceId } = parseDomainInput(sourceIdSchema, input)
+    this.requireSource(sourceId)
+    this.sources.reactivate(sourceId, this.clock())
+    return this.requireSource(sourceId)
+  }
+
+  markSourceUsed(input: unknown): Source {
+    const { sourceId } = parseDomainInput(sourceIdSchema, input)
+    const source = this.requireSource(sourceId)
+    this.requireActiveWork(source.workId)
+    this.sources.touchLastUsed(source.id, this.clock())
+    return this.requireSource(source.id)
   }
 
   deleteSourcePermanently(input: unknown): void {

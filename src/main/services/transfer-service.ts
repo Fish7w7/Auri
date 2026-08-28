@@ -233,7 +233,7 @@ export class TransferService {
       const duplicate = this.repositories.sources.listByWork(workId).find((candidate) => candidate.domain === source.domain && candidate.seriesUrl === source.seriesUrl)
       if (duplicate) { sourceMap.set(source.id, duplicate.id); continue }
       const id = randomUUID()
-      const isPreferred = source.isPreferred && !this.repositories.sources.listByWork(workId).some((candidate) => candidate.isPreferred)
+      const isPreferred = source.status !== 'archived' && source.isPreferred && !this.repositories.sources.listByWork(workId).some((candidate) => candidate.isPreferred)
       this.repositories.sources.create({ ...source, id, workId, isPreferred })
       sourceMap.set(source.id, id)
     }

@@ -22,12 +22,14 @@ export interface UpdaterAdapter {
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void
+  dispose?(): void
 }
 
 export interface UpdateServiceOptions {
   currentVersion: string
   isPackaged: boolean
   isConfigured: boolean
+  isDevelopmentMock?: boolean
   criticalOperations: CriticalOperationCoordinator
   updater?: UpdaterAdapter
 }
@@ -39,8 +41,9 @@ export class UpdateService {
 
   constructor(private readonly logger: Logger, private readonly options: UpdateServiceOptions) {
     this.updater = options.updater ?? (electronUpdater.autoUpdater as unknown as UpdaterAdapter)
-    const availability = !options.isPackaged ? 'development' : options.isConfigured ? 'ready' : 'not_configured'
-    this.state = { status: availability === 'ready' ? 'idle' : 'unavailable', currentVersion: options.currentVersion, availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, lastCheckedAt: null, availability }
+    const isDevelopmentMock = options.isDevelopmentMock === true && !options.isPackaged
+    const availability = isDevelopmentMock || options.isConfigured ? 'ready' : options.isPackaged ? 'not_configured' : 'development'
+    this.state = { status: availability === 'ready' ? 'idle' : 'unavailable', currentVersion: options.currentVersion, availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, lastCheckedAt: null, isDevelopmentMock, availability }
     this.updater.autoDownload = false
     this.updater.autoInstallOnAppQuit = false
     this.registerEvents()
@@ -52,6 +55,10 @@ export class UpdateService {
   }
 
   getState(): UpdateState { return { ...this.state } }
+
+  get isDevelopmentMock(): boolean { return this.state.isDevelopmentMock }
+
+  dispose(): void { this.updater.dispose?.() }
 
   async checkForUpdates(): Promise<UpdateState> {
     if (this.state.availability !== 'ready') return this.getState()

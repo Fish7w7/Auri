@@ -54,6 +54,8 @@ export const domainApi: Omit<AuriApi, 'system' | 'settings'> = {
     setPreferred: (request) => invoke(IPC_CHANNELS.sources.setPreferred, request),
     archive: (request) => invoke(IPC_CHANNELS.sources.archive, request),
     markUnavailable: (request) => invoke(IPC_CHANNELS.sources.markUnavailable, request),
+    reactivate: (request) => invoke(IPC_CHANNELS.sources.reactivate, request),
+    markUsed: (request) => invoke(IPC_CHANNELS.sources.markUsed, request),
     deletePermanently: (request) => invoke(IPC_CHANNELS.sources.deletePermanently, request)
   },
   aliases: {

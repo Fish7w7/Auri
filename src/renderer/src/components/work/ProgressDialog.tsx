@@ -5,6 +5,7 @@ import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { useToast } from '../ui/Toast'
 import { Select } from '../ui/Select'
+import { selectDefaultProgressSource } from '../../lib/source-selection'
 
 export function ProgressDialog({ open, work, sources, onClose, onSaved }: { open: boolean; work: Work; sources: Source[]; onClose(): void; onSaved(): void }) {
   const [chapter, setChapter] = useState(work.lastReadChapter?.label ?? '')
@@ -13,7 +14,7 @@ export function ProgressDialog({ open, work, sources, onClose, onSaved }: { open
   const [busy, setBusy] = useState(false)
   const [confirmation, setConfirmation] = useState<ProgressUpdateResult & { applied: false } | null>(null)
   const { showToast } = useToast()
-  useEffect(() => { if (open) { setChapter(work.lastReadChapter?.label ?? ''); setSourceId(''); setNote('') } }, [open, work.lastReadChapter?.label])
+  useEffect(() => { if (open) { setChapter(work.lastReadChapter?.label ?? ''); setSourceId(selectDefaultProgressSource(sources)?.id ?? ''); setNote('') } }, [open, work.id, work.lastReadChapter?.label])
 
   async function submit(confirmSuspicious = false) {
     if (!chapter.trim()) return

@@ -22,6 +22,7 @@ import { SourceService } from '../services/source-service'
 import { SettingsService } from '../services/settings-service'
 import { SystemService } from '../services/system-service'
 import { UpdateService, type UpdaterAdapter } from '../services/update-service'
+import { DevelopmentUpdaterMock, resolveDevelopmentUpdaterScenario, shouldUseDevelopmentUpdaterMock } from '../services/development-updater-mock'
 import { WorkService } from '../services/work-service'
 import { WorkDetailsService } from '../services/work-details-service'
 import { AssetService } from '../services/asset-service'
@@ -130,7 +131,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,
       sources: sourcesRepository, overrides: overridesRepository, externalRefs: externalRefsRepository
-    }, works, sources)
+    }, works, sources, progress)
     const bulk = new BulkLibraryService(database.db, {
       works: worksRepository,
       tags: tagsRepository,
@@ -161,9 +162,13 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       isPackaged: app.isPackaged,
       isConfigured: app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))
     }
+    const developmentUpdaterMock = !options.updater && shouldUseDevelopmentUpdaterMock(app.isPackaged)
+      ? new DevelopmentUpdaterMock(logger, app.getVersion(), resolveDevelopmentUpdaterScenario())
+      : undefined
     const updates = new UpdateService(logger, {
       currentVersion: app.getVersion(), ...updateEnvironment,
-      criticalOperations, updater: options.updater
+      isDevelopmentMock: Boolean(developmentUpdaterMock),
+      criticalOperations, updater: developmentUpdaterMock ?? options.updater
     })
     updates.configure('stable')
 
@@ -172,6 +177,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       logger,
       services: { system, updates, works, progress, sources, library, settings, details, bulk, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
       dispose() {
+        updates.dispose()
         database.close()
       }
     }

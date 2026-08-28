@@ -141,7 +141,7 @@ if (!singleInstanceLock) {
       void context.services.backups.runAutomaticIfDue().catch((error: unknown) => {
         context?.logger.error('backup', 'Falha no backup automático em segundo plano.', { event: 'backup.auto_failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
       })
-      if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest && !isReleaseDataSmokeTest) {
+      if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest && !isReleaseDataSmokeTest && !context.services.updates.isDevelopmentMock) {
         void context.services.updates.checkForUpdates().catch(() => { /* estado e logging são tratados pelo serviço */ })
       }
       if (isScreenshotTest) {

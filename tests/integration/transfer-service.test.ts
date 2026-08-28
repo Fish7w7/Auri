@@ -78,6 +78,19 @@ describe('TransferService', () => {
     expect(csv).toContain('"Título, ""Especial"""')
   })
 
+  it('não importa uma fonte arquivada como preferida', async () => {
+    const source = setup('archived-source'); createRichWork(source)
+    const file = join(source.root, 'archived-library.json'); source.transfer.exportJson(file)
+    const payload = JSON.parse(readFileSync(file, 'utf8')) as AuriLibraryExport
+    payload.works[0].sources[0].status = 'archived'
+    payload.works[0].sources[0].isPreferred = true
+    writeFileSync(file, JSON.stringify(payload))
+    const target = setup('archived-target')
+    await target.transfer.applyImport(file)
+    const imported = target.fixture.services.details.getDetails({ workId: target.fixture.services.library.queryWorks({})[0].id })
+    expect(imported.sources[0]).toMatchObject({ status: 'archived', isPreferred: false })
+  })
+
   it('rejeita JSON corrompido e versão futura sem alterar a biblioteca', () => {
     const target = setup('invalid')
     const corrupt = join(target.root, 'corrupt.json'); writeFileSync(corrupt, '{')

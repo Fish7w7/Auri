@@ -98,6 +98,31 @@ describe('SourceService', () => {
       sourceDomainSnapshot: 'oldscan.example'
     })
   })
+
+  it('registra uso sem alterar preferência e reativa fontes preservando somente o estado permitido', () => {
+    fixture = createDomainFixture()
+    const work = createMinimalWork(fixture)
+    const unavailable = fixture.services.sources.createSource({ workId: work.id, domain: 'down.example', isPreferred: true })
+    fixture.services.sources.markSourceUnavailable({ sourceId: unavailable.id })
+    const used = fixture.services.sources.markSourceUsed({ sourceId: unavailable.id })
+    expect(used.lastUsedAt).not.toBeNull()
+    expect(used.isPreferred).toBe(true)
+    expect(fixture.services.sources.reactivateSource({ sourceId: unavailable.id })).toMatchObject({ status: 'active', isPreferred: true })
+
+    const archived = fixture.services.sources.createSource({ workId: work.id, domain: 'old.example', isPreferred: true })
+    fixture.services.sources.archiveSource({ sourceId: archived.id })
+    expect(fixture.services.sources.reactivateSource({ sourceId: archived.id })).toMatchObject({ status: 'active', isPreferred: false })
+  })
+
+  it('impede archived + preferred no update e também normaliza gravações diretas do repository', () => {
+    fixture = createDomainFixture()
+    const work = createMinimalWork(fixture)
+    const archived = fixture.services.sources.createSource({ workId: work.id, domain: 'old.example', status: 'archived' })
+    expect(() => fixture!.services.sources.updateSource({ id: archived.id, isPreferred: true })).toThrowError(expect.objectContaining({ code: 'INVALID_STATUS' }))
+    const direct = fixture.repositories.sources.create({ ...archived, id: crypto.randomUUID(), domain: 'direct.example', isPreferred: true })
+    expect(direct.isPreferred).toBe(false)
+    expect(fixture.repositories.sources.findById(direct.id)?.isPreferred).toBe(false)
+  })
 })
 
 describe('ProgressService', () => {
@@ -254,5 +279,18 @@ describe('ProgressService', () => {
       }
     })
     expect(fixture.repositories.history.listByWork(work.id)).toHaveLength(3)
+  })
+
+  it('associa +1 à última fonte usada ou à preferida, sem inferir fonte no decremento', () => {
+    fixture = createDomainFixture()
+    const work = createMinimalWork(fixture, 'Obra', '1')
+    const preferred = fixture.services.sources.createSource({ workId: work.id, domain: 'preferred.example', isPreferred: true })
+    const recent = fixture.services.sources.createSource({ workId: work.id, domain: 'recent.example' })
+    fixture.services.progress.updateProgress({ workId: work.id, chapterLabel: '2', sourceId: recent.id })
+    const increment = fixture.services.progress.incrementProgress({ workId: work.id })
+    expect(increment).toMatchObject({ applied: true, history: { sourceId: recent.id } })
+    expect(fixture.repositories.sources.findById(preferred.id)?.isPreferred).toBe(true)
+    const decrement = fixture.services.progress.decrementProgress({ workId: work.id })
+    expect(decrement).toMatchObject({ applied: true, history: { sourceId: null } })
   })
 })

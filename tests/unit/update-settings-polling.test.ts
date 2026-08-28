@@ -16,7 +16,7 @@ describe('polling da tela de atualizações', () => {
   })
 
   it('usa uma mensagem principal clara em cada estado relevante', () => {
-    const state: UpdateState = { status: 'up_to_date', currentVersion: '1.7.0', availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, lastCheckedAt: null, availability: 'ready' }
+    const state: UpdateState = { status: 'up_to_date', currentVersion: '1.7.0', availableVersion: null, progressPercent: null, releaseNotes: null, errorMessage: null, lastCheckedAt: null, isDevelopmentMock: false, availability: 'ready' }
     expect(updateStatusMessage(state)).toBe('Você está usando a versão mais recente.')
     expect(updateStatusMessage({ ...state, status: 'available', availableVersion: '1.7.1' })).toBe('1.7.1 está disponível')
     expect(updateStatusMessage({ ...state, status: 'downloading', availableVersion: '1.7.1', progressPercent: 59 })).toBe('Baixando Auri 1.7.1')

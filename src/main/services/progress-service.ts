@@ -85,8 +85,12 @@ export class ProgressService {
       throw new DomainError('CHAPTER_NOT_NUMERIC', 'O progresso atual não é numérico.')
     }
     const next = work.lastReadChapter.number + 1
+    const inferredSource = request.sourceId === undefined
+      ? this.sources.findLastUsedByWork(work.id) ?? this.sources.listByWork(work.id).find((source) => source.status !== 'archived' && source.isPreferred) ?? null
+      : null
     return this.updateProgress({
       ...request,
+      sourceId: request.sourceId === undefined ? inferredSource?.id ?? null : request.sourceId,
       chapterLabel: String(next),
       confirmSuspicious: true
     })
@@ -147,6 +151,19 @@ export class ProgressService {
     return undo.immediate()
   }
 
+  initializeProgress(workId: string, chapterLabel: string, sourceId: string, note: string | null): ProgressUpdateResult {
+    const work = this.requireActiveWork(workId)
+    if (work.lastReadChapter) throw new DomainError('INVALID_CHAPTER', 'O progresso inicial já foi definido.')
+    return this.applyProgressChange({
+      work,
+      chapter: this.normalizeChapter(chapterLabel),
+      source: this.resolveSource(sourceId, workId),
+      note,
+      occurredAt: this.clock(),
+      eventType: 'initial_progress'
+    })
+  }
+
   detectSuspiciousChange(
     current: ChapterProgress | null,
     next: ChapterProgress
@@ -163,7 +180,7 @@ export class ProgressService {
     source: Source | null
     note: string | null
     occurredAt: string
-    eventType: 'progress_update' | 'correction'
+    eventType: 'initial_progress' | 'progress_update' | 'correction'
   }): ProgressUpdateResult {
     const createdAt = this.clock()
     const event: ReadingHistory = {
@@ -232,4 +249,3 @@ export class ProgressService {
     return { workId: work.id, chapter: work.lastReadChapter, lastReadAt: work.lastReadAt }
   }
 }
-

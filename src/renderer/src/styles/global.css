@@ -471,7 +471,9 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .hidden-home-list span { color: var(--text-muted); font-size: .68rem; text-transform: capitalize; }
 .update-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 22px; }
 .update-summary__body { min-width: 0; display: grid; gap: 7px; }
+.update-summary__identity { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .update-summary__current { color: var(--text-primary); font-size: 1.05rem; font-weight: 760; letter-spacing: -.025em; }
+.update-mock-badge { padding: 3px 7px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text-muted); background: var(--surface-soft); font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .update-summary__message { color: var(--text-secondary); font-size: .86rem; line-height: 1.45; }
 .update-summary--available .update-summary__message, .update-summary--ready .update-summary__message { color: var(--accent-text); }
 .update-summary--error .update-summary__message { color: var(--danger); }

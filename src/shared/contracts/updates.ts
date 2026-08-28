@@ -8,6 +8,7 @@ export interface UpdateState {
   releaseNotes: string | null
   errorMessage: string | null
   lastCheckedAt: string | null
+  isDevelopmentMock: boolean
   availability: 'ready' | 'development' | 'not_configured'
 }
 

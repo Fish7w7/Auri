@@ -179,6 +179,8 @@ export interface DomainApi {
     setPreferred(request: SourceIdRequest): Promise<Source>
     archive(request: SourceIdRequest): Promise<Source>
     markUnavailable(request: SourceIdRequest): Promise<Source>
+    reactivate(request: SourceIdRequest): Promise<Source>
+    markUsed(request: SourceIdRequest): Promise<Source>
     deletePermanently(request: SourceIdRequest): Promise<void>
   }
   aliases: {

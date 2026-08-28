@@ -107,6 +107,8 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.sources.setPreferred, (request) => services.sources.setPreferredSource(request)],
     [IPC_CHANNELS.sources.archive, (request) => services.sources.archiveSource(request)],
     [IPC_CHANNELS.sources.markUnavailable, (request) => services.sources.markSourceUnavailable(request)],
+    [IPC_CHANNELS.sources.reactivate, (request) => services.sources.reactivateSource(request)],
+    [IPC_CHANNELS.sources.markUsed, (request) => services.sources.markSourceUsed(request)],
     [IPC_CHANNELS.sources.deletePermanently, (request) => services.sources.deleteSourcePermanently(request)],
     [IPC_CHANNELS.aliases.list, (request) => services.details.listAliases(request)],
     [IPC_CHANNELS.aliases.create, (request) => services.details.createAlias(request)],

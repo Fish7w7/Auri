@@ -73,7 +73,7 @@ export function createDomainFixture(databasePath = ':memory:') {
     works: repositories.works, aliases: repositories.aliases, creators: repositories.creators,
     genres: repositories.genres, tags: repositories.tags, collections: repositories.collections,
     sources: repositories.sources, overrides: repositories.overrides, externalRefs: repositories.externalRefs
-  }, services.works, services.sources, clock)
+  }, services.works, services.sources, services.progress, clock)
 
   return { db, clock, repositories, services }
 }

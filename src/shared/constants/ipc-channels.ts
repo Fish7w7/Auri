@@ -48,6 +48,8 @@ export const IPC_CHANNELS = {
     setPreferred: 'auri:sources:set-preferred',
     archive: 'auri:sources:archive',
     markUnavailable: 'auri:sources:mark-unavailable',
+    reactivate: 'auri:sources:reactivate',
+    markUsed: 'auri:sources:mark-used',
     deletePermanently: 'auri:sources:delete-permanently'
   },
   aliases: {

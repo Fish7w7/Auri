@@ -24,6 +24,7 @@ export class SourceRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(source: Source): Source {
+    const safeSource = this.enforceStatusInvariant(source)
     this.db
       .prepare(`
         INSERT INTO sources (${SOURCE_COLUMNS}) VALUES (
@@ -31,8 +32,8 @@ export class SourceRepository {
           @translatorGroup, @status, @isPreferred, @lastUsedAt, @createdAt, @updatedAt
         )
       `)
-      .run(this.params(source))
-    return source
+      .run(this.params(safeSource))
+    return safeSource
   }
 
   findById(id: string): Source | null {
@@ -57,6 +58,7 @@ export class SourceRepository {
   }
 
   update(source: Source): Source {
+    const safeSource = this.enforceStatusInvariant(source)
     this.db
       .prepare(`
         UPDATE sources SET
@@ -67,8 +69,8 @@ export class SourceRepository {
           updated_at = @updatedAt
         WHERE id = @id
       `)
-      .run(this.params(source))
-    return source
+      .run(this.params(safeSource))
+    return safeSource
   }
 
   clearPreferred(workId: string, updatedAt: string): void {
@@ -77,10 +79,10 @@ export class SourceRepository {
       .run(updatedAt, workId)
   }
 
-  setPreferred(id: string, updatedAt: string): void {
-    this.db
-      .prepare('UPDATE sources SET is_preferred = 1, updated_at = ? WHERE id = ?')
-      .run(updatedAt, id)
+  setPreferred(id: string, updatedAt: string): boolean {
+    return this.db
+      .prepare("UPDATE sources SET is_preferred = 1, updated_at = ? WHERE id = ? AND status <> 'archived'")
+      .run(updatedAt, id).changes > 0
   }
 
   archive(id: string, updatedAt: string): void {
@@ -92,6 +94,12 @@ export class SourceRepository {
   markUnavailable(id: string, updatedAt: string): void {
     this.db
       .prepare("UPDATE sources SET status = 'unavailable', updated_at = ? WHERE id = ?")
+      .run(updatedAt, id)
+  }
+
+  reactivate(id: string, updatedAt: string): void {
+    this.db
+      .prepare("UPDATE sources SET status = 'active', updated_at = ? WHERE id = ?")
       .run(updatedAt, id)
   }
 
@@ -109,7 +117,7 @@ export class SourceRepository {
     const row = this.db
       .prepare(`
         SELECT ${SOURCE_COLUMNS} FROM sources
-        WHERE work_id = ? AND last_used_at IS NOT NULL
+        WHERE work_id = ? AND status <> 'archived' AND last_used_at IS NOT NULL
         ORDER BY last_used_at DESC LIMIT 1
       `)
       .get(workId) as SourceRow | undefined
@@ -132,6 +140,12 @@ export class SourceRepository {
       createdAt: source.createdAt,
       updatedAt: source.updatedAt
     }
+  }
+
+  private enforceStatusInvariant(source: Source): Source {
+    return source.status === 'archived' && source.isPreferred
+      ? { ...source, isPreferred: false }
+      : source
   }
 
   private map(row: SourceRow): Source {

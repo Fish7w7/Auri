@@ -24,6 +24,7 @@ import type { WorkRepository } from '../database/repositories/work-repository'
 import type { ExternalRefRepository } from '../database/repositories/external-ref-repository'
 import { generateId, parseDomainInput, utcNow, type Clock, type IdGenerator } from './service-utils'
 import type { SourceService } from './source-service'
+import type { ProgressService } from './progress-service'
 import type { WorkService } from './work-service'
 
 export interface WorkDetailsRepositories {
@@ -44,6 +45,7 @@ export class WorkDetailsService {
     private readonly repositories: WorkDetailsRepositories,
     private readonly worksService: WorkService,
     private readonly sourcesService: SourceService,
+    private readonly progressService: ProgressService,
     private readonly clock: Clock = utcNow,
     private readonly idGenerator: IdGenerator = generateId
   ) {}
@@ -58,7 +60,8 @@ export class WorkDetailsService {
   createDetailed(input: unknown): WorkDetails {
     const request = parseDomainInput(detailedCreateWorkSchema, input) as DetailedCreateWorkRequest
     const operation = this.db.transaction(() => {
-      const work = this.worksService.createWork(request)
+      const hasExplicitSourceProgress = request.source !== undefined && request.chapter !== null && request.chapter !== undefined
+      const work = this.worksService.createWork(hasExplicitSourceProgress ? { ...request, chapter: null } : request)
       for (const creator of request.creators ?? []) this.createCreatorRecord(work.id, creator)
       for (const name of request.genres ?? []) this.attachGenreName(work.id, name)
       for (const name of request.tags ?? []) this.attachTagName(work.id, name)
@@ -66,7 +69,10 @@ export class WorkDetailsService {
         this.requireCollection(collectionId)
         this.repositories.collections.addWork(collectionId, work.id, this.clock())
       }
-      if (request.source) this.sourcesService.createSource({ ...request.source, workId: work.id })
+      const source = request.source ? this.sourcesService.createSource({ ...request.source, workId: work.id }) : null
+      if (hasExplicitSourceProgress && source) {
+        this.progressService.initializeProgress(work.id, request.chapter!, source.id, request.lastReadNote ?? null)
+      }
       return this.compose(this.repositories.works.findById(work.id)!)
     })
     return operation.immediate()

@@ -6,6 +6,7 @@ import { CoverDialog } from '../components/work/CoverDialog'
 import { ProgressDialog } from '../components/work/ProgressDialog'
 import { RelationDialog, type RelationKind } from '../components/work/RelationDialog'
 import { SourceDialog } from '../components/work/SourceDialog'
+import { AlternativeSourceDialog } from '../components/work/AlternativeSourceDialog'
 import { WorkCover } from '../components/work/WorkCover'
 import { WorkEditorDialog } from '../components/work/WorkEditorDialog'
 import { MetadataRefreshDialog } from '../components/work/MetadataRefreshDialog'
@@ -16,7 +17,7 @@ import { ErrorState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
 import { Select } from '../components/ui/Select'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../lib/format'
-import { selectBestReadingSource } from '../lib/source-selection'
+import { listEligibleReadingSources, openReadingSource, selectBestReadingSource } from '../lib/source-selection'
 import { BrandMark } from '../components/shell/BrandMark'
 
 const SOURCE_STATUS = { active: 'Ativa', unavailable: 'Indisponível', archived: 'Arquivada' }
@@ -35,6 +36,7 @@ export function WorkPage({ id }: { id: string }) {
   const [collectionsOpen, setCollectionsOpen] = useState(false)
   const [editingSource, setEditingSource] = useState<Source | null>(null)
   const [deleteSource, setDeleteSource] = useState<Source | null>(null)
+  const [alternativeSources, setAlternativeSources] = useState<Source[]>([])
   const [trashOpen, setTrashOpen] = useState(false)
   const { refreshData } = useAppContext()
   const { showToast } = useToast()
@@ -93,7 +95,24 @@ export function WorkPage({ id }: { id: string }) {
       showToast({ kind: 'success', message: `Progresso atualizado para ${result.progress.chapter?.label}.`, dedupeKey: `progress:${work.id}`, action: { label: 'Desfazer', onClick: async () => { await window.auri.progress.undo({ historyId: result.history.id }); reload(); showToast({ kind: 'info', message: 'Alteração desfeita.' }) } } }); reload()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) }
   }
-  async function openSource(source: Source) { const url = source.lastReadUrl || source.seriesUrl; if (!url) return; try { await window.auri.shell.openExternal({ url }) } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }
+  async function openSource(source: Source): Promise<boolean> {
+    try {
+      await openReadingSource(source, {
+        openExternal: (url) => window.auri.shell.openExternal({ url }),
+        markUsed: (sourceId) => window.auri.sources.markUsed({ sourceId })
+      })
+      reload()
+      return true
+    } catch {
+      const alternatives = listEligibleReadingSources(details!.sources).filter((candidate) => candidate.id !== source.id)
+      showToast({
+        kind: 'error',
+        message: 'Não foi possível abrir esta fonte.',
+        ...(alternatives.length ? { action: { label: 'Escolher outra', onClick: () => setAlternativeSources(alternatives) } } : {})
+      })
+      return false
+    }
+  }
   async function updateCollection(collectionId: string, checked: boolean) {
     try {
       if (checked) await window.auri.collections.addWork({ workId: work.id, collectionId })
@@ -109,7 +128,7 @@ export function WorkPage({ id }: { id: string }) {
 
     <section className="progress-stage"><div><span>Último capítulo concluído</span><button className="progress-number" onClick={() => setDialog('progress')}>{work.lastReadChapter?.label ?? '—'}</button><small>{work.lastReadAt ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(work.lastReadAt)) : 'Ainda sem leitura registrada'}</small></div><div className="progress-controls"><IconButton label={numericProgress ? 'Voltar um capítulo' : 'Este progresso não possui um valor numérico.'} icon="chevron-left" disabled={!numericProgress} onClick={() => void numeric('decrement')} /><Button onClick={() => setDialog('progress')}>Editar</Button><Button variant="primary" disabled={!numericProgress} title={numericProgress ? 'Avançar um capítulo' : 'Este progresso não possui um valor numérico.'} onClick={() => void numeric('increment')}>+1</Button></div><Button className="continue-button" variant="primary" disabled={!bestSource} onClick={() => bestSource && void openSource(bestSource)}>Continuar lendo</Button></section>
 
-    {!bestSource && <div className="no-source-callout"><div><strong>Nenhuma fonte cadastrada.</strong><p>Adicione o site onde você costuma ler esta obra.</p></div><Button icon="plus" onClick={() => { setEditingSource(null); setDialog('source') }}>Adicionar fonte</Button></div>}
+    {!bestSource && <div className="no-source-callout"><div><strong>{details.sources.length === 0 ? 'Nenhuma fonte cadastrada.' : 'Nenhuma fonte ativa disponível para continuar lendo.'}</strong><p>{details.sources.length === 0 ? 'Adicione o site onde você costuma ler esta obra.' : 'Reative uma fonte existente ou adicione uma nova.'}</p></div><Button icon="plus" onClick={() => { setEditingSource(null); setDialog('source') }}>Adicionar fonte</Button></div>}
 
     <div className="work-content">
       <NoteSection featured title="Onde parei" value={work.lastReadNote ?? ''} placeholder="Registre o ponto exato para retomar." onSave={async (value) => { await window.auri.works.update({ id: work.id, lastReadNote: value || null }); reload() }} />
@@ -120,7 +139,7 @@ export function WorkPage({ id }: { id: string }) {
       <Section title="Minhas tags" action="Adicionar" onAction={() => setRelation('tag')}><ChipList personal items={details.tags.map((tag) => ({ id: tag.id, label: tag.name }))} onRemove={(tagId) => void removeRelation(() => window.auri.tags.removeFromWork({ workId: work.id, tagId }), reload, showToast)} empty="Nenhuma tag pessoal." /></Section>
       <Section title="Creators" action="Adicionar creator" onAction={() => setRelation('creator')}><div className="creator-list">{details.creators.map((creator) => <div key={creator.id}><span>{CREATOR_ROLES[creator.role]?.replace(/s$/, '') ?? creator.role}</span><strong>{creator.name}</strong><button aria-label={`Remover ${creator.name}`} onClick={() => void removeRelation(() => window.auri.creators.delete({ creatorId: creator.id }), reload, showToast)}>×</button></div>)}</div>{details.creators.length === 0 && <p className="inline-empty">Nenhum creator cadastrado.</p>}</Section>
       <Section title="Coleções" action="Gerenciar coleções" onAction={() => setCollectionsOpen(true)}><ChipList personal items={details.collections.map((collection) => ({ id: collection.id, label: collection.name }))} onRemove={(collectionId) => void removeRelation(() => window.auri.collections.removeWork({ workId: work.id, collectionId }), reload, showToast)} empty="Nenhuma coleção associada." /></Section>
-      <Section title="Fontes" action="Adicionar fonte" onAction={() => { setEditingSource(null); setDialog('source') }}><div className="source-list">{details.sources.map((source) => <article className={`source-row source-row--${source.status}`} key={source.id}><div className="source-row__main"><div><strong>{source.isPreferred && <span title="Fonte preferida">★ </span>}{source.name || source.domain}</strong><span>{SOURCE_STATUS[source.status]}</span></div><p>{LANGUAGES[source.language ?? ''] ?? source.language ?? 'Idioma não informado'} · {source.domain}</p>{source.lastUsedAt && <small>Último uso: {new Intl.DateTimeFormat('pt-BR').format(new Date(source.lastUsedAt))}</small>}</div><Button disabled={!source.lastReadUrl && !source.seriesUrl} onClick={() => void openSource(source)}>Abrir</Button><KeyboardMenu className="source-menu" label={`Ações de ${source.name || source.domain}`}><button onClick={() => { setEditingSource(source); setDialog('source') }}>Editar</button>{!source.isPreferred && source.status !== 'archived' && <button onClick={() => void sourceAction(() => window.auri.sources.setPreferred({ sourceId: source.id }), 'Fonte definida como preferida.', reload, showToast)}>Definir como preferida</button>}{source.status === 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.markUnavailable({ sourceId: source.id }), 'Fonte marcada como indisponível.', reload, showToast)}>Marcar como indisponível</button>}{source.status !== 'archived' && <button onClick={() => void sourceAction(() => window.auri.sources.archive({ sourceId: source.id }), 'Fonte arquivada.', reload, showToast)}>Arquivar</button>}<button className="is-danger" onClick={() => setDeleteSource(source)}>Excluir permanentemente</button></KeyboardMenu></article>)}</div>{details.sources.length === 0 && <p className="inline-empty">Nenhuma fonte cadastrada.</p>}</Section>
+      <Section title="Fontes" action="Adicionar fonte" onAction={() => { setEditingSource(null); setDialog('source') }}><div className="source-list">{details.sources.map((source) => <article className={`source-row source-row--${source.status}`} key={source.id}><div className="source-row__main"><div><strong>{source.isPreferred && <span title="Fonte preferida">★ </span>}{source.name || source.domain}</strong><span>{SOURCE_STATUS[source.status]}</span></div><p>{LANGUAGES[source.language ?? ''] ?? source.language ?? 'Idioma não informado'} · {source.domain}</p>{source.lastUsedAt && <small>Último uso: {new Intl.DateTimeFormat('pt-BR').format(new Date(source.lastUsedAt))}</small>}</div><Button disabled={!source.lastReadUrl && !source.seriesUrl} onClick={() => void openSource(source)}>Abrir</Button><KeyboardMenu className="source-menu" label={`Ações de ${source.name || source.domain}`}><button onClick={() => { setEditingSource(source); setDialog('source') }}>Editar</button>{!source.isPreferred && source.status === 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.setPreferred({ sourceId: source.id }), 'Fonte definida como preferida.', reload, showToast)}>Definir como preferida</button>}{source.status === 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.markUnavailable({ sourceId: source.id }), 'Fonte marcada como indisponível.', reload, showToast)}>Marcar como indisponível</button>}{source.status !== 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.reactivate({ sourceId: source.id }), 'Fonte reativada.', reload, showToast)}>Reativar</button>}{source.status !== 'archived' && <button onClick={() => void sourceAction(() => window.auri.sources.archive({ sourceId: source.id }), 'Fonte arquivada.', reload, showToast)}>Arquivar</button>}<button className="is-danger" onClick={() => setDeleteSource(source)}>Excluir permanentemente</button></KeyboardMenu></article>)}</div>{details.sources.length === 0 && <p className="inline-empty">Nenhuma fonte cadastrada.</p>}</Section>
       <NoteSection title="Minha nota" value={work.notes ?? ''} placeholder="Escreva suas impressões sobre a obra." onSave={async (value) => { await window.auri.works.update({ id: work.id, notes: value || null }); reload() }} />
       <Section title="Histórico">{historyError ? <div className="section-error"><p>Não foi possível carregar o histórico.</p><Button onClick={() => void loadHistory()}>Tentar novamente</Button></div> : <HistoryList history={history.slice(0, historyLimit)} onUndo={async (historyId) => { try { await window.auri.progress.undo({ historyId }); showToast({ kind: 'info', message: 'Alteração desfeita.' }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }} />}{history.length > historyLimit && <Button onClick={() => setHistoryLimit((value) => value + 20)}>Mostrar mais</Button>}</Section>
     </div>
@@ -131,9 +150,10 @@ export function WorkPage({ id }: { id: string }) {
     {dialog === 'cover' && <CoverDialog open work={work} onClose={() => setDialog(null)} onSaved={reload} />}
     {dialog === 'metadata' && <MetadataRefreshDialog open workId={work.id} onClose={() => setDialog(null)} onSaved={reload} />}
     {relation && <RelationDialog open kind={relation} work={work} onClose={() => setRelation(null)} onSaved={reload} />}
+    <AlternativeSourceDialog open={alternativeSources.length > 0} sources={alternativeSources} onClose={() => setAlternativeSources([])} onOpen={openSource} />
     <Dialog open={collectionsOpen} title="Gerenciar coleções" description="Marque as coleções às quais esta obra pertence." onClose={() => setCollectionsOpen(false)} footer={<><Button onClick={() => { setCollectionsOpen(false); setRelation('collection') }}>Criar coleção</Button><Button variant="primary" onClick={() => setCollectionsOpen(false)}>Concluir</Button></>}><div className="collection-checklist">{details.allCollections.map((collection) => { const checked = details.collections.some((item) => item.id === collection.id); return <label key={collection.id}><input type="checkbox" checked={checked} onChange={(event) => void updateCollection(collection.id, event.target.checked)} /><span>{collection.name}</span></label> })}{details.allCollections.length === 0 && <p className="inline-empty">Nenhuma coleção criada.</p>}</div></Dialog>
     <ConfirmDialog open={trashOpen} title="Mover para a Lixeira?" context={<strong>{work.title}</strong>} description="A obra poderá ser restaurada depois. Seu progresso, histórico, fontes e notas serão preservados." confirmLabel="Mover para a Lixeira" danger onClose={() => setTrashOpen(false)} onConfirm={async () => { try { await window.auri.works.trash({ workId: work.id }); refreshData(); showToast({ kind: 'success', message: `“${work.title}” foi movida para a Lixeira.` }); navigate('/library') } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }} />
-    <ConfirmDialog open={deleteSource !== null} title="Excluir esta fonte permanentemente?" description="O histórico de leitura será preservado, mas a fonte deixará de existir na obra." confirmLabel="Excluir" danger onClose={() => setDeleteSource(null)} onConfirm={async () => { if (!deleteSource) return; await sourceAction(() => window.auri.sources.deletePermanently({ sourceId: deleteSource.id }), 'Fonte excluída.', reload, showToast); setDeleteSource(null) }} />
+    <ConfirmDialog open={deleteSource !== null} title="Excluir esta fonte permanentemente?" description="Arquivar preserva o cadastro completo. Ao excluir, a fonte deixa de existir; o histórico mantém apenas nome e domínio." confirmLabel="Excluir" danger onClose={() => setDeleteSource(null)} onConfirm={async () => { if (!deleteSource) return; await sourceAction(() => window.auri.sources.deletePermanently({ sourceId: deleteSource.id }), 'Fonte excluída.', reload, showToast); setDeleteSource(null) }} />
   </div>
 }
 

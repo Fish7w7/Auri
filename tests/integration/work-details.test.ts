@@ -21,6 +21,12 @@ describe('WorkDetailsService', () => {
     expect(details.tags[0].name).toBe('Muito bom')
     expect(details.collections[0].name).toBe('Murim favoritos')
     expect(details.sources[0]).toMatchObject({ domain: 'scanx.example', isPreferred: true })
+    expect(details.sources[0].lastUsedAt).not.toBeNull()
+    expect(fixture.repositories.history.listByWork(details.work.id)[0]).toMatchObject({
+      eventType: 'initial_progress',
+      sourceId: details.sources[0].id,
+      sourceDomainSnapshot: 'scanx.example'
+    })
     fixture.db.close()
   })
 
