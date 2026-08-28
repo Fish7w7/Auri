@@ -8,6 +8,7 @@ import { UpdatesSettings } from '../components/settings/UpdatesSettings'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog, Dialog } from '../components/ui/Dialog'
 import { Icon, type IconName } from '../components/ui/Icon'
+import { KeyboardMenu } from '../components/ui/KeyboardMenu'
 import { Select } from '../components/ui/Select'
 import { ErrorState, LoadingState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
@@ -35,6 +36,27 @@ export function adjacentSettingsSection(current: SettingsSection, key: 'ArrowUp'
 
 export function backupCountLabel(count: number): string {
   return count + (count === 1 ? ' backup armazenado' : ' backups armazenados')
+}
+
+export function formatBackupDate(value: string, now = new Date()): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Data indisponível'
+  const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  const previousDay = date.getFullYear() === yesterday.getFullYear() && date.getMonth() === yesterday.getMonth() && date.getDate() === yesterday.getDate()
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (sameDay) return `Hoje, ${time}`
+  if (previousDay) return `Ontem, ${time}`
+  return `${date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}, ${time}`
+}
+
+export function backupWorkCountLabel(count: number): string | null {
+  if (!Number.isFinite(count) || count < 0) return null
+  return `${count} ${count === 1 ? 'obra' : 'obras'}`
+}
+
+export function formatBackupMetadata(backup: Pick<BackupRecord, 'size' | 'workCount'>): string {
+  return [formatBytes(backup.size), backupWorkCountLabel(backup.workCount)].filter(Boolean).join(' • ')
 }
 
 export function cardPreviewCount(size: 'small' | 'medium' | 'large'): number {
@@ -294,14 +316,25 @@ export function SettingsPage() {
       </section>
     </div>
 
-    <Dialog open={backupManagerOpen} title="Gerenciar backups" description={backupCountLabel(backup?.backups.length ?? 0)} busy={busy} onClose={() => { if (!busy) setBackupManagerOpen(false) }} footer={<Button disabled={busy} onClick={() => setBackupManagerOpen(false)}>Fechar</Button>}>
-      <div className="backup-manager-list">{backup?.backups.length ? backup.backups.map((item) => <article key={item.path}><div><strong>{backupTypeLabel(item.type)}</strong><span className="backup-file" title={item.fileName}>{item.fileName}</span><p>{new Date(item.createdAt).toLocaleString('pt-BR')} · {formatBytes(item.size)} · {item.workCount} {item.workCount === 1 ? 'obra' : 'obras'}</p></div><div className="setting-inline"><Button disabled={busy} onClick={() => openStoredBackupAction(item, 'restore')}>Restaurar</Button><Button variant="danger" disabled={busy} onClick={() => openStoredBackupAction(item, 'delete')}>Excluir</Button></div></article>) : <p className="muted-copy">Nenhum backup criado nesta pasta.</p>}</div>
+    <Dialog open={backupManagerOpen} title="Gerenciar backups" description={backupCountLabel(backup?.backups.length ?? 0)} size="large" busy={busy} onClose={() => { if (!busy) setBackupManagerOpen(false) }} footer={<Button disabled={busy} onClick={() => setBackupManagerOpen(false)}>Fechar</Button>}>
+      <div className="backup-manager-list">{backup?.backups.length ? backup.backups.map((item) => <article key={item.path}>
+        <div className="backup-manager-item__copy">
+          <div className="backup-manager-item__heading"><strong>{backupTypeLabel(item.type)}</strong><time dateTime={item.createdAt}>{formatBackupDate(item.createdAt)}</time></div>
+          {backupTypeDescription(item.type) && <p className="backup-manager-item__description">{backupTypeDescription(item.type)}</p>}
+          <p className="backup-manager-item__metadata">{formatBackupMetadata(item)}</p>
+          <span className="backup-file" title={item.fileName}>Arquivo: {item.fileName}</span>
+        </div>
+        <div className="backup-manager-item__actions">
+          <Button variant="primary" disabled={busy} onClick={() => openStoredBackupAction(item, 'restore')}>Restaurar</Button>
+          <KeyboardMenu className="backup-item-menu" label={`Mais ações para ${backupTypeLabel(item.type)}`}><button disabled={busy} onClick={() => void dataAction(() => window.auri.backup.openFolder(), 'Pasta de backups aberta.')}>Abrir pasta de backups</button><button className="is-danger" disabled={busy} onClick={() => openStoredBackupAction(item, 'delete')}>Excluir backup</button></KeyboardMenu>
+        </div>
+      </article>) : <p className="muted-copy">Nenhum backup criado nesta pasta.</p>}</div>
     </Dialog>
     <Dialog open={hiddenManagerOpen} title="Obras ocultas da Home" description="Restaure apenas a presença nas seções automáticas da Home; nenhum outro dado será alterado." busy={busy} onClose={() => { if (!busy) setHiddenManagerOpen(false) }} footer={<><Button disabled={busy} onClick={() => setHiddenManagerOpen(false)}>Fechar</Button>{hiddenWorks.length > 1 && <Button variant="primary" disabled={busy} onClick={() => void showAllOnHome()}>Mostrar todas na Home</Button>}</>}>
       <div className="hidden-home-list">{hiddenLoading && <p className="muted-copy">Carregando obras ocultas…</p>}{!hiddenLoading && hiddenWorks.length === 0 && <p className="muted-copy">Nenhuma obra está oculta da Home.</p>}{!hiddenLoading && hiddenWorks.map((work) => <article key={work.id}><div><strong title={work.title}>{work.title}</strong><span>{work.userStatus.replaceAll('_', ' ')}</span></div><Button disabled={busy} onClick={() => void showOnHome(work)}>Mostrar na Home</Button></article>)}</div>
     </Dialog>
-    <ConfirmDialog open={!!deleteBackup} title="Excluir backup?" description={deleteBackup ? <>O backup <span className="dialog__filename" title={deleteBackup.fileName}>“{deleteBackup.fileName}”</span> será excluído permanentemente.</> : ''} confirmLabel="Excluir backup" danger onClose={closeDeleteBackup} onConfirm={confirmBackupDeletion} />
-    <ConfirmDialog open={!!restorePreview} title="Restaurar backup?" description={restorePreview ? 'Este backup foi criado em ' + new Date(restorePreview.createdAt).toLocaleString('pt-BR') + ' e contém ' + restorePreview.workCount + ' obras. O ' + APP_BRAND.name + ' criará uma cópia de segurança dos dados atuais e reiniciará após a restauração.' : ''} confirmLabel="Restaurar e reiniciar" danger onClose={closeRestoreBackup} onConfirm={confirmRestore} />
+    <ConfirmDialog open={!!deleteBackup} title="Excluir este backup?" context={deleteBackup ? <BackupDialogContext backup={deleteBackup} /> : undefined} description="Este backup será excluído permanentemente. Sua biblioteca atual não será alterada." confirmLabel="Excluir backup" danger onClose={closeDeleteBackup} onConfirm={confirmBackupDeletion} />
+    <ConfirmDialog open={!!restorePreview} title="Restaurar este backup?" context={restorePreview ? <BackupDialogContext backup={restorePreview} /> : undefined} description={`Sua biblioteca atual será substituída pelos dados deste backup. Antes disso, o ${APP_BRAND.name} criará uma cópia de segurança do estado atual. O aplicativo será reiniciado ao concluir.`} confirmLabel="Restaurar" onClose={closeRestoreBackup} onConfirm={confirmRestore} />
     <Dialog open={!!importPreview} title="Revisar importação" description={importPreview ? importPreview.total + ' obras: ' + importPreview.newWorks + ' novas, ' + importPreview.exactMatches + ' correspondências exatas, ' + importPreview.probableMatches + ' prováveis, ' + importPreview.trashMatches + ' na Lixeira e ' + importPreview.conflicts + ' conflitos.' : ''} busy={busy} onClose={() => { if (!busy) setImportPreview(null) }}><div className="import-preview"><p>Correspondências prováveis ficam separadas para evitar duplicação silenciosa. Escolha como tratar conflitos exatos:</p><label><input type="checkbox" id="restore-import-trash" disabled={busy} /> Restaurar correspondências encontradas na Lixeira</label><div className="data-actions"><Button disabled={busy} onClick={() => void applyImportChoice('keep_current')}>Manter dados atuais</Button><Button variant="primary" disabled={busy} onClick={() => void applyImportChoice('use_imported')}>{busy ? 'Importando…' : 'Usar dados importados'}</Button></div></div></Dialog>
   </div>
 
@@ -395,12 +428,26 @@ export function formatIntegrityCheckedAt(value: string, now = new Date()): strin
   return 'Verificado ' + date + ', ' + checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   if (bytes < 1024) return bytes + ' B'
   return bytes < 1024 * 1024 ? Math.round(bytes / 1024) + ' KB' : (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
-function backupTypeLabel(type: BackupState['backups'][number]['type']): string {
+export function backupTypeLabel(type: BackupState['backups'][number]['type']): string {
   return ({ manual: 'Backup manual', auto: 'Backup automático', before_restore: 'Antes da restauração', before_import: 'Antes da importação', before_migration: 'Antes da migração' })[type]
+}
+
+function backupTypeDescription(type: BackupState['backups'][number]['type']): string | null {
+  return ({
+    manual: null,
+    auto: null,
+    before_restore: 'Criado automaticamente para proteger sua biblioteca antes de uma restauração.',
+    before_import: 'Criado automaticamente antes de importar dados para a biblioteca.',
+    before_migration: 'Criado automaticamente antes de atualizar a estrutura dos dados.'
+  })[type]
+}
+
+function BackupDialogContext({ backup }: { backup: BackupRecord | BackupPreview }) {
+  return <div className="backup-dialog-context"><strong>{backupTypeLabel(backup.type)}</strong><time dateTime={backup.createdAt}>{formatBackupDate(backup.createdAt)}</time><span>{formatBackupMetadata(backup)}</span></div>
 }

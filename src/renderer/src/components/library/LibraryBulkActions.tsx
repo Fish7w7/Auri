@@ -89,6 +89,6 @@ export function LibraryBulkActions({ selectedIds, resultIds, onSelectAll, onClea
       {collections.length ? <Select label="Coleção" value={collectionId} onChange={setCollectionId} options={collections.map((collection) => ({ value: collection.id, label: collection.name }))} /> : <p className="inline-empty">Nenhuma coleção cadastrada.</p>}
     </Dialog>
 
-    <ConfirmDialog open={dialog === 'trash'} title={`Mover ${countLabel} para a Lixeira?`} description="As obras, progresso, histórico, fontes, notas, tags e coleções serão preservados e poderão ser restaurados." confirmLabel="Mover para a Lixeira" danger busy={busy} onClose={() => setDialog(null)} onConfirm={() => run(() => window.auri.bulk.moveToTrash({ workIds }), `${countLabel} movida para a Lixeira.`)} />
+    <ConfirmDialog open={dialog === 'trash'} title="Mover para a Lixeira?" context={<strong>{countLabel}</strong>} description="As obras poderão ser restauradas depois. Progresso, histórico, fontes, notas, tags e coleções serão preservados." confirmLabel="Mover para a Lixeira" danger busy={busy} onClose={() => setDialog(null)} onConfirm={() => run(() => window.auri.bulk.moveToTrash({ workIds }), `${countLabel} movida para a Lixeira.`)} />
   </>
 }
