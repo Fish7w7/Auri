@@ -599,6 +599,26 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 .metadata-refresh small { display: block; margin-bottom: 3px; color: var(--text-muted); text-transform: uppercase; }
 .quick-work-form { display: grid; gap: 15px; margin-top: 20px; }
 .work-form { display: grid; gap: 0; margin-top: 12px; }
+.work-form--progressive { gap: 0; margin-top: 2px; }
+.work-form--progressive .form-section--essential { padding: 8px 0 14px; }
+.work-form--progressive .form-section__heading { grid-template-columns: 1fr; }
+.work-form--progressive .form-section__heading h3 { color: var(--accent-text); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
+.work-form--progressive .form-section__heading p { max-width: 560px; font-size: .76rem; line-height: 1.5; }
+.progressive-form__disclosure { display: flex; justify-content: flex-start; padding: 2px 0 12px; border-top: 1px solid var(--border); }
+.progressive-form__disclosure .button { margin-top: 12px; color: var(--accent-text); }
+.progressive-form__sections { display: grid; gap: 8px; padding-bottom: 4px; }
+.collapsible-form-section { padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.collapsible-form-section:first-child { padding-top: 0; border-top: 1px solid var(--border); }
+.collapsible-form-section > summary { min-height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border-radius: inherit; color: var(--text-primary); cursor: pointer; list-style: none; font-size: .82rem; }
+.collapsible-form-section > summary::-webkit-details-marker { display: none; }
+.collapsible-form-section > summary:hover { background: var(--surface-hover); }
+.collapsible-form-section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.collapsible-form-section > summary > span::before { content: '›'; display: inline-block; color: var(--accent); font-size: 1.15rem; line-height: 1; transition: transform var(--transition); }
+.collapsible-form-section[open] > summary > span::before { transform: rotate(90deg); }
+.collapsible-form-section[open] > summary { border-bottom: 1px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.collapsible-form-section__content { padding: 16px 14px 18px; }
+.work-form--progressive .editable-group { margin-left: 0; }
+.work-form--progressive .cover-options { margin-left: 0; }
 .form-section { padding: 21px 0; border-top: 1px solid var(--border); }
 .form-section:first-child { padding-top: 8px; border-top: 0; }
 .form-section__heading { display: grid; grid-template-columns: 34px 1fr; gap: 10px; margin-bottom: 15px; }

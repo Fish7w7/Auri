@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Collection, CoverResult, MediaType, MetadataReview, MetadataSearchResult, UrlMetadataAnalysis, UrlMetadataDuplicate, UserStatus } from '@shared/contracts'
+import type { Collection, CoverResult, DetailedCreateWorkRequest, MediaType, MetadataReview, MetadataSearchResult, UrlMetadataAnalysis, UrlMetadataDuplicate, UserStatus } from '@shared/contracts'
 import { navigate } from '../../app/navigation'
 import { useDebouncedValue } from '../../hooks/use-debounced-value'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../../lib/format'
@@ -18,6 +18,43 @@ type UrlDraft = { title: string; sourceName: string; sourceUrl: string; descript
 
 export function isImportReviewDirty(current: ImportForm, initial: ImportForm | null): boolean {
   return initial !== null && JSON.stringify(current) !== JSON.stringify(initial)
+}
+
+
+export function isManualWorkValid(manual: Pick<WorkFormState, 'title'>): boolean {
+  return Boolean(manual.title.trim())
+}
+
+export function createManualWorkRequest(manual: WorkFormState): DetailedCreateWorkRequest {
+  return {
+    title: manual.title,
+    mediaType: manual.mediaType,
+    userStatus: manual.userStatus,
+    publicationStatus: manual.publicationStatus || null,
+    description: manual.description.trim() || null,
+    countryCode: manual.countryCode.trim() || null,
+    startDate: manual.startDate.trim() || null,
+    endDate: manual.endDate.trim() || null,
+    chapter: manual.chapter.trim() || null,
+    rating: manual.rating === '' ? null : Number(manual.rating),
+    favorite: manual.favorite,
+    notes: manual.notes.trim() || null,
+    lastReadNote: manual.lastReadNote.trim() || null,
+    cover: manual.coverMode === 'remote' && manual.coverUrl.trim() ? { type: 'remote', sourceUrl: manual.coverUrl.trim(), customPath: null } : undefined,
+    aliases: manual.aliases.filter((item) => item.name.trim()).map((item) => ({ name: item.name, kind: item.kind, source: 'user' })),
+    creators: manual.creators.filter((item) => item.name.trim()).map((item) => ({ ...item, source: 'user' })),
+    genres: splitNames(manual.genres),
+    tags: manual.tags,
+    collectionIds: manual.collectionIds,
+    source: manual.sourceUrl.trim() || manual.sourceLastUrl.trim() ? {
+      name: manual.sourceName.trim() || null,
+      language: manual.sourceLanguage,
+      seriesUrl: manual.sourceUrl.trim() || null,
+      lastReadUrl: manual.sourceLastUrl.trim() || null,
+      translatorGroup: manual.sourceGroup.trim() || null,
+      isPreferred: manual.sourcePreferred
+    } : undefined
+  }
 }
 
 export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onClose(): void; onCreated(): void }) {
@@ -169,22 +206,10 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   }
 
   async function submitManual() {
-    if (!manual.title.trim()) return
+    if (!isManualWorkValid(manual)) return
     setBusy(true)
     try {
-      const details = await window.auri.works.createDetailed({
-        title: manual.title, mediaType: manual.mediaType, userStatus: manual.userStatus,
-        publicationStatus: manual.publicationStatus || null, description: manual.description.trim() || null,
-        countryCode: manual.countryCode.trim() || null, startDate: manual.startDate.trim() || null,
-        endDate: manual.endDate.trim() || null, chapter: manual.chapter.trim() || null,
-        rating: manual.rating === '' ? null : Number(manual.rating), favorite: manual.favorite,
-        notes: manual.notes.trim() || null, lastReadNote: manual.lastReadNote.trim() || null,
-        cover: manual.coverMode === 'remote' && manual.coverUrl.trim() ? { type: 'remote', sourceUrl: manual.coverUrl.trim(), customPath: null } : undefined,
-        aliases: manual.aliases.filter((item) => item.name.trim()).map((item) => ({ name: item.name, kind: item.kind, source: 'user' })),
-        creators: manual.creators.filter((item) => item.name.trim()).map((item) => ({ ...item, source: 'user' })),
-        genres: splitNames(manual.genres), tags: manual.tags, collectionIds: manual.collectionIds,
-        source: manual.sourceUrl.trim() || manual.sourceLastUrl.trim() ? { name: manual.sourceName.trim() || null, language: manual.sourceLanguage, seriesUrl: manual.sourceUrl.trim() || null, lastReadUrl: manual.sourceLastUrl.trim() || null, translatorGroup: manual.sourceGroup.trim() || null, isPreferred: manual.sourcePreferred } : undefined
-      })
+      const details = await window.auri.works.createDetailed(createManualWorkRequest(manual))
       if (manual.coverMode === 'custom') try { await window.auri.assets.selectCover({ workId: details.work.id }) } catch (error) { showToast({ kind: 'warning', message: `A obra foi criada, mas a capa não foi importada: ${mapDomainError(error)}` }) }
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${details.work.title} foi adicionada à biblioteca.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${details.work.id}`) } })
@@ -203,19 +228,19 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
       : mode === 'urlPreview' ? <Button onClick={() => setMode('url')}>Voltar</Button>
         : mode === 'search' ? <><Button onClick={() => setMode(urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button>{!noResults && <Button onClick={() => urlDraft ? void continueUrlManually() : setMode('manual')}>Adicionar manualmente</Button>}</>
           : mode === 'review' ? <><Button onClick={() => setMode('search')}>Voltar</Button>{!review?.duplicate || review.duplicate.kind === 'probable' ? <Button variant="primary" disabled={busy || !importForm.title.trim() || (review?.duplicate?.kind === 'probable' && !importForm.allowProbable)} onClick={() => void importMetadata()}>{busy ? 'Importando…' : `Importar para o ${APP_BRAND.name}`}</Button> : null}</>
-            : <><Button onClick={() => setMode(mode === 'manual' && urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button><Button variant="primary" disabled={busy || !(mode === 'quick' ? quick.title : manual.title).trim()} onClick={() => void (mode === 'quick' ? submitQuick() : submitManual())}>{busy ? 'Adicionando…' : mode === 'quick' ? 'Adicionar' : 'Adicionar obra'}</Button></>
+            : <><Button onClick={() => setMode(mode === 'manual' && urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button><Button variant="primary" disabled={busy || (mode === 'quick' ? !quick.title.trim() : !isManualWorkValid(manual))} onClick={() => void (mode === 'quick' ? submitQuick() : submitManual())}>{busy ? 'Adicionando…' : mode === 'quick' ? 'Adicionar' : 'Adicionar obra'}</Button></>
 
   return <>
-    <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : `Adicionar ao ${APP_BRAND.name}`} description={mode === 'choose' ? 'Escolha quanto deseja informar agora. Você poderá editar tudo depois.' : undefined} onClose={requestClose} footer={footer}>
+    <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : mode === 'manual' ? 'Adicionar obra manualmente' : `Adicionar ao ${APP_BRAND.name}`} description={mode === 'choose' ? 'Escolha quanto deseja informar agora. Você poderá editar tudo depois.' : undefined} onClose={requestClose} footer={footer}>
       {mode === 'choose' && <div className="add-mode-grid"><button onClick={() => setMode('url')}><strong>Adicionar por URL</strong><span>Cole a página da obra para detectar título, site, descrição e capa.</span></button><button onClick={() => setMode('search')}><strong>Buscar metadados</strong><span>Pesquise no AniList e revise tudo antes de importar.</span></button><button onClick={() => setMode('quick')}><strong>Adicionar rapidamente</strong><span>Título, progresso e status. Leva poucos segundos.</span></button><button onClick={() => setMode('manual')}><strong>Adicionar manualmente</strong><span>Identificação, organização, fonte, notas e capa.</span></button></div>}
       {mode === 'url' && <form className="url-analyze-form" onSubmit={(event) => { event.preventDefault(); void analyzeUrl() }}><label className="field"><span>URL da página da obra</span><input type="url" autoFocus value={urlInput} onChange={(event) => { setUrlInput(event.target.value); setUrlError('') }} placeholder="https://…" /></label><p className="metadata-hint">O {APP_BRAND.name} acessa somente páginas públicas HTTP/HTTPS e não adiciona nada sem sua confirmação.</p>{urlError && <div className="metadata-error" role="alert"><p>{urlError}</p><Button onClick={() => void analyzeUrl()}>Tentar novamente</Button></div>}</form>}
       {mode === 'urlPreview' && urlAnalysis && urlDraft && <UrlMetadataPreview analysis={urlAnalysis} draft={urlDraft} setDraft={(next) => { setUrlDraft(next); if (urlAnalysis.duplicate?.kind === 'work') setUrlAnalysis({ ...urlAnalysis, duplicate: null }) }} busy={busy} onAniList={() => void searchUrlOnAniList()} onManual={() => void continueUrlManually()} onAddSource={(workId) => void addUrlAsSource(workId)} onOpen={(workId) => { close(); navigate(`/work/${workId}`) }} onCancel={close} />}
       {mode === 'search' && <div className="metadata-search"><label className="field"><span>Título da obra</span><input ref={searchInputRef} autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite pelo menos 3 caracteres" /></label><p className="metadata-search-tip"><strong>Não encontrou?</strong> O AniList pode não reconhecer o título em português usado pelo site onde você lê. Tente pesquisar pelo título em inglês, romanizado ou no idioma original.</p>{searchState === 'idle' && <p className="metadata-hint">Os resultados aparecem após uma pequena pausa na digitação.</p>}{searchState === 'loading' && <div className="metadata-skeleton" role="status"><i /><i /><i /></div>}{searchState === 'error' && <div className="metadata-error" role="alert"><p>{searchError}</p><Button onClick={() => { setSearchState('idle'); setQuery(`${query} `) }}>Tentar novamente</Button></div>}{noResults && <NoMetadataResults onRetry={retryTitle} onManual={() => urlDraft ? void continueUrlManually() : setMode('manual')} />}{searchState === 'ready' && results.length > 0 && <div className="metadata-results">{results.map((result) => <button key={`${result.provider}:${result.externalId}`} disabled={busy} onClick={() => void selectResult(result)}><span className="metadata-result__cover">{result.title.charAt(0)}</span><span><strong>{result.title}</strong><small>{[result.originalTitle, result.startDate?.slice(0, 4), result.mediaType ? MEDIA_TYPE_LABELS[result.mediaType] : null].filter(Boolean).join(' · ')}</small></span><b aria-hidden="true">›</b></button>)}</div>}</div>}
       {mode === 'review' && review && <MetadataReviewForm review={review} form={importForm} setForm={setImportForm} onClose={close} onCreated={onCreated} onAddSource={urlDraft ? addUrlAsSource : undefined} />}
       {mode === 'quick' && <form className="quick-work-form" onSubmit={(event) => { event.preventDefault(); void submitQuick() }}><label className="field"><span>Título *</span><input autoFocus value={quick.title} onChange={(event) => setQuick({ ...quick, title: event.target.value })} placeholder="Ex.: Nano Machine" /></label><label className="field"><span>Último capítulo concluído</span><input value={quick.chapter} onChange={(event) => setQuick({ ...quick, chapter: event.target.value })} placeholder="183, 10A ou Prólogo" /></label><label className="field"><span>Status</span><Select label="Status pessoal" value={quick.status} onChange={(status) => setQuick({ ...quick, status: status as UserStatus })} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label></form>}
-      {mode === 'manual' && <WorkForm value={manual} onChange={setManual} collections={collections} />}
+      {mode === 'manual' && <WorkForm value={manual} onChange={setManual} collections={collections} progressive />}
     </Dialog>
-    <Dialog open={confirmClose} title="Você possui alterações não salvas." description={mode === 'manual' || mode === 'review' ? 'Salve agora ou descarte o que foi preenchido.' : 'A análise atual será descartada.'} onClose={() => setConfirmClose(false)} footer={<><Button variant="danger" onClick={close}>Descartar</Button><Button onClick={() => setConfirmClose(false)}>Continuar editando</Button>{mode === 'manual' && <Button variant="primary" disabled={busy || !manual.title.trim()} onClick={() => { setConfirmClose(false); void submitManual() }}>Salvar</Button>}{mode === 'review' && <Button variant="primary" disabled={busy || !importForm.title.trim() || !reviewCanImport} onClick={() => { setConfirmClose(false); void importMetadata() }}>Importar</Button>}</>} />
+    <Dialog open={confirmClose} title="Você possui alterações não salvas." description={mode === 'manual' || mode === 'review' ? 'Salve agora ou descarte o que foi preenchido.' : 'A análise atual será descartada.'} onClose={() => setConfirmClose(false)} footer={<><Button variant="danger" onClick={close}>Descartar</Button><Button onClick={() => setConfirmClose(false)}>Continuar editando</Button>{mode === 'manual' && <Button variant="primary" disabled={busy || !isManualWorkValid(manual)} onClick={() => { setConfirmClose(false); void submitManual() }}>Salvar</Button>}{mode === 'review' && <Button variant="primary" disabled={busy || !importForm.title.trim() || !reviewCanImport} onClick={() => { setConfirmClose(false); void importMetadata() }}>Importar</Button>}</>} />
   </>
 }
 
