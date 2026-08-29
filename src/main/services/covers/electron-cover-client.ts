@@ -17,7 +17,7 @@ export class ElectronCoverClient implements CoverDownloadClient {
 
   isOnline(): boolean { return this.online() }
   async download(url: string, { maxBytes, timeoutMs, maxRedirects }: { maxBytes: number; timeoutMs: number; maxRedirects: number }): Promise<Buffer> {
-    if (!this.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa não está disponível offline.')
+    if (!this.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa não está disponível offline.', { transient: true })
     const controller = new AbortController()
     const deadline = Date.now() + timeoutMs
     const timeoutError = () => new DomainError('COVER_TIMEOUT', 'O download da capa excedeu o tempo limite.')
@@ -40,7 +40,13 @@ export class ElectronCoverClient implements CoverDownloadClient {
           () => controller.abort()
         )
       }
-      if (!response || !response.ok) throw new DomainError('COVER_DOWNLOAD_FAILED', 'Não foi possível baixar a capa.')
+      if (!response || !response.ok) {
+        const httpStatus = response?.status ?? 0
+        throw new DomainError('COVER_DOWNLOAD_FAILED', 'Não foi possível baixar a capa.', {
+          httpStatus,
+          transient: httpStatus === 429 || httpStatus >= 500
+        })
+      }
       const declared = Number(response.headers.get('content-length') ?? '0')
       if (declared > maxBytes) throw new DomainError('COVER_TOO_LARGE', 'A capa remota excede o limite permitido.')
       if (!response.body) throw new DomainError('COVER_DOWNLOAD_FAILED', 'A resposta da capa está vazia.')
@@ -58,7 +64,7 @@ export class ElectronCoverClient implements CoverDownloadClient {
     } catch (error) {
       if (error instanceof DomainError) throw error
       if (controller.signal.aborted) throw new DomainError('COVER_TIMEOUT', 'O download da capa excedeu o tempo limite.')
-      throw new DomainError('COVER_DOWNLOAD_FAILED', 'Não foi possível baixar a capa.')
+      throw new DomainError('COVER_DOWNLOAD_FAILED', 'Não foi possível baixar a capa.', { transient: true })
     }
   }
 }

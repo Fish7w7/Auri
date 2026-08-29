@@ -138,7 +138,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       collections: collectionsRepository
     })
     const assets = new AssetService(paths.assets, works)
-    const covers = new CoverService(paths.coverCache, worksRepository, assets, options.coverClient ?? new ElectronCoverClient())
+    const covers = new CoverService(paths.coverCache, worksRepository, assets, options.coverClient ?? new ElectronCoverClient(), Date.now, logger)
     const system = new SystemService(systemRepository, app.getVersion(), paths, backups, covers, logger, criticalOperations)
     const metadataProviders = options.metadataProviders ?? [new AniListProvider(new AniListClient(new ElectronGraphqlTransport()))]
     const metadata = new MetadataService(database.db, metadataProviders, {

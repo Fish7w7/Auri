@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import sharp from 'sharp'
 import { AssetService } from '@main/services/asset-service'
-import { COVER_FAILURE_BACKOFF_MS, COVER_LIMITS, CoverService } from '@main/services/covers/cover-service'
+import { COVER_CIRCUIT_BREAKER, COVER_FAILURE_BACKOFF_MS, COVER_LIMITS, CoverService } from '@main/services/covers/cover-service'
 import { ElectronCoverClient } from '@main/services/covers/electron-cover-client'
 import type { CoverDownloadClient } from '@main/services/covers/types'
 import { DomainError } from '@shared/errors/domain-error'
@@ -22,6 +22,12 @@ async function setup(client: CoverDownloadClient, now: () => number = Date.now) 
   const service = new CoverService(join(root, 'cache'), fixture.repositories.works, assets, client, now)
   const work = fixture.services.works.createWork({ title: 'Capa', mediaType: 'manga', userStatus: 'reading', cover: { type: 'remote', sourceUrl: 'https://img.example/cover.png' } })
   return { ...fixture, root, service, assets, work }
+}
+
+type CoverFixture = Awaited<ReturnType<typeof setup>>
+
+function addRemoteWork(fixture: CoverFixture, title: string, sourceUrl: string) {
+  return fixture.services.works.createWork({ title, mediaType: 'manga', userStatus: 'reading', cover: { type: 'remote', sourceUrl } })
 }
 
 describe('CoverService', () => {
@@ -52,6 +58,183 @@ describe('CoverService', () => {
     now += COVER_FAILURE_BACKOFF_MS + 1
     await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'error' })
     expect(calls).toBe(2)
+    fixture.db.close()
+  })
+
+  it('começa fechado e uma falha transitória isolada não bloqueia o domínio', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#111111' } }).png().toBuffer()
+    let calls = 0
+    const fixture = await setup({
+      isOnline: () => true,
+      download: async (url) => {
+        calls += 1
+        if (url.endsWith('/cover.png')) throw new DomainError('COVER_TIMEOUT', 'timeout')
+        return image
+      }
+    })
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'error' })
+    const recovered = addRemoteWork(fixture, 'Recuperada', 'https://img.example/recovered.png')
+    await expect(fixture.service.getCover({ workId: recovered.id })).resolves.toMatchObject({ state: 'ready' })
+    expect(calls).toBe(2)
+    fixture.db.close()
+  })
+
+  it('abre no threshold, compartilha hostname e mantém domínios independentes', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#222222' } }).png().toBuffer()
+    let calls = 0
+    const fixture = await setup({
+      isOnline: () => true,
+      download: async (url) => {
+        calls += 1
+        if (new URL(url).hostname === 'broken.example') throw new DomainError('COVER_TIMEOUT', 'timeout')
+        return image
+      }
+    })
+    const broken = ['a', 'b', 'c', 'd'].map((name) => addRemoteWork(fixture, name, `https://broken.example/${name}.png`))
+    for (const work of broken.slice(0, 3)) await fixture.service.getCover({ workId: work.id })
+    await expect(fixture.service.getCover({ workId: broken[3].id })).resolves.toMatchObject({ state: 'placeholder' })
+    expect(calls).toBe(3)
+
+    const independent = addRemoteWork(fixture, 'Outro CDN', 'https://healthy.example/cover.png')
+    await expect(fixture.service.getCover({ workId: independent.id })).resolves.toMatchObject({ state: 'ready' })
+    expect(calls).toBe(4)
+    fixture.db.close()
+  })
+
+  it('não acumula falhas que ficaram fora da janela', async () => {
+    let now = 1_000
+    let calls = 0
+    const fixture = await setup({ isOnline: () => true, download: async () => { calls += 1; throw new DomainError('COVER_TIMEOUT', 'timeout') } }, () => now)
+    const works = ['a', 'b', 'c', 'd'].map((name) => addRemoteWork(fixture, name, `https://slow.example/${name}.png`))
+    for (const work of works.slice(0, 3)) {
+      await fixture.service.getCover({ workId: work.id })
+      now += COVER_CIRCUIT_BREAKER.failureWindowMs + 1
+    }
+    await fixture.service.getCover({ workId: works[3].id })
+    expect(calls).toBe(4)
+    fixture.db.close()
+  })
+
+  it('não conta HTTP 404 nem bloqueio de segurança como falha do domínio', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#333333' } }).png().toBuffer()
+    let calls = 0
+    const fixture = await setup({
+      isOnline: () => true,
+      download: async (url) => {
+        calls += 1
+        if (url.includes('/404-')) throw new DomainError('COVER_DOWNLOAD_FAILED', 'not found', { httpStatus: 404, transient: false })
+        if (url.includes('/blocked-')) throw new DomainError('URL_DESTINATION_BLOCKED', 'blocked')
+        return image
+      }
+    })
+    const failures = [
+      ...['1', '2', '3'].map((id) => addRemoteWork(fixture, `404 ${id}`, `https://mixed.example/404-${id}.png`)),
+      ...['1', '2', '3'].map((id) => addRemoteWork(fixture, `Bloqueada ${id}`, `https://mixed.example/blocked-${id}.png`))
+    ]
+    for (const work of failures) await fixture.service.getCover({ workId: work.id })
+    const healthy = addRemoteWork(fixture, 'Saudável', 'https://mixed.example/healthy.png')
+    await expect(fixture.service.getCover({ workId: healthy.id })).resolves.toMatchObject({ state: 'ready' })
+    expect(calls).toBe(7)
+    fixture.db.close()
+  })
+
+  it.each([429, 503])('conta HTTP %i como falha transitória do domínio', async (httpStatus) => {
+    let calls = 0
+    const fixture = await setup({
+      isOnline: () => true,
+      download: async () => {
+        calls += 1
+        throw new DomainError('COVER_DOWNLOAD_FAILED', 'temporarily unavailable', { httpStatus, transient: true })
+      }
+    })
+    const works = ['a', 'b', 'c', 'd'].map((name) => addRemoteWork(fixture, name, `https://http-failure.example/${name}.png`))
+    for (const work of works.slice(0, 3)) await fixture.service.getCover({ workId: work.id })
+    await expect(fixture.service.getCover({ workId: works[3].id })).resolves.toMatchObject({ state: 'placeholder' })
+    expect(calls).toBe(3)
+    fixture.db.close()
+  })
+
+  it('mantém cache válido disponível enquanto o domínio está aberto', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#444444' } }).png().toBuffer()
+    let failing = false
+    let calls = 0
+    const fixture = await setup({ isOnline: () => true, download: async () => { calls += 1; if (failing) throw new DomainError('COVER_TIMEOUT', 'timeout'); return image } })
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'ready' })
+    failing = true
+    const failures = ['a', 'b', 'c'].map((name) => addRemoteWork(fixture, name, `https://img.example/${name}.png`))
+    for (const work of failures) await fixture.service.getCover({ workId: work.id })
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'ready', cached: true })
+    expect(calls).toBe(4)
+    fixture.db.close()
+  })
+
+  it('permite somente uma probe HALF_OPEN e fecha após sucesso', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#555555' } }).png().toBuffer()
+    let now = 1_000
+    let calls = 0
+    let probe = false
+    let resolveProbe!: (value: Buffer) => void
+    const probeResult = new Promise<Buffer>((resolve) => { resolveProbe = resolve })
+    const fixture = await setup({
+      isOnline: () => true,
+      download: async () => {
+        calls += 1
+        if (probe) return probeResult
+        throw new DomainError('COVER_TIMEOUT', 'timeout')
+      }
+    }, () => now)
+    const failures = ['a', 'b', 'c'].map((name) => addRemoteWork(fixture, name, `https://probe.example/${name}.png`))
+    for (const work of failures) await fixture.service.getCover({ workId: work.id })
+    now += COVER_CIRCUIT_BREAKER.openDurationMs + 1
+    probe = true
+    const firstProbe = addRemoteWork(fixture, 'Probe A', 'https://probe.example/probe-a.png')
+    const blockedProbe = addRemoteWork(fixture, 'Probe B', 'https://probe.example/probe-b.png')
+    const first = fixture.service.getCover({ workId: firstProbe.id })
+    await expect(fixture.service.getCover({ workId: blockedProbe.id })).resolves.toMatchObject({ state: 'placeholder' })
+    expect(calls).toBe(4)
+    resolveProbe(image)
+    await expect(first).resolves.toMatchObject({ state: 'ready' })
+
+    const afterClose = addRemoteWork(fixture, 'Após fechar', 'https://probe.example/after.png')
+    await expect(fixture.service.getCover({ workId: afterClose.id })).resolves.toMatchObject({ state: 'ready' })
+    expect(calls).toBe(5)
+    fixture.db.close()
+  })
+
+  it('reabre após falha transitória da probe e respeita também o backoff por URL', async () => {
+    let now = 1_000
+    let calls = 0
+    let recovering = false
+    const fixture = await setup({
+      isOnline: () => true,
+      download: async () => {
+        calls += 1
+        if (recovering) return sharp({ create: { width: 20, height: 30, channels: 3, background: '#666666' } }).png().toBuffer()
+        throw new DomainError('COVER_TIMEOUT', 'timeout')
+      }
+    }, () => now)
+    const first = addRemoteWork(fixture, 'A', 'https://retry-cdn.example/a.png')
+    await fixture.service.getCover({ workId: first.id })
+    await fixture.service.getCover({ workId: first.id })
+    expect(calls).toBe(1)
+    for (const name of ['b', 'c']) {
+      const work = addRemoteWork(fixture, name, `https://retry-cdn.example/${name}.png`)
+      await fixture.service.getCover({ workId: work.id })
+    }
+    expect(calls).toBe(3)
+
+    now += COVER_CIRCUIT_BREAKER.openDurationMs + 1
+    const failedProbe = addRemoteWork(fixture, 'Probe falha', 'https://retry-cdn.example/probe.png')
+    await fixture.service.getCover({ workId: failedProbe.id })
+    const stillOpen = addRemoteWork(fixture, 'Ainda aberto', 'https://retry-cdn.example/open.png')
+    await expect(fixture.service.getCover({ workId: stillOpen.id })).resolves.toMatchObject({ state: 'placeholder' })
+    expect(calls).toBe(4)
+
+    now += COVER_CIRCUIT_BREAKER.openDurationMs + 1
+    recovering = true
+    const recovered = addRemoteWork(fixture, 'Recuperada', 'https://retry-cdn.example/recovered.png')
+    await expect(fixture.service.getCover({ workId: recovered.id })).resolves.toMatchObject({ state: 'ready' })
+    expect(calls).toBe(5)
     fixture.db.close()
   })
 
