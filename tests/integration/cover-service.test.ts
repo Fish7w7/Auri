@@ -168,6 +168,36 @@ describe('CoverService', () => {
     fixture.db.close()
   })
 
+  it('mantém cache como prioridade quando a máquina fica offline', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#454545' } }).png().toBuffer()
+    let online = true
+    let calls = 0
+    const fixture = await setup({ isOnline: () => online, download: async () => { calls += 1; return image } })
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'ready', cached: true })
+    online = false
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'ready', cached: true })
+    expect(calls).toBe(1)
+    fixture.db.close()
+  })
+
+  it('offline conhecido não baixa, não cria backoff e não alimenta o circuito', async () => {
+    let online = false
+    let calls = 0
+    const fixture = await setup({
+      isOnline: () => online,
+      download: async () => { calls += 1; throw new DomainError('COVER_TIMEOUT', 'timeout') }
+    })
+    const works = ['a', 'b', 'c', 'd'].map((name) => addRemoteWork(fixture, name, `https://offline-cdn.example/${name}.png`))
+    for (const work of works) await expect(fixture.service.getCover({ workId: work.id })).resolves.toMatchObject({ state: 'placeholder' })
+    expect(calls).toBe(0)
+
+    online = true
+    for (const work of works.slice(0, 3)) await expect(fixture.service.getCover({ workId: work.id })).resolves.toMatchObject({ state: 'error' })
+    await expect(fixture.service.getCover({ workId: works[3].id })).resolves.toMatchObject({ state: 'placeholder' })
+    expect(calls).toBe(3)
+    fixture.db.close()
+  })
+
   it('permite somente uma probe HALF_OPEN e fecha após sucesso', async () => {
     const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#555555' } }).png().toBuffer()
     let now = 1_000

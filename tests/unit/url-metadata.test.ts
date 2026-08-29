@@ -7,7 +7,8 @@ const publicResolver = async () => ['93.184.216.34']
 
 class FakeTransport implements PageTransport {
   readonly calls: string[] = []
-  constructor(private readonly responses: PageTransportResponse[]) {}
+  constructor(private readonly responses: PageTransportResponse[], public online = true) {}
+  isOnline(): boolean { return this.online }
   async request(url: string): Promise<PageTransportResponse> {
     this.calls.push(url)
     const response = this.responses.shift()
@@ -21,6 +22,22 @@ function htmlResponse(html: string): PageTransportResponse {
 }
 
 describe('análise segura de páginas por URL', () => {
+  it('falha antes de DNS/fetch quando offline e tenta normalmente depois', async () => {
+    let resolutions = 0
+    const resolver = async () => { resolutions += 1; return ['93.184.216.34'] }
+    const transport = new FakeTransport([htmlResponse('<html><title>Online novamente</title></html>')], false)
+    const fetcher = new SafePageFetcher(transport, resolver)
+
+    await expect(fetcher.fetch('https://offline.example/obra')).rejects.toMatchObject({ code: 'URL_FETCH_FAILED', details: { offline: true } })
+    expect(resolutions).toBe(0)
+    expect(transport.calls).toHaveLength(0)
+
+    transport.online = true
+    await expect(fetcher.fetch('https://offline.example/obra')).resolves.toMatchObject({ finalUrl: 'https://offline.example/obra' })
+    expect(resolutions).toBe(1)
+    expect(transport.calls).toHaveLength(1)
+  })
+
   it('rejeita protocolos não permitidos antes de acessar a rede', async () => {
     const transport = new FakeTransport([])
     await expect(new SafePageFetcher(transport, publicResolver).fetch('file:///etc/passwd'))

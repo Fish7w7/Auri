@@ -5,6 +5,7 @@ export interface PageTransportResponse {
 }
 
 export interface PageTransport {
+  isOnline?(): boolean
   request(url: string, options: { maxBytes: number; timeoutMs: number }): Promise<PageTransportResponse>
 }
 

@@ -48,6 +48,7 @@ export class MetadataService {
   private readonly searchInflight = new Map<string, Promise<MetadataSearchResult[]>>()
   private readonly detailsCache = new Map<string, MetadataWork>()
   private readonly requests = new Map<string, AbortController>()
+  private readonly operations = new Map<string, Promise<unknown>>()
 
   constructor(
     private readonly db: Database.Database,
@@ -67,30 +68,30 @@ export class MetadataService {
     const key = `${provider.id}:${normalizeSearchText(request.query)}`
     const cached = this.searchCache.get(key)
     if (cached) return cached
-    return this.runRequest(request.requestId, async (signal) => {
-      const active = request.requestId ? undefined : this.searchInflight.get(key)
-      if (active) return active
-      const promise = provider.search(request.query, signal).then((results) => {
+    const active = this.searchInflight.get(key)
+    if (active) return active
+    const promise = this.runRequest(request.requestId, async (signal) => {
+      return provider.search(request.query, signal).then((results) => {
         const limited = results.slice(0, 10)
         this.searchCache.set(key, limited)
         return limited
       })
-      if (!request.requestId) this.searchInflight.set(key, promise)
-      try { return await promise } finally { if (!request.requestId) this.searchInflight.delete(key) }
     })
+    this.searchInflight.set(key, promise)
+    try { return await promise } finally { if (this.searchInflight.get(key) === promise) this.searchInflight.delete(key) }
   }
 
   async review(input: unknown): Promise<MetadataReview> {
     const request = parseDomainInput(metadataReviewSchema, input)
-    return this.runRequest(request.requestId, async (signal) => {
+    return this.reuseOperation(`review:${request.provider}:${request.externalId}`, () => this.runRequest(request.requestId, async (signal) => {
       const metadata = await this.fetchDetails(request.provider, request.externalId, false, signal)
       return { metadata, duplicate: this.findDuplicate(metadata) }
-    })
+    }))
   }
 
   async import(input: unknown): Promise<WorkDetails> {
     const request = parseDomainInput(metadataImportSchema, input) as ImportMetadataRequest & { requestId?: string }
-    return this.runRequest(request.requestId, async (signal) => {
+    return this.reuseOperation(`import:${request.provider}:${request.externalId}`, () => this.runRequest(request.requestId, async (signal) => {
       const metadata = await this.fetchDetails(request.provider, request.externalId, false, signal)
       const duplicate = this.findDuplicate(metadata)
     if (duplicate?.kind === 'active') this.throwDuplicate('METADATA_DUPLICATE_ACTIVE', duplicate)
@@ -123,24 +124,24 @@ export class MetadataService {
       return this.details.getDetails({ workId: work.id })
     })
       return operation.immediate()
-    })
+    }))
   }
 
   async previewRefresh(input: unknown): Promise<MetadataRefreshPreview> {
     const { workId, requestId } = parseDomainInput(metadataRefreshSchema, input)
     const current = this.requireWorkDetails(workId)
     const reference = this.requireSupportedReference(current)
-    return this.runRequest(requestId, async (signal) => {
+    return this.reuseOperation(`preview-refresh:${workId}`, () => this.runRequest(requestId, async (signal) => {
       const metadata = await this.fetchDetails(reference.provider, reference.externalId, true, signal)
       return { workId, provider: reference.provider, externalId: reference.externalId, changes: this.compare(current, metadata), externalRef: reference }
-    })
+    }))
   }
 
   async applyRefresh(input: unknown): Promise<MetadataApplyResult> {
     const { workId, requestId } = parseDomainInput(metadataRefreshSchema, input)
     const current = this.requireWorkDetails(workId)
     const reference = this.requireSupportedReference(current)
-    return this.runRequest(requestId, async (signal) => {
+    return this.reuseOperation(`apply-refresh:${workId}`, () => this.runRequest(requestId, async (signal) => {
       const metadata = await this.fetchDetails(reference.provider, reference.externalId, true, signal)
       const protectedFields = this.protectedFields(current)
       const warnings: string[] = []
@@ -178,7 +179,7 @@ export class MetadataService {
       catch { warnings.push('Os dados foram atualizados, mas a nova capa não pôde ser gravada no cache.') }
     }
       return { details: this.details.getDetails({ workId }), warnings }
-    })
+    }))
   }
 
   cancel(input: unknown): void {
@@ -249,6 +250,15 @@ export class MetadataService {
     this.requests.set(requestId, controller)
     try { return await operation(controller.signal) }
     finally { if (this.requests.get(requestId) === controller) this.requests.delete(requestId) }
+  }
+
+  private reuseOperation<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    const active = this.operations.get(key)
+    if (active) return active as Promise<T>
+    const promise = operation()
+    this.operations.set(key, promise)
+    void promise.finally(() => { if (this.operations.get(key) === promise) this.operations.delete(key) }).catch(() => undefined)
+    return promise
   }
 
   private findDuplicate(metadata: MetadataWork): MetadataDuplicate | null {

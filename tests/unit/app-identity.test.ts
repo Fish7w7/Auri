@@ -18,11 +18,18 @@ interface PackageIdentity {
   }
 }
 
+interface PackageLockIdentity {
+  version: string
+  packages: Record<string, { version?: string }>
+}
+
 describe('identidade do aplicativo Auri', () => {
   it('usa uma identidade técnica nova e coerente em todo o empacotamento', () => {
     const manifest = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as PackageIdentity
+    const lock = JSON.parse(readFileSync(join(process.cwd(), 'package-lock.json'), 'utf8')) as PackageLockIdentity
 
-    expect(manifest.version).toBe('1.8.0')
+    expect(lock.version).toBe(manifest.version)
+    expect(lock.packages[''].version).toBe(manifest.version)
     expect(manifest.author).toBe('Auri')
     expect(manifest.build.productName).toBe('Auri')
     expect(manifest.build.artifactName).toBe('Auri-Setup-${version}-${arch}.${ext}')

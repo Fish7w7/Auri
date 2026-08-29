@@ -58,7 +58,7 @@ export class CoverService {
       if (!existsSync(this.cachePath(workId)) || this.readCacheSource(workId) !== work.cover.sourceUrl) this.commitPrepared(prepared)
       return this.cachedResult(workId)
     } catch (error) {
-      if (isOpenCircuitError(error)) return cacheExists ? this.cachedResult(workId) : { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
+      if (isOpenCircuitError(error) || isKnownOfflineError(error)) return cacheExists ? this.cachedResult(workId) : { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
       return cacheExists ? this.cachedResult(workId) : { state: 'error', dataUrl: null, source: 'cache', cached: false }
     }
   }
@@ -70,7 +70,7 @@ export class CoverService {
     const oldExists = existsSync(this.cachePath(workId))
     try { const prepared = await this.enqueue(workId, work.cover.sourceUrl, true); if (existsSync(prepared.temporaryPath)) this.commitPrepared(prepared); return this.cachedResult(workId) }
     catch (error) {
-      if (isOpenCircuitError(error)) return oldExists ? this.cachedResult(workId) : { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
+      if (isOpenCircuitError(error) || isKnownOfflineError(error)) return oldExists ? this.cachedResult(workId) : { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
       return oldExists ? this.cachedResult(workId) : { state: 'error', dataUrl: null, source: 'cache', cached: false }
     }
   }
@@ -132,6 +132,9 @@ export class CoverService {
   private enqueue(workId: string, sourceUrl: string, force = false): Promise<PreparedCover> {
     if (this.maintenance) return this.maintenance.then(() => this.enqueue(workId, sourceUrl, force))
     const { normalizedUrl, hostname } = this.validateUrl(sourceUrl)
+    if (!this.client.isOnline()) {
+      throw new DomainError('COVER_DOWNLOAD_FAILED', 'Sem conexão com a internet. Verifique sua conexão e tente novamente.', { offline: true })
+    }
     if ((this.failedUntil.get(normalizedUrl) ?? 0) > this.now()) {
       throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa falhou recentemente e será tentada novamente em breve.')
     }
@@ -149,6 +152,10 @@ export class CoverService {
           this.recordCircuitSuccess(hostname, permit)
           return prepared
         } catch (error) {
+          if (isKnownOfflineError(error)) {
+            this.releaseCircuitProbe(hostname, permit)
+            throw error
+          }
           this.failedUntil.set(normalizedUrl, this.now() + COVER_FAILURE_BACKOFF_MS)
           if (isTransientCoverFailure(error)) this.recordCircuitFailure(hostname, permit)
           else this.releaseCircuitProbe(hostname, permit)
@@ -173,7 +180,7 @@ export class CoverService {
   }
 
   private async downloadAndProcess(workId: string, sourceUrl: string): Promise<PreparedCover> {
-    if (!this.client.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa não está disponível offline.', { transient: true })
+    if (!this.client.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'Sem conexão com a internet. Verifique sua conexão e tente novamente.', { offline: true })
     const bytes = await this.client.download(sourceUrl, { maxBytes: COVER_LIMITS.maxBytes, timeoutMs: COVER_LIMITS.timeoutMs, maxRedirects: COVER_LIMITS.maxRedirects })
     if (bytes.byteLength > COVER_LIMITS.maxBytes) throw new DomainError('COVER_TOO_LARGE', 'A capa remota excede o limite permitido.')
     let pipeline
@@ -273,4 +280,8 @@ function isTransientCoverFailure(error: unknown): boolean {
 
 function isOpenCircuitError(error: unknown): boolean {
   return error instanceof DomainError && error.code === 'COVER_DOWNLOAD_FAILED' && error.details?.circuitOpen === true
+}
+
+function isKnownOfflineError(error: unknown): boolean {
+  return error instanceof DomainError && error.details?.offline === true
 }

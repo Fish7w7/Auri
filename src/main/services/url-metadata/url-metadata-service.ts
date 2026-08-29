@@ -12,6 +12,8 @@ import type { SafePageFetcher } from './safe-page-fetcher'
 import { assertPublicHttpUrl, isBlockedDestination, parseAllowedHttpUrl } from './url-safety'
 
 export class UrlMetadataService {
+  private readonly analyses = new Map<string, Promise<UrlMetadataAnalysis>>()
+
   constructor(
     private readonly fetcher: SafePageFetcher,
     private readonly works: WorkRepository,
@@ -21,6 +23,15 @@ export class UrlMetadataService {
 
   async analyze(input: unknown): Promise<UrlMetadataAnalysis> {
     const { url } = parseDomainInput(urlMetadataAnalyzeSchema, input)
+    const active = this.analyses.get(url)
+    if (active) return active
+    const analysis = this.analyzeUrl(url)
+    this.analyses.set(url, analysis)
+    try { return await analysis }
+    finally { if (this.analyses.get(url) === analysis) this.analyses.delete(url) }
+  }
+
+  private async analyzeUrl(url: string): Promise<UrlMetadataAnalysis> {
     const startedAt = Date.now()
     let domain = safeDomain(url)
     this.logger.info('metadata', 'Análise de URL iniciada.', { event: 'url_metadata.started', domain })

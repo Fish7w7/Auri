@@ -3,8 +3,10 @@ import { DomainError } from '@shared/errors/domain-error'
 import type { PageTransport, PageTransportResponse } from './types'
 
 export class ElectronPageTransport implements PageTransport {
+  isOnline(): boolean { return net.isOnline() }
+
   async request(url: string, { maxBytes, timeoutMs }: { maxBytes: number; timeoutMs: number }): Promise<PageTransportResponse> {
-    if (!net.isOnline()) throw new DomainError('URL_FETCH_FAILED', 'A página não está disponível offline.')
+    if (!this.isOnline()) throw new DomainError('URL_FETCH_FAILED', 'Sem conexão com a internet. Verifique sua conexão e tente novamente.', { offline: true })
     const controller = new AbortController()
     let timedOut = false
     const timeout = setTimeout(() => { timedOut = true; controller.abort() }, timeoutMs)

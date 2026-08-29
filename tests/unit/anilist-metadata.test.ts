@@ -56,8 +56,18 @@ describe('AniListClient', () => {
   it('retorna somente data de uma resposta GraphQL válida', async () => {
     await expect(new AniListClient(transport()).query('query', {})).resolves.toEqual({ ok: true })
   })
-  it('falha de modo explícito offline', async () => {
-    await expect(new AniListClient(transport({ isOnline: () => false })).query('query', {})).rejects.toMatchObject({ code: 'METADATA_PROVIDER_UNAVAILABLE' })
+  it('falha sem request quando offline e permite retry após ficar online', async () => {
+    let online = false
+    let calls = 0
+    const client = new AniListClient(transport({
+      isOnline: () => online,
+      post: async () => { calls += 1; return { status: 200, headers: {}, json: async () => ({ data: { recovered: true } }) } }
+    }))
+    await expect(client.query('query', {})).rejects.toMatchObject({ code: 'METADATA_PROVIDER_UNAVAILABLE', details: { offline: true } })
+    expect(calls).toBe(0)
+    online = true
+    await expect(client.query('query', {})).resolves.toEqual({ recovered: true })
+    expect(calls).toBe(1)
   })
   it('respeita Retry-After e bloqueia nova chamada localmente', async () => {
     let calls = 0

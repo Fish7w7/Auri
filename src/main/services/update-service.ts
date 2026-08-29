@@ -36,6 +36,7 @@ export interface UpdateServiceOptions {
   criticalOperations: CriticalOperationCoordinator
   updater?: UpdaterAdapter
   checkTimeoutMs?: number
+  isOnline?: () => boolean
 }
 
 export class UpdateService {
@@ -45,6 +46,7 @@ export class UpdateService {
   private pendingCheck: Promise<unknown> | null = null
   private ignorePendingCheckEvents = false
   private checkSequence = 0
+  private installing = false
 
   constructor(private readonly logger: Logger, private readonly options: UpdateServiceOptions) {
     this.updater = options.updater ?? (electronUpdater.autoUpdater as unknown as UpdaterAdapter)
@@ -70,6 +72,7 @@ export class UpdateService {
   async checkForUpdates(): Promise<UpdateState> {
     if (this.state.availability !== 'ready') return this.getState()
     if (this.state.status === 'checking' || this.state.status === 'downloading') return this.getState()
+    this.failFastIfOffline('check')
     const sequence = ++this.checkSequence
     this.patch({ status: 'checking', errorMessage: null, errorContext: null, progressPercent: null })
     try {
@@ -107,8 +110,10 @@ export class UpdateService {
   }
 
   async downloadUpdate(): Promise<UpdateState> {
+    if (this.state.status === 'downloading') return this.getState()
     const canRetryDownload = this.state.status === 'error' && this.state.errorContext === 'download' && Boolean(this.state.availableVersion)
     if (this.state.status !== 'available' && !canRetryDownload) throw new DomainError('UPDATE_DOWNLOAD_FAILED', 'Nenhuma atualização está disponível para download.')
+    this.failFastIfOffline('download')
     this.patch({ status: 'downloading', progressPercent: 0, errorMessage: null, errorContext: null })
     try {
       await this.updater.downloadUpdate()
@@ -120,12 +125,19 @@ export class UpdateService {
   }
 
   installUpdate(): void {
+    if (this.installing) return
     if (this.state.status !== 'ready') throw new DomainError('UPDATE_INSTALL_BLOCKED', 'A atualização ainda não está pronta para instalar.')
     const operation = this.options.criticalOperations.current
     if (operation) throw new DomainError('UPDATE_INSTALL_BLOCKED', 'A instalação será liberada quando a operação crítica terminar.', { operation })
     if (this.dirtyScopes.size) throw new DomainError('UPDATE_INSTALL_BLOCKED', 'Salve ou descarte as alterações não salvas antes de atualizar.')
     this.logger.info('updater', 'Reiniciando para instalar atualização.', { event: 'updater.install_started', version: this.state.availableVersion })
-    this.updater.quitAndInstall(false, true)
+    this.installing = true
+    try { this.updater.quitAndInstall(false, true) }
+    catch (error) {
+      this.installing = false
+      this.logger.error('updater', 'Não foi possível iniciar a instalação.', { event: 'updater.install_failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' })
+      throw new DomainError('UPDATE_INSTALL_BLOCKED', 'Não foi possível iniciar a instalação agora.')
+    }
   }
 
   setDirty(input: unknown): void {
@@ -155,6 +167,14 @@ export class UpdateService {
   }
 
   private patch(patch: Partial<UpdateState>): void { this.state = { ...this.state, ...patch } }
+
+  private failFastIfOffline(errorContext: 'check' | 'download'): void {
+    if (this.state.isDevelopmentMock || this.options.isOnline?.() !== false) return
+    const message = 'Sem conexão com a internet. Verifique sua conexão e tente novamente.'
+    this.patch({ status: 'error', errorMessage: message, errorContext, progressPercent: null })
+    this.logger.warn('updater', 'Operação de atualização ignorada enquanto offline.', { event: 'updater.offline', operation: errorContext })
+    throw new DomainError(errorContext === 'check' ? 'UPDATE_CHECK_FAILED' : 'UPDATE_DOWNLOAD_FAILED', message, { offline: true })
+  }
 
   private fail(message: string, event: string, error: unknown, errorContext: 'check' | 'download'): void {
     this.patch({ status: 'error', errorMessage: message, errorContext, progressPercent: null })

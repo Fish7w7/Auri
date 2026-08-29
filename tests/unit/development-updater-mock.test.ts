@@ -14,6 +14,7 @@ function createService(scenario: DevelopmentUpdaterScenario) {
     isDevelopmentMock: true,
     criticalOperations: new CriticalOperationCoordinator(),
     updater,
+    isOnline: () => false,
   })
   return { logger, updater, service }
 }

@@ -18,6 +18,55 @@ function createUpdater() {
 }
 
 describe('UpdateService', () => {
+  it('falha rápido offline em check/download e recupera sem reset manual', async () => {
+    const updater = createUpdater()
+    let online = false
+    const service = new UpdateService(new TestLogger(), {
+      currentVersion: '1.9.0', isPackaged: true, isConfigured: true,
+      criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter, isOnline: () => online
+    })
+    updater.adapter.checkForUpdates = vi.fn().mockImplementation(async () => {
+      updater.emit('update-available', { version: '2.0.0', releaseNotes: 'Próxima versão' })
+    })
+    updater.adapter.downloadUpdate = vi.fn().mockImplementation(async () => {
+      updater.emit('update-downloaded', { version: '2.0.0', releaseNotes: 'Próxima versão' })
+    })
+
+    await expect(service.checkForUpdates()).rejects.toMatchObject({ code: 'UPDATE_CHECK_FAILED', details: { offline: true } })
+    expect(updater.adapter.checkForUpdates).not.toHaveBeenCalled()
+    online = true
+    await expect(service.checkForUpdates()).resolves.toMatchObject({ status: 'available', availableVersion: '2.0.0' })
+
+    online = false
+    await expect(service.downloadUpdate()).rejects.toMatchObject({ code: 'UPDATE_DOWNLOAD_FAILED', details: { offline: true } })
+    expect(updater.adapter.downloadUpdate).not.toHaveBeenCalled()
+    online = true
+    await expect(service.downloadUpdate()).resolves.toMatchObject({ status: 'ready', availableVersion: '2.0.0' })
+    expect(updater.adapter.downloadUpdate).toHaveBeenCalledOnce()
+  })
+
+  it('não inicia checks ou downloads equivalentes em paralelo', async () => {
+    const updater = createUpdater()
+    let finishCheck!: () => void
+    updater.adapter.checkForUpdates = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishCheck = resolve }))
+    const service = new UpdateService(new TestLogger(), { currentVersion: '1.9.0', isPackaged: true, isConfigured: true, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter })
+
+    const check = service.checkForUpdates()
+    await expect(service.checkForUpdates()).resolves.toMatchObject({ status: 'checking' })
+    expect(updater.adapter.checkForUpdates).toHaveBeenCalledOnce()
+    finishCheck()
+    await expect(check).resolves.toMatchObject({ status: 'up_to_date' })
+
+    updater.emit('update-available', { version: '2.0.0', releaseNotes: null })
+    let finishDownload!: () => void
+    updater.adapter.downloadUpdate = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { finishDownload = resolve }))
+    const download = service.downloadUpdate()
+    await expect(service.downloadUpdate()).resolves.toMatchObject({ status: 'downloading' })
+    expect(updater.adapter.downloadUpdate).toHaveBeenCalledOnce()
+    finishDownload()
+    await download
+  })
+
   it('trata desenvolvimento como indisponibilidade normal e não consulta o provider', async () => {
     const updater = createUpdater()
     const service = new UpdateService(new TestLogger(), { currentVersion: '0.1.0', isPackaged: false, isConfigured: false, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter })
@@ -105,6 +154,7 @@ describe('UpdateService', () => {
     service.setDirty({ scope: 'work-editor', dirty: true })
     expect(() => service.installUpdate()).toThrowError(expect.objectContaining({ code: 'UPDATE_INSTALL_BLOCKED' }))
     service.setDirty({ scope: 'work-editor', dirty: false })
+    service.installUpdate()
     service.installUpdate()
     expect(updater.adapter.quitAndInstall).toHaveBeenCalledOnce()
   })

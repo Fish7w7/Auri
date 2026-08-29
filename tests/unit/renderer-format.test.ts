@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatRelativeDate, MEDIA_TYPE_LABELS, STATUS_LABELS } from '@renderer/lib/format'
+import { formatRelativeDate, mapDomainError, MEDIA_TYPE_LABELS, STATUS_LABELS } from '@renderer/lib/format'
 import { getVisibleHomeSections } from '@renderer/lib/home-sections'
 
 describe('formatação da interface', () => {
@@ -29,5 +29,9 @@ describe('formatação da interface', () => {
     })
     expect(sections.map((section) => section.key)).toEqual(['waiting'])
   })
-})
 
+  it('mostra ausência de conexão local sem expor erro técnico', () => {
+    expect(mapDomainError({ error: { code: 'URL_FETCH_FAILED', message: 'fetch failed', details: { offline: true } } }))
+      .toBe('Sem conexão com a internet. Verifique sua conexão e tente novamente.')
+  })
+})

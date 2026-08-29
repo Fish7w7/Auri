@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import type { App } from 'electron'
+import { net, type App } from 'electron'
 import { AliasRepository } from '../database/repositories/alias-repository'
 import { CollectionRepository } from '../database/repositories/collection-repository'
 import { CreatorRepository } from '../database/repositories/creator-repository'
@@ -168,7 +168,8 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     const updates = new UpdateService(logger, {
       currentVersion: app.getVersion(), ...updateEnvironment,
       isDevelopmentMock: Boolean(developmentUpdaterMock),
-      criticalOperations, updater: developmentUpdaterMock ?? options.updater
+      criticalOperations, updater: developmentUpdaterMock ?? options.updater,
+      isOnline: () => net.isOnline()
     })
     updates.configure('stable')
 

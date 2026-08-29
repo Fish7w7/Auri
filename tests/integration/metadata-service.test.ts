@@ -50,7 +50,10 @@ describe('MetadataService', () => {
 
   it('deduplica busca, importa tudo atomicamente e detecta ref exata', async () => {
     const fixture = setup()
-    const [first, second] = await Promise.all([fixture.service.search({ query: 'Nano' }), fixture.service.search({ query: 'Nano' })])
+    const [first, second] = await Promise.all([
+      fixture.service.search({ query: 'Nano', requestId: 'dialog-search' }),
+      fixture.service.search({ query: 'Nano', requestId: 'dialog-search' })
+    ])
     expect(first).toEqual(second); expect(fixture.searches()).toBe(1)
     const details = await fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa', userStatus: 'reading', chapter: '12' })
     expect(details.externalRefs[0]).toMatchObject({ provider: 'anilist', externalId: '42', canonicalUrl: base.canonicalUrl })
@@ -59,6 +62,52 @@ describe('MetadataService', () => {
     expect(details.creators[0].source).toBe('anilist')
     await expect(fixture.service.review({ provider: 'anilist', externalId: '42' })).resolves.toMatchObject({ duplicate: { kind: 'active', work: { id: details.work.id } } })
     await expect(fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa', userStatus: 'reading' })).rejects.toMatchObject({ code: 'METADATA_DUPLICATE_ACTIVE' })
+    fixture.db.close()
+  })
+
+  it('reutiliza importação simultânea e executa uma única transação', async () => {
+    let calls = 0
+    const resolvers: Array<(metadata: MetadataWork) => void> = []
+    const provider: MetadataProvider = {
+      id: 'anilist', search: async () => [],
+      getById: async () => { calls += 1; return new Promise((resolve) => resolvers.push(resolve)) }
+    }
+    const fixture = setup(base, provider)
+    const request = { provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa' as const, userStatus: 'reading' as const, requestId: 'add-work:import' }
+    const first = fixture.service.import(request)
+    const duplicate = fixture.service.import(request)
+    expect(calls).toBe(1)
+    for (const resolve of resolvers) resolve(base)
+    const [firstResult, duplicateResult] = await Promise.all([first, duplicate])
+    expect(duplicateResult.work.id).toBe(firstResult.work.id)
+    expect(fixture.repositories.externalRefs.findByProviderExternalId('anilist', '42')?.workId).toBe(firstResult.work.id)
+    fixture.db.close()
+  })
+
+  it('deduplica refresh por obra e libera a chave após concluir', async () => {
+    let calls = 0
+    let holdRefresh = false
+    const resolvers: Array<(metadata: MetadataWork) => void> = []
+    const provider: MetadataProvider = {
+      id: 'anilist', search: async () => [],
+      getById: async () => {
+        calls += 1
+        if (holdRefresh) return new Promise((resolve) => resolvers.push(resolve))
+        return base
+      }
+    }
+    const fixture = setup(base, provider)
+    const imported = await fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa', userStatus: 'reading' })
+    holdRefresh = true
+    const first = fixture.service.previewRefresh({ workId: imported.work.id, requestId: `metadata-refresh:preview:${imported.work.id}` })
+    const duplicate = fixture.service.previewRefresh({ workId: imported.work.id, requestId: `metadata-refresh:preview:${imported.work.id}` })
+    expect(calls).toBe(2)
+    for (const resolve of resolvers.splice(0)) resolve(base)
+    await Promise.all([first, duplicate])
+
+    holdRefresh = false
+    await fixture.service.previewRefresh({ workId: imported.work.id })
+    expect(calls).toBe(3)
     fixture.db.close()
   })
 

@@ -9,7 +9,7 @@ export class AniListClient {
   constructor(private readonly transport: GraphqlTransport, private readonly now: () => number = Date.now) {}
 
   async query(query: string, variables: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
-    if (!this.transport.isOnline()) throw new DomainError('METADATA_PROVIDER_UNAVAILABLE', 'A pesquisa online não está disponível offline.')
+    if (!this.transport.isOnline()) throw new DomainError('METADATA_PROVIDER_UNAVAILABLE', 'Sem conexão com a internet. Verifique sua conexão e tente novamente.', { offline: true })
     if (this.now() < this.blockedUntil) throw new DomainError('METADATA_RATE_LIMITED', 'O AniList está limitando novas consultas temporariamente.')
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined

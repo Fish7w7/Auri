@@ -17,7 +17,7 @@ export class ElectronCoverClient implements CoverDownloadClient {
 
   isOnline(): boolean { return this.online() }
   async download(url: string, { maxBytes, timeoutMs, maxRedirects }: { maxBytes: number; timeoutMs: number; maxRedirects: number }): Promise<Buffer> {
-    if (!this.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa não está disponível offline.', { transient: true })
+    if (!this.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'Sem conexão com a internet. Verifique sua conexão e tente novamente.', { offline: true })
     const controller = new AbortController()
     const deadline = Date.now() + timeoutMs
     const timeoutError = () => new DomainError('COVER_TIMEOUT', 'O download da capa excedeu o tempo limite.')

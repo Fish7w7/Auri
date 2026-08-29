@@ -16,6 +16,9 @@ export class SafePageFetcher {
   ) {}
 
   async fetch(rawUrl: string): Promise<FetchedPage> {
+    if (this.transport.isOnline?.() === false) {
+      throw new DomainError('URL_FETCH_FAILED', 'Sem conexão com a internet. Verifique sua conexão e tente novamente.', { offline: true })
+    }
     const deadline = Date.now() + this.limits.timeoutMs
     const timeoutError = () => new DomainError('URL_FETCH_TIMEOUT', 'A página demorou demais para responder.')
     const requested = await withAbsoluteDeadline(assertPublicHttpUrl(rawUrl, this.resolver), deadline, timeoutError)

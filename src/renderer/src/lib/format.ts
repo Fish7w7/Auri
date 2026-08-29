@@ -47,10 +47,12 @@ export function formatRelativeDate(value: string | null, now = new Date()): stri
 }
 
 export function mapDomainError(error: unknown): string {
-  const code =
+  const shape =
     typeof error === 'object' && error !== null && 'error' in error
-      ? (error as { error?: { code?: string } }).error?.code
+      ? (error as { error?: { code?: string; details?: { offline?: boolean } } }).error
       : undefined
+  if (shape?.details?.offline === true) return 'Sem conexão com a internet. Verifique sua conexão e tente novamente.'
+  const code = shape?.code
   switch (code) {
     case 'WORK_NOT_FOUND':
       return 'Esta obra não foi encontrada.'
