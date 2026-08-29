@@ -21,7 +21,7 @@ function createService(scenario: DevelopmentUpdaterScenario) {
 describe('mock de desenvolvimento do updater', () => {
   it('só pode ser ativado explicitamente fora do aplicativo empacotado', () => {
     expect(shouldUseDevelopmentUpdaterMock(false, '1')).toBe(true)
-    expect(shouldUseDevelopmentUpdaterMock(false, undefined)).toBe(false)
+    expect(shouldUseDevelopmentUpdaterMock(false, '')).toBe(false)
     expect(shouldUseDevelopmentUpdaterMock(true, '1')).toBe(false)
   })
 

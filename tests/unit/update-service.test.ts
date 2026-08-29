@@ -53,6 +53,44 @@ describe('UpdateService', () => {
     expect(service.getState()).toMatchObject({ status: 'ready', availableVersion: '1.7.1', progressPercent: 100 })
   })
 
+  it('permite repetir diretamente um download que falhou', async () => {
+    const updater = createUpdater()
+    const service = new UpdateService(new TestLogger(), { currentVersion: '1.8.0', isPackaged: true, isConfigured: true, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter })
+    updater.emit('update-available', { version: '1.9.0', releaseNotes: 'Offline e resiliência' })
+    updater.adapter.downloadUpdate = vi.fn()
+      .mockRejectedValueOnce(new Error('network'))
+      .mockImplementationOnce(async () => { updater.emit('update-downloaded', { version: '1.9.0', releaseNotes: 'Offline e resiliência' }) })
+
+    await expect(service.downloadUpdate()).rejects.toMatchObject({ code: 'UPDATE_DOWNLOAD_FAILED' })
+    expect(service.getState()).toMatchObject({ status: 'error', errorContext: 'download', availableVersion: '1.9.0' })
+    await expect(service.downloadUpdate()).resolves.toMatchObject({ status: 'ready', availableVersion: '1.9.0' })
+    expect(updater.adapter.downloadUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it('encerra check preso, ignora resposta antiga e permite nova verificação', async () => {
+    vi.useFakeTimers()
+    try {
+      const updater = createUpdater()
+      let finishOld!: () => void
+      updater.adapter.checkForUpdates = vi.fn()
+        .mockImplementationOnce(() => new Promise<void>((resolve) => { finishOld = resolve }))
+        .mockImplementationOnce(async () => { updater.emit('update-available', { version: '1.9.0', releaseNotes: 'Recuperada' }) })
+      const service = new UpdateService(new TestLogger(), { currentVersion: '1.8.0', isPackaged: true, isConfigured: true, criticalOperations: new CriticalOperationCoordinator(), updater: updater.adapter, checkTimeoutMs: 20 })
+
+      const expired = service.checkForUpdates()
+      const expiredExpectation = expect(expired).rejects.toMatchObject({ code: 'UPDATE_CHECK_FAILED' })
+      await vi.advanceTimersByTimeAsync(20)
+      await expiredExpectation
+      updater.emit('update-available', { version: '9.9.9', releaseNotes: 'Resposta antiga' })
+      expect(service.getState()).toMatchObject({ status: 'error', availableVersion: null, errorContext: 'check' })
+
+      finishOld()
+      await Promise.resolve()
+      await expect(service.checkForUpdates()).resolves.toMatchObject({ status: 'available', availableVersion: '1.9.0' })
+      expect(updater.adapter.checkForUpdates).toHaveBeenCalledTimes(2)
+    } finally { vi.useRealTimers() }
+  })
+
   it('bloqueia instalação durante operação crítica e com edição suja', async () => {
     const updater = createUpdater()
     const critical = new CriticalOperationCoordinator()

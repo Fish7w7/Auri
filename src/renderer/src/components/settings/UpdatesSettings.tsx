@@ -25,7 +25,7 @@ export function UpdatesSettings() {
     try {
       setState(await operation())
     } catch {
-      setState((current) => current ? { ...current, status: 'error', errorMessage } : current)
+      setState((current) => current ? { ...current, status: 'error', errorMessage, errorContext: pendingStatus === 'downloading' ? 'download' : 'check' } : current)
       load()
     } finally {
       setBusy(false)
@@ -75,7 +75,8 @@ export function UpdatesSettings() {
           {state.status === 'up_to_date' && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Verificar novamente</Button>}
           {state.status === 'available' && <Button variant="primary" disabled={busy} onClick={() => void run(() => window.auri.updates.download(), 'downloading', 'Não foi possível baixar a atualização.')}>Baixar atualização</Button>}
           {state.status === 'ready' && <Button variant="primary" disabled={busy} onClick={() => void install()}>Reiniciar e instalar</Button>}
-          {state.status === 'error' && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Tentar novamente</Button>}
+          {state.status === 'error' && state.errorContext === 'download' && state.availableVersion && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.download(), 'downloading', 'Não foi possível baixar a atualização.')}>Tentar baixar novamente</Button>}
+          {state.status === 'error' && state.errorContext !== 'download' && <Button disabled={busy} onClick={() => void run(() => window.auri.updates.check(), 'checking', 'Não foi possível verificar atualizações.')}>Tentar novamente</Button>}
         </div>}
       </div>
     </section>

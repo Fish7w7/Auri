@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { AniListClient } from '@main/services/metadata/providers/anilist/anilist-client'
+import { describe, expect, it, vi } from 'vitest'
+import { ANILIST_REQUEST_TIMEOUT_MS, AniListClient } from '@main/services/metadata/providers/anilist/anilist-client'
 import { mapAniListDetails, mapAniListMediaType, sanitizeExternalDescription } from '@main/services/metadata/providers/anilist/mapper'
 import type { GraphqlTransport } from '@main/services/metadata/types'
 import type { AniListDetailedMedia } from '@main/services/metadata/providers/anilist/schemas'
@@ -68,5 +68,41 @@ describe('AniListClient', () => {
   })
   it('rejeita JSON sem data', async () => {
     await expect(new AniListClient(transport({ post: async () => ({ status: 200, headers: {}, json: async () => ({}) }) })).query('query', {})).rejects.toMatchObject({ code: 'METADATA_INVALID_RESPONSE' })
+  })
+  it('aborta ao atingir o prazo absoluto e permite uma tentativa posterior', async () => {
+    vi.useFakeTimers()
+    try {
+      let calls = 0
+      let firstSignal: AbortSignal | undefined
+      const client = new AniListClient(transport({
+        post: async (_url, _body, signal) => {
+          calls += 1
+          if (calls === 1) {
+            firstSignal = signal
+            return new Promise(() => undefined)
+          }
+          return { status: 200, headers: {}, json: async () => ({ data: { recovered: true } }) }
+        }
+      }))
+      const timedOut = client.query('query', {})
+      const timedOutExpectation = expect(timedOut).rejects.toMatchObject({ code: 'METADATA_TIMEOUT' })
+      await vi.advanceTimersByTimeAsync(ANILIST_REQUEST_TIMEOUT_MS)
+      await timedOutExpectation
+      expect(firstSignal?.aborted).toBe(true)
+      await expect(client.query('query', {})).resolves.toEqual({ recovered: true })
+      expect(calls).toBe(2)
+    } finally { vi.useRealTimers() }
+  })
+  it('aborta cancelamento esperado com erro de domínio amigável', async () => {
+    const controller = new AbortController()
+    let transportSignal: AbortSignal | undefined
+    const client = new AniListClient(transport({ post: async (_url, _body, signal) => {
+      transportSignal = signal
+      return new Promise(() => undefined)
+    } }))
+    const pending = client.query('query', {}, controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'METADATA_REQUEST_CANCELLED' })
+    expect(transportSignal?.aborted).toBe(true)
   })
 })

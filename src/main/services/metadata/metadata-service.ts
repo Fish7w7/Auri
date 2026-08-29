@@ -12,7 +12,7 @@ import type {
   WorkDetails
 } from '@shared/contracts'
 import { DomainError } from '@shared/errors/domain-error'
-import { metadataImportSchema, metadataRefreshSchema, metadataReviewSchema, metadataSearchSchema } from '@shared/schemas/domain'
+import { metadataCancelSchema, metadataImportSchema, metadataRefreshSchema, metadataReviewSchema, metadataSearchSchema } from '@shared/schemas/domain'
 import type { Work } from '@shared/types/domain'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import type { AliasRepository } from '../../database/repositories/alias-repository'
@@ -47,6 +47,7 @@ export class MetadataService {
   private readonly searchCache = new Map<string, MetadataSearchResult[]>()
   private readonly searchInflight = new Map<string, Promise<MetadataSearchResult[]>>()
   private readonly detailsCache = new Map<string, MetadataWork>()
+  private readonly requests = new Map<string, AbortController>()
 
   constructor(
     private readonly db: Database.Database,
@@ -66,27 +67,32 @@ export class MetadataService {
     const key = `${provider.id}:${normalizeSearchText(request.query)}`
     const cached = this.searchCache.get(key)
     if (cached) return cached
-    const active = this.searchInflight.get(key)
-    if (active) return active
-    const promise = provider.search(request.query).then((results) => {
-      const limited = results.slice(0, 10)
-      this.searchCache.set(key, limited)
-      return limited
+    return this.runRequest(request.requestId, async (signal) => {
+      const active = request.requestId ? undefined : this.searchInflight.get(key)
+      if (active) return active
+      const promise = provider.search(request.query, signal).then((results) => {
+        const limited = results.slice(0, 10)
+        this.searchCache.set(key, limited)
+        return limited
+      })
+      if (!request.requestId) this.searchInflight.set(key, promise)
+      try { return await promise } finally { if (!request.requestId) this.searchInflight.delete(key) }
     })
-    this.searchInflight.set(key, promise)
-    try { return await promise } finally { this.searchInflight.delete(key) }
   }
 
   async review(input: unknown): Promise<MetadataReview> {
     const request = parseDomainInput(metadataReviewSchema, input)
-    const metadata = await this.fetchDetails(request.provider, request.externalId)
-    return { metadata, duplicate: this.findDuplicate(metadata) }
+    return this.runRequest(request.requestId, async (signal) => {
+      const metadata = await this.fetchDetails(request.provider, request.externalId, false, signal)
+      return { metadata, duplicate: this.findDuplicate(metadata) }
+    })
   }
 
   async import(input: unknown): Promise<WorkDetails> {
-    const request = parseDomainInput(metadataImportSchema, input) as ImportMetadataRequest
-    const metadata = await this.fetchDetails(request.provider, request.externalId)
-    const duplicate = this.findDuplicate(metadata)
+    const request = parseDomainInput(metadataImportSchema, input) as ImportMetadataRequest & { requestId?: string }
+    return this.runRequest(request.requestId, async (signal) => {
+      const metadata = await this.fetchDetails(request.provider, request.externalId, false, signal)
+      const duplicate = this.findDuplicate(metadata)
     if (duplicate?.kind === 'active') this.throwDuplicate('METADATA_DUPLICATE_ACTIVE', duplicate)
     if (duplicate?.kind === 'trash') this.throwDuplicate('METADATA_DUPLICATE_TRASH', duplicate)
     if (duplicate?.kind === 'probable' && !request.allowProbableDuplicate) this.throwDuplicate('METADATA_PROBABLE_DUPLICATE', duplicate)
@@ -116,24 +122,28 @@ export class MetadataService {
       this.repositories.externalRefs.update({ ...reference, canonicalUrl: metadata.canonicalUrl, lastSyncedAt: now })
       return this.details.getDetails({ workId: work.id })
     })
-    return operation.immediate()
+      return operation.immediate()
+    })
   }
 
   async previewRefresh(input: unknown): Promise<MetadataRefreshPreview> {
-    const { workId } = parseDomainInput(metadataRefreshSchema, input)
+    const { workId, requestId } = parseDomainInput(metadataRefreshSchema, input)
     const current = this.requireWorkDetails(workId)
     const reference = this.requireSupportedReference(current)
-    const metadata = await this.fetchDetails(reference.provider, reference.externalId, true)
-    return { workId, provider: reference.provider, externalId: reference.externalId, changes: this.compare(current, metadata), externalRef: reference }
+    return this.runRequest(requestId, async (signal) => {
+      const metadata = await this.fetchDetails(reference.provider, reference.externalId, true, signal)
+      return { workId, provider: reference.provider, externalId: reference.externalId, changes: this.compare(current, metadata), externalRef: reference }
+    })
   }
 
   async applyRefresh(input: unknown): Promise<MetadataApplyResult> {
-    const { workId } = parseDomainInput(metadataRefreshSchema, input)
+    const { workId, requestId } = parseDomainInput(metadataRefreshSchema, input)
     const current = this.requireWorkDetails(workId)
     const reference = this.requireSupportedReference(current)
-    const metadata = await this.fetchDetails(reference.provider, reference.externalId, true)
-    const protectedFields = this.protectedFields(current)
-    const warnings: string[] = []
+    return this.runRequest(requestId, async (signal) => {
+      const metadata = await this.fetchDetails(reference.provider, reference.externalId, true, signal)
+      const protectedFields = this.protectedFields(current)
+      const warnings: string[] = []
     let prepared: PreparedCover | null = null
     if (metadata.coverUrl && metadata.coverUrl !== current.work.cover.sourceUrl && !protectedFields.has('cover') && current.work.cover.type !== 'custom') {
       try { prepared = await this.covers.prepareRemoteCover(workId, metadata.coverUrl) }
@@ -167,7 +177,13 @@ export class MetadataService {
       try { this.covers.commitPrepared(prepared) }
       catch { warnings.push('Os dados foram atualizados, mas a nova capa não pôde ser gravada no cache.') }
     }
-    return { details: this.details.getDetails({ workId }), warnings }
+      return { details: this.details.getDetails({ workId }), warnings }
+    })
+  }
+
+  cancel(input: unknown): void {
+    const { requestId } = parseDomainInput(metadataCancelSchema, input)
+    this.requests.get(requestId)?.abort()
   }
 
   private compare(current: WorkDetails, metadata: MetadataWork): MetadataRefreshChange[] {
@@ -216,14 +232,23 @@ export class MetadataService {
     }
   }
 
-  private async fetchDetails(providerId: string, externalId: string, refresh = false): Promise<MetadataWork> {
+  private async fetchDetails(providerId: string, externalId: string, refresh = false, signal?: AbortSignal): Promise<MetadataWork> {
     const provider = this.requireProvider(providerId)
     const key = `${providerId}:${externalId}`
     if (!refresh && this.detailsCache.has(key)) return this.detailsCache.get(key)!
-    const metadata = await provider.getById(externalId)
+    const metadata = await provider.getById(externalId, signal)
     if (!metadata) throw new DomainError('METADATA_NOT_FOUND', 'A obra não foi encontrada no provedor.')
     this.detailsCache.set(key, metadata)
     return metadata
+  }
+
+  private async runRequest<T>(requestId: string | undefined, operation: (signal?: AbortSignal) => Promise<T>): Promise<T> {
+    if (!requestId) return operation()
+    this.requests.get(requestId)?.abort()
+    const controller = new AbortController()
+    this.requests.set(requestId, controller)
+    try { return await operation(controller.signal) }
+    finally { if (this.requests.get(requestId) === controller) this.requests.delete(requestId) }
   }
 
   private findDuplicate(metadata: MetadataWork): MetadataDuplicate | null {

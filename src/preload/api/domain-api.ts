@@ -102,7 +102,8 @@ export const domainApi: Omit<AuriApi, 'system' | 'settings'> = {
     review: (request) => invoke(IPC_CHANNELS.metadata.review, request),
     import: (request) => invoke(IPC_CHANNELS.metadata.import, request),
     previewRefresh: (request) => invoke(IPC_CHANNELS.metadata.previewRefresh, request),
-    applyRefresh: (request) => invoke(IPC_CHANNELS.metadata.applyRefresh, request)
+    applyRefresh: (request) => invoke(IPC_CHANNELS.metadata.applyRefresh, request),
+    cancel: (request) => invoke(IPC_CHANNELS.metadata.cancel, request)
   },
   urlMetadata: {
     analyze: (request) => invoke(IPC_CHANNELS.urlMetadata.analyze, request),

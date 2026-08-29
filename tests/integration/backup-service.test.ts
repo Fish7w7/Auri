@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DataPaths } from '@shared/contracts'
+import { SUPPORTED_SCHEMA_VERSION } from '@main/database/migrations'
 import { BackupService } from '@main/services/backup/backup-service'
 import { createZip, extractZip } from '@main/services/backup/zip-archive'
 import { SettingsService } from '@main/services/settings-service'
@@ -22,7 +23,7 @@ function setup(now: () => Date = () => new Date('2026-08-17T12:00:00.000Z')) {
   const fixture = createDomainFixture(paths.database)
   databases.push(fixture.db)
   const settings = new SettingsService(paths.settings, new TestLogger())
-  const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 3, { now })
+  const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', SUPPORTED_SCHEMA_VERSION, { now })
   return { root, paths, fixture, settings, service }
 }
 
@@ -52,7 +53,7 @@ describe('BackupService', () => {
     const backup = await service.createBackup()
     expect(backup.fileName).toMatch(/^auri-manual-.+\.auri-backup$/)
     const preview = await service.previewBackup(backup.path)
-    expect(preview).toMatchObject({ schemaVersion: 3, workCount: 1, includesSettings: true, assetCount: 1 })
+    expect(preview).toMatchObject({ schemaVersion: SUPPORTED_SCHEMA_VERSION, workCount: 1, includesSettings: true, assetCount: 1 })
     const extracted = mkdtempSync(join(tmpdir(), 'auri-extract-')); roots.push(extracted)
     const entries = await extractZip(backup.path, extracted)
     expect(entries).toContain('checksums.json')
@@ -83,7 +84,13 @@ describe('BackupService', () => {
       manifest.format = 'lumi-backup'
       manifest.schemaVersion = 1
       const legacyDatabase = new Database(join(stage, 'library.db'))
-      legacyDatabase.exec('DROP INDEX idx_works_home_visibility; ALTER TABLE works DROP COLUMN hidden_from_home; DELETE FROM schema_migrations WHERE version = 2')
+      legacyDatabase.exec(`
+        ALTER TABLE sources DROP COLUMN normalized_name;
+        ALTER TABLE sources DROP COLUMN normalized_domain;
+        DROP INDEX idx_works_home_visibility;
+        ALTER TABLE works DROP COLUMN hidden_from_home;
+        DELETE FROM schema_migrations WHERE version > 1;
+      `)
       legacyDatabase.close()
       writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
       updateChecksum(stage, 'library.db')
@@ -95,7 +102,7 @@ describe('BackupService', () => {
     await expect(service.previewBackup(legacy)).resolves.toMatchObject({ workCount: 1, schemaVersion: 1 })
 
     let restarted = false
-    const restore = new BackupService(fixture.db, paths, settings, new TestLogger(), '1.2.0', 2, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
+    const restore = new BackupService(fixture.db, paths, settings, new TestLogger(), '1.2.0', SUPPORTED_SCHEMA_VERSION, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
     await restore.restoreBackup(legacy)
     const restored = new Database(paths.database, { readonly: true })
     try {
@@ -164,7 +171,7 @@ describe('BackupService', () => {
     settings.updateSettings({ cardSize: 'large' })
     writeFileSync(join(paths.assets, 'custom.webp'), 'custom original')
     let restarted = false
-    const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 2, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
+    const service = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', SUPPORTED_SCHEMA_VERSION, { closeDatabase: () => fixture.db.close(), restartApplication: () => { restarted = true } })
     const backup = await service.createBackup()
     createMinimalWork(fixture, 'Depois')
     settings.updateSettings({ cardSize: 'small' })

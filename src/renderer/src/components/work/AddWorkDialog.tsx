@@ -16,6 +16,10 @@ type SearchState = 'idle' | 'loading' | 'ready' | 'error'
 type ImportForm = { title: string; mediaType: MediaType; userStatus: UserStatus; chapter: string; sourceName: string; sourceUrl: string; lastReadNote: string; allowProbable: boolean }
 type UrlDraft = { title: string; sourceName: string; sourceUrl: string; description: string; coverUrl: string }
 
+const ADD_WORK_SEARCH_REQUEST = 'add-work:search'
+const ADD_WORK_REVIEW_REQUEST = 'add-work:review'
+const ADD_WORK_IMPORT_REQUEST = 'add-work:import'
+
 export function isImportReviewDirty(current: ImportForm, initial: ImportForm | null): boolean {
   return initial !== null && JSON.stringify(current) !== JSON.stringify(initial)
 }
@@ -77,6 +81,8 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   const [urlAnalysis, setUrlAnalysis] = useState<UrlMetadataAnalysis | null>(null)
   const [urlDraft, setUrlDraft] = useState<UrlDraft | null>(null)
   const requestId = useRef(0)
+  const metadataFlowId = useRef(0)
+  const urlRequestId = useRef(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
 
@@ -87,14 +93,23 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     if (trimmed.length < 3) { setSearchState('idle'); setResults([]); return }
     const id = ++requestId.current
     setSearchState('loading'); setSearchError('')
-    void window.auri.metadata.search({ provider: 'anilist', query: trimmed }).then((items) => {
+    void window.auri.metadata.search({ provider: 'anilist', query: trimmed, requestId: ADD_WORK_SEARCH_REQUEST }).then((items) => {
       if (id !== requestId.current) return
       setResults(items); setSearchState('ready')
     }).catch((error) => {
       if (id !== requestId.current) return
-      setSearchError(errorCode(error) === 'METADATA_RATE_LIMITED' ? 'O AniList limitou as consultas. Aguarde um pouco e tente novamente.' : 'A busca online não está disponível agora. Você ainda pode adicionar a obra manualmente.')
+      const code = errorCode(error)
+      setSearchError(code === 'METADATA_RATE_LIMITED'
+        ? 'O AniList limitou as consultas. Aguarde um pouco e tente novamente.'
+        : code === 'METADATA_TIMEOUT'
+          ? 'Não foi possível obter uma resposta do AniList a tempo. Tente novamente.'
+          : 'A busca online não está disponível agora. Você ainda pode adicionar a obra manualmente.')
       setSearchState('error')
     })
+    return () => {
+      requestId.current += 1
+      void window.auri.metadata.cancel({ requestId: ADD_WORK_SEARCH_REQUEST })
+    }
   }, [debouncedQuery, mode, open])
 
   const quickDirty = mode === 'quick' && (Boolean(quick.title.trim()) || Boolean(quick.chapter.trim()) || quick.status !== 'reading')
@@ -103,15 +118,25 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
     ((mode === 'url' || mode === 'urlPreview') && Boolean(urlInput.trim())) || reviewDirty
   useEffect(() => { void window.auri.updates.setDirty({ scope: 'add-work', dirty: open && dirty }) }, [dirty, open])
   useEffect(() => () => { void window.auri.updates.setDirty({ scope: 'add-work', dirty: false }) }, [])
-  const reset = () => { setMode('choose'); setQuick({ title: '', chapter: '', status: 'reading' }); setManual(EMPTY_WORK_FORM); setQuery(''); setResults([]); setReview(null); setInitialImportForm(null); setUrlInput(''); setUrlError(''); setUrlAnalysis(null); setUrlDraft(null); setConfirmClose(false) }
+  const invalidatePending = () => {
+    requestId.current += 1
+    metadataFlowId.current += 1
+    urlRequestId.current += 1
+    for (const pendingId of [ADD_WORK_SEARCH_REQUEST, ADD_WORK_REVIEW_REQUEST, ADD_WORK_IMPORT_REQUEST]) {
+      void window.auri.metadata.cancel({ requestId: pendingId })
+    }
+  }
+  const reset = () => { invalidatePending(); setBusy(false); setMode('choose'); setQuick({ title: '', chapter: '', status: 'reading' }); setManual(EMPTY_WORK_FORM); setQuery(''); setResults([]); setReview(null); setInitialImportForm(null); setUrlInput(''); setUrlError(''); setUrlAnalysis(null); setUrlDraft(null); setConfirmClose(false) }
   const close = () => { reset(); onClose() }
   const requestClose = () => { if (dirty) setConfirmClose(true); else close() }
 
   async function analyzeUrl() {
     if (!urlInput.trim()) return
+    const id = ++urlRequestId.current
     setBusy(true); setUrlError('')
     try {
-      const analysis = await window.auri.urlMetadata.analyze({ url: urlInput })
+      const analysis = await window.auri.urlMetadata.analyze({ url: urlInput.trim() })
+      if (id !== urlRequestId.current) return
       setUrlAnalysis(analysis)
       setUrlDraft({
         title: analysis.metadata.title ?? '',
@@ -122,8 +147,8 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
       })
       setMode('urlPreview')
     } catch (error) {
-      setUrlError(mapDomainError(error))
-    } finally { setBusy(false) }
+      if (id === urlRequestId.current) setUrlError(mapDomainError(error))
+    } finally { if (id === urlRequestId.current) setBusy(false) }
   }
 
   async function refreshUrlDuplicate(): Promise<UrlMetadataDuplicate | null> {
@@ -174,25 +199,29 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   }
 
   async function selectResult(result: MetadataSearchResult) {
+    const id = ++metadataFlowId.current
     setBusy(true)
     try {
-      const next = await window.auri.metadata.review({ provider: result.provider, externalId: result.externalId })
+      const next = await window.auri.metadata.review({ provider: result.provider, externalId: result.externalId, requestId: ADD_WORK_REVIEW_REQUEST })
+      if (id !== metadataFlowId.current) return
       setReview(next)
       const nextForm: ImportForm = { title: next.metadata.title, mediaType: next.metadata.mediaType ?? 'other', userStatus: 'want_to_read', chapter: '', sourceName: urlDraft?.sourceName ?? '', sourceUrl: urlDraft?.sourceUrl ?? '', lastReadNote: '', allowProbable: false }
       setImportForm(nextForm)
       setInitialImportForm(nextForm)
       setMode('review')
-    } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
+    } catch (error) { if (id === metadataFlowId.current) showToast({ kind: 'error', message: mapDomainError(error) }) } finally { if (id === metadataFlowId.current) setBusy(false) }
   }
 
   async function importMetadata() {
     if (!review) return
+    const id = ++metadataFlowId.current
     setBusy(true)
     try {
-      const details = await window.auri.metadata.import({ provider: review.metadata.provider, externalId: review.metadata.externalId, title: importForm.title, mediaType: importForm.mediaType, userStatus: importForm.userStatus, chapter: importForm.chapter.trim() || null, lastReadNote: importForm.lastReadNote.trim() || null, allowProbableDuplicate: importForm.allowProbable, source: importForm.sourceUrl.trim() ? { name: importForm.sourceName.trim() || null, seriesUrl: importForm.sourceUrl.trim(), isPreferred: true } : undefined })
+      const details = await window.auri.metadata.import({ provider: review.metadata.provider, externalId: review.metadata.externalId, title: importForm.title, mediaType: importForm.mediaType, userStatus: importForm.userStatus, chapter: importForm.chapter.trim() || null, lastReadNote: importForm.lastReadNote.trim() || null, allowProbableDuplicate: importForm.allowProbable, source: importForm.sourceUrl.trim() ? { name: importForm.sourceName.trim() || null, seriesUrl: importForm.sourceUrl.trim(), isPreferred: true } : undefined, requestId: ADD_WORK_IMPORT_REQUEST })
+      if (id !== metadataFlowId.current) return
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${details.work.title} foi importada.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${details.work.id}`) } })
-    } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
+    } catch (error) { if (id === metadataFlowId.current) showToast({ kind: 'error', message: mapDomainError(error) }) } finally { if (id === metadataFlowId.current) setBusy(false) }
   }
 
   async function submitQuick() {
@@ -224,8 +253,8 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   const noResults = mode === 'search' && searchState === 'ready' && results.length === 0
   const retryTitle = () => { setQuery(''); setResults([]); setSearchState('idle'); window.setTimeout(() => searchInputRef.current?.focus(), 0) }
   const footer = mode === 'choose' ? <Button onClick={close}>Cancelar</Button>
-    : mode === 'url' ? <><Button onClick={() => setMode('choose')}>Voltar</Button><Button variant="primary" disabled={busy || !urlInput.trim()} onClick={() => void analyzeUrl()}>{busy ? 'Analisando…' : 'Analisar URL'}</Button></>
-      : mode === 'urlPreview' ? <Button onClick={() => setMode('url')}>Voltar</Button>
+    : mode === 'url' ? <><Button onClick={() => { urlRequestId.current += 1; setBusy(false); setMode('choose') }}>Voltar</Button><Button variant="primary" disabled={busy || !urlInput.trim()} onClick={() => void analyzeUrl()}>{busy ? 'Analisando…' : 'Analisar URL'}</Button></>
+      : mode === 'urlPreview' ? <Button onClick={() => { urlRequestId.current += 1; setBusy(false); setMode('url') }}>Voltar</Button>
         : mode === 'search' ? <><Button onClick={() => setMode(urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button>{!noResults && <Button onClick={() => urlDraft ? void continueUrlManually() : setMode('manual')}>Adicionar manualmente</Button>}</>
           : mode === 'review' ? <><Button onClick={() => setMode('search')}>Voltar</Button>{!review?.duplicate || review.duplicate.kind === 'probable' ? <Button variant="primary" disabled={busy || !importForm.title.trim() || (review?.duplicate?.kind === 'probable' && !importForm.allowProbable)} onClick={() => void importMetadata()}>{busy ? 'Importando…' : `Importar para o ${APP_BRAND.name}`}</Button> : null}</>
             : <><Button onClick={() => setMode(mode === 'manual' && urlDraft ? 'urlPreview' : 'choose')}>Voltar</Button><Button variant="primary" disabled={busy || (mode === 'quick' ? !quick.title.trim() : !isManualWorkValid(manual))} onClick={() => void (mode === 'quick' ? submitQuick() : submitManual())}>{busy ? 'Adicionando…' : mode === 'quick' ? 'Adicionar' : 'Adicionar obra'}</Button></>
@@ -233,7 +262,7 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   return <>
     <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : mode === 'manual' ? 'Adicionar obra manualmente' : `Adicionar ao ${APP_BRAND.name}`} description={mode === 'choose' ? 'Escolha quanto deseja informar agora. Você poderá editar tudo depois.' : undefined} onClose={requestClose} footer={footer}>
       {mode === 'choose' && <div className="add-mode-grid"><button onClick={() => setMode('url')}><strong>Adicionar por URL</strong><span>Cole a página da obra para detectar título, site, descrição e capa.</span></button><button onClick={() => setMode('search')}><strong>Buscar metadados</strong><span>Pesquise no AniList e revise tudo antes de importar.</span></button><button onClick={() => setMode('quick')}><strong>Adicionar rapidamente</strong><span>Título, progresso e status. Leva poucos segundos.</span></button><button onClick={() => setMode('manual')}><strong>Adicionar manualmente</strong><span>Identificação, organização, fonte, notas e capa.</span></button></div>}
-      {mode === 'url' && <form className="url-analyze-form" onSubmit={(event) => { event.preventDefault(); void analyzeUrl() }}><label className="field"><span>URL da página da obra</span><input type="url" autoFocus value={urlInput} onChange={(event) => { setUrlInput(event.target.value); setUrlError('') }} placeholder="https://…" /></label><p className="metadata-hint">O {APP_BRAND.name} acessa somente páginas públicas HTTP/HTTPS e não adiciona nada sem sua confirmação.</p>{urlError && <div className="metadata-error" role="alert"><p>{urlError}</p><Button onClick={() => void analyzeUrl()}>Tentar novamente</Button></div>}</form>}
+      {mode === 'url' && <form className="url-analyze-form" onSubmit={(event) => { event.preventDefault(); void analyzeUrl() }}><label className="field"><span>URL da página da obra</span><input type="url" autoFocus value={urlInput} onChange={(event) => { urlRequestId.current += 1; setBusy(false); setUrlInput(event.target.value); setUrlError('') }} placeholder="https://…" /></label><p className="metadata-hint">O {APP_BRAND.name} acessa somente páginas públicas HTTP/HTTPS e não adiciona nada sem sua confirmação.</p>{urlError && <div className="metadata-error" role="alert"><p>{urlError}</p><Button onClick={() => void analyzeUrl()}>Tentar novamente</Button></div>}</form>}
       {mode === 'urlPreview' && urlAnalysis && urlDraft && <UrlMetadataPreview analysis={urlAnalysis} draft={urlDraft} setDraft={(next) => { setUrlDraft(next); if (urlAnalysis.duplicate?.kind === 'work') setUrlAnalysis({ ...urlAnalysis, duplicate: null }) }} busy={busy} onAniList={() => void searchUrlOnAniList()} onManual={() => void continueUrlManually()} onAddSource={(workId) => void addUrlAsSource(workId)} onOpen={(workId) => { close(); navigate(`/work/${workId}`) }} onCancel={close} />}
       {mode === 'search' && <div className="metadata-search"><label className="field"><span>Título da obra</span><input ref={searchInputRef} autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite pelo menos 3 caracteres" /></label><p className="metadata-search-tip"><strong>Não encontrou?</strong> O AniList pode não reconhecer o título em português usado pelo site onde você lê. Tente pesquisar pelo título em inglês, romanizado ou no idioma original.</p>{searchState === 'idle' && <p className="metadata-hint">Os resultados aparecem após uma pequena pausa na digitação.</p>}{searchState === 'loading' && <div className="metadata-skeleton" role="status"><i /><i /><i /></div>}{searchState === 'error' && <div className="metadata-error" role="alert"><p>{searchError}</p><Button onClick={() => { setSearchState('idle'); setQuery(`${query} `) }}>Tentar novamente</Button></div>}{noResults && <NoMetadataResults onRetry={retryTitle} onManual={() => urlDraft ? void continueUrlManually() : setMode('manual')} />}{searchState === 'ready' && results.length > 0 && <div className="metadata-results">{results.map((result) => <button key={`${result.provider}:${result.externalId}`} disabled={busy} onClick={() => void selectResult(result)}><span className="metadata-result__cover">{result.title.charAt(0)}</span><span><strong>{result.title}</strong><small>{[result.originalTitle, result.startDate?.slice(0, 4), result.mediaType ? MEDIA_TYPE_LABELS[result.mediaType] : null].filter(Boolean).join(' · ')}</small></span><b aria-hidden="true">›</b></button>)}</div>}</div>}
       {mode === 'review' && review && <MetadataReviewForm review={review} form={importForm} setForm={setImportForm} onClose={close} onCreated={onCreated} onAddSource={urlDraft ? addUrlAsSource : undefined} />}

@@ -39,13 +39,15 @@ export type MetadataFieldKey = 'title' | 'description' | 'media_type' | 'publica
 export interface MetadataRefreshChange { field: MetadataFieldKey; label: string; current: string | null; incoming: string | null; protected: boolean }
 export interface MetadataRefreshPreview { workId: string; provider: string; externalId: string; changes: MetadataRefreshChange[]; externalRef: ExternalRef }
 export interface MetadataApplyResult { details: WorkDetails; warnings: string[] }
+export interface MetadataRequestControl { requestId?: string }
 
 export interface MetadataApi {
   metadata: {
-    search(request: { provider?: string; query: string }): Promise<MetadataSearchResult[]>
-    review(request: { provider: string; externalId: string }): Promise<MetadataReview>
-    import(request: ImportMetadataRequest): Promise<WorkDetails>
-    previewRefresh(request: { workId: string }): Promise<MetadataRefreshPreview>
-    applyRefresh(request: { workId: string }): Promise<MetadataApplyResult>
+    search(request: { provider?: string; query: string } & MetadataRequestControl): Promise<MetadataSearchResult[]>
+    review(request: { provider: string; externalId: string } & MetadataRequestControl): Promise<MetadataReview>
+    import(request: ImportMetadataRequest & MetadataRequestControl): Promise<WorkDetails>
+    previewRefresh(request: { workId: string } & MetadataRequestControl): Promise<MetadataRefreshPreview>
+    applyRefresh(request: { workId: string } & MetadataRequestControl): Promise<MetadataApplyResult>
+    cancel(request: { requestId: string }): Promise<void>
   }
 }

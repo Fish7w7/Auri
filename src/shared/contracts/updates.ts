@@ -7,6 +7,7 @@ export interface UpdateState {
   progressPercent: number | null
   releaseNotes: string | null
   errorMessage: string | null
+  errorContext?: 'check' | 'download' | null
   lastCheckedAt: string | null
   isDevelopmentMock: boolean
   availability: 'ready' | 'development' | 'not_configured'

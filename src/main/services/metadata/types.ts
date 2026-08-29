@@ -2,8 +2,8 @@ import type { MetadataSearchResult, MetadataWork } from '@shared/contracts'
 
 export interface MetadataProvider {
   readonly id: string
-  search(query: string): Promise<MetadataSearchResult[]>
-  getById(externalId: string): Promise<MetadataWork | null>
+  search(query: string, signal?: AbortSignal): Promise<MetadataSearchResult[]>
+  getById(externalId: string, signal?: AbortSignal): Promise<MetadataWork | null>
 }
 
 export interface GraphqlHttpResponse {

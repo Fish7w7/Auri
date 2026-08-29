@@ -153,6 +153,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.metadata.import, (request) => services.metadata.import(request)],
     [IPC_CHANNELS.metadata.previewRefresh, (request) => services.metadata.previewRefresh(request)],
     [IPC_CHANNELS.metadata.applyRefresh, (request) => services.metadata.applyRefresh(request)],
+    [IPC_CHANNELS.metadata.cancel, (request) => services.metadata.cancel(request)],
     [IPC_CHANNELS.urlMetadata.analyze, (request) => services.urlMetadata.analyze(request)],
     [IPC_CHANNELS.urlMetadata.checkDuplicate, (request) => services.urlMetadata.checkDuplicate(request)],
     [IPC_CHANNELS.covers.get, (request) => services.covers.getCover(request)],

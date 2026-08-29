@@ -10,17 +10,19 @@ import type { AssetService } from '../asset-service'
 import { parseDomainInput } from '../service-utils'
 import type { CoverDownloadClient, PreparedCover } from './types'
 
-export const COVER_LIMITS = { maxBytes: 10 * 1024 * 1024, timeoutMs: 15_000, maxPixels: 60_000_000, maxDimension: 12_000, width: 300, height: 450, quality: 80, concurrency: 4 } as const
+export const COVER_LIMITS = { maxBytes: 10 * 1024 * 1024, timeoutMs: 15_000, maxRedirects: 5, maxPixels: 60_000_000, maxDimension: 12_000, width: 300, height: 450, quality: 80, concurrency: 4 } as const
+export const COVER_FAILURE_BACKOFF_MS = 2 * 60_000
 
 interface QueueJob { key: string; run(): Promise<PreparedCover>; resolve(value: PreparedCover): void; reject(error: unknown): void }
 
 export class CoverService {
   private readonly queue: QueueJob[] = []
   private readonly inflight = new Map<string, Promise<PreparedCover>>()
+  private readonly failedUntil = new Map<string, number>()
   private active = 0
   private maintenance: Promise<void> | null = null
 
-  constructor(private readonly cacheDirectory: string, private readonly works: WorkRepository, private readonly assets: AssetService, private readonly client: CoverDownloadClient) {
+  constructor(private readonly cacheDirectory: string, private readonly works: WorkRepository, private readonly assets: AssetService, private readonly client: CoverDownloadClient, private readonly now: () => number = Date.now) {
     mkdirSync(cacheDirectory, { recursive: true })
   }
 
@@ -111,11 +113,28 @@ export class CoverService {
 
   private enqueue(workId: string, sourceUrl: string, force = false): Promise<PreparedCover> {
     if (this.maintenance) return this.maintenance.then(() => this.enqueue(workId, sourceUrl, force))
-    this.validateUrl(sourceUrl)
+    const normalizedUrl = this.validateUrl(sourceUrl)
+    if ((this.failedUntil.get(normalizedUrl) ?? 0) > this.now()) {
+      throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa falhou recentemente e será tentada novamente em breve.')
+    }
     const key = `${workId}:${sourceUrl}`
     const existing = this.inflight.get(key)
     if (existing) return existing
-    const promise = new Promise<PreparedCover>((resolve, reject) => this.queue.push({ key, run: () => this.downloadAndProcess(workId, sourceUrl), resolve, reject }))
+    const promise = new Promise<PreparedCover>((resolve, reject) => this.queue.push({
+      key,
+      run: async () => {
+        try {
+          const prepared = await this.downloadAndProcess(workId, sourceUrl)
+          this.failedUntil.delete(normalizedUrl)
+          return prepared
+        } catch (error) {
+          this.failedUntil.set(normalizedUrl, this.now() + COVER_FAILURE_BACKOFF_MS)
+          throw error
+        }
+      },
+      resolve,
+      reject
+    }))
     this.inflight.set(key, promise)
     void promise.finally(() => this.inflight.delete(key)).catch(() => undefined)
     this.pump()
@@ -132,7 +151,7 @@ export class CoverService {
 
   private async downloadAndProcess(workId: string, sourceUrl: string): Promise<PreparedCover> {
     if (!this.client.isOnline()) throw new DomainError('COVER_DOWNLOAD_FAILED', 'A capa não está disponível offline.')
-    const bytes = await this.client.download(sourceUrl, { maxBytes: COVER_LIMITS.maxBytes, timeoutMs: COVER_LIMITS.timeoutMs })
+    const bytes = await this.client.download(sourceUrl, { maxBytes: COVER_LIMITS.maxBytes, timeoutMs: COVER_LIMITS.timeoutMs, maxRedirects: COVER_LIMITS.maxRedirects })
     if (bytes.byteLength > COVER_LIMITS.maxBytes) throw new DomainError('COVER_TOO_LARGE', 'A capa remota excede o limite permitido.')
     let pipeline
     try {
@@ -147,7 +166,7 @@ export class CoverService {
     return { workId, sourceUrl, temporaryPath }
   }
 
-  private validateUrl(value: string): void { let url: URL; try { url = new URL(value) } catch { throw new DomainError('COVER_DOWNLOAD_FAILED', 'URL de capa inválida.') }; if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new DomainError('COVER_DOWNLOAD_FAILED', 'Protocolo de capa não permitido.') }
+  private validateUrl(value: string): string { let url: URL; try { url = new URL(value) } catch { throw new DomainError('COVER_DOWNLOAD_FAILED', 'URL de capa inválida.') }; if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new DomainError('COVER_DOWNLOAD_FAILED', 'Protocolo de capa não permitido.'); return url.toString() }
   private cachePath(workId: string): string { return join(this.cacheDirectory, `${workId}.webp`) }
   private metadataPath(workId: string): string { return join(this.cacheDirectory, `${workId}.json`) }
   private readCacheSource(workId: string): string | null { try { return (JSON.parse(readFileSync(this.metadataPath(workId), 'utf8')) as { sourceUrl?: string }).sourceUrl ?? null } catch { return null } }

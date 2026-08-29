@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DataPaths, AuriLibraryExport } from '@shared/contracts'
+import { SUPPORTED_SCHEMA_VERSION } from '@main/database/migrations'
 import { BackupService } from '@main/services/backup/backup-service'
 import { SettingsService } from '@main/services/settings-service'
 import { TransferService } from '@main/services/transfer-service'
@@ -21,7 +22,7 @@ function setup(name: string) {
   const fixture = createDomainFixture(paths.database)
   databases.push(fixture.db)
   const settings = new SettingsService(paths.settings, new TestLogger())
-  const backups = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', 2)
+  const backups = new BackupService(fixture.db, paths, settings, new TestLogger(), '0.1.0', SUPPORTED_SCHEMA_VERSION)
   const transfer = new TransferService(fixture.db, { ...fixture.repositories }, fixture.services.details, backups, new TestLogger(), () => '2026-08-17T12:00:00.000Z')
   return { root, paths, fixture, transfer }
 }

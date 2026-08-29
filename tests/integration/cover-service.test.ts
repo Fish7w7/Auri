@@ -1,10 +1,11 @@
 import { existsSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import sharp from 'sharp'
 import { AssetService } from '@main/services/asset-service'
-import { COVER_LIMITS, CoverService } from '@main/services/covers/cover-service'
+import { COVER_FAILURE_BACKOFF_MS, COVER_LIMITS, CoverService } from '@main/services/covers/cover-service'
+import { ElectronCoverClient } from '@main/services/covers/electron-cover-client'
 import type { CoverDownloadClient } from '@main/services/covers/types'
 import { DomainError } from '@shared/errors/domain-error'
 import { createDomainFixture } from '../helpers/domain-fixture'
@@ -12,16 +13,48 @@ import { createDomainFixture } from '../helpers/domain-fixture'
 const directories: string[] = []
 afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recursive: true, force: true }) })
 
-async function setup(client: CoverDownloadClient) {
+vi.mock('electron', () => ({ net: { isOnline: () => true, fetch: vi.fn() } }))
+
+async function setup(client: CoverDownloadClient, now: () => number = Date.now) {
   const fixture = createDomainFixture()
   const root = mkdtempSync(join(tmpdir(), 'auri-cover-cache-')); directories.push(root)
   const assets = new AssetService(join(root, 'assets'), fixture.services.works)
-  const service = new CoverService(join(root, 'cache'), fixture.repositories.works, assets, client)
+  const service = new CoverService(join(root, 'cache'), fixture.repositories.works, assets, client, now)
   const work = fixture.services.works.createWork({ title: 'Capa', mediaType: 'manga', userStatus: 'reading', cover: { type: 'remote', sourceUrl: 'https://img.example/cover.png' } })
   return { ...fixture, root, service, assets, work }
 }
 
 describe('CoverService', () => {
+  it('bloqueia destino privado e redirect público para destino privado', async () => {
+    const publicResolver = async () => ['93.184.216.34']
+    let fetches = 0
+    const privateClient = new ElectronCoverClient(publicResolver, async () => { fetches += 1; return new Response() }, () => true)
+    await expect(privateClient.download('http://127.0.0.1/cover.png', { maxBytes: 1024, timeoutMs: 1000, maxRedirects: 2 }))
+      .rejects.toMatchObject({ code: 'URL_DESTINATION_BLOCKED' })
+    expect(fetches).toBe(0)
+
+    const redirectClient = new ElectronCoverClient(publicResolver, async () => {
+      fetches += 1
+      return new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/private.png' } })
+    }, () => true)
+    await expect(redirectClient.download('https://images.example/cover.png', { maxBytes: 1024, timeoutMs: 1000, maxRedirects: 2 }))
+      .rejects.toMatchObject({ code: 'URL_DESTINATION_BLOCKED' })
+    expect(fetches).toBe(1)
+  })
+
+  it('aplica backoff de sessão e volta a tentar depois da janela', async () => {
+    let now = 10_000
+    let calls = 0
+    const fixture = await setup({ isOnline: () => true, download: async () => { calls += 1; return Buffer.from('not-an-image') } }, () => now)
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'error' })
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'error' })
+    expect(calls).toBe(1)
+    now += COVER_FAILURE_BACKOFF_MS + 1
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'error' })
+    expect(calls).toBe(2)
+    fixture.db.close()
+  })
+
   it('gera preview remoto temporário sem persistir no cache', async () => {
     const image = await sharp({ create: { width: 400, height: 600, channels: 3, background: '#7c5cff' } }).png().toBuffer()
     const fixture = await setup({ isOnline: () => true, download: async () => image })
@@ -69,11 +102,14 @@ describe('CoverService', () => {
   it('respeita limite e preserva cache anterior em falha de refresh', async () => {
     const image = await sharp({ create: { width: 300, height: 450, channels: 3, background: '#222222' } }).png().toBuffer()
     let valid = true
-    const fixture = await setup({ isOnline: () => true, download: async () => valid ? image : Buffer.alloc(COVER_LIMITS.maxBytes + 1) })
+    let calls = 0
+    const fixture = await setup({ isOnline: () => true, download: async () => { calls += 1; return valid ? image : Buffer.alloc(COVER_LIMITS.maxBytes + 1) } })
     const before = await fixture.service.getCover({ workId: fixture.work.id })
     valid = false
     const after = await fixture.service.refreshCover({ workId: fixture.work.id })
     expect(after.state).toBe('ready'); expect(after.dataUrl).toBe(before.dataUrl)
+    await expect(fixture.service.getCover({ workId: fixture.work.id })).resolves.toMatchObject({ state: 'ready', cached: true })
+    expect(calls).toBe(2)
     fixture.db.close()
   })
 

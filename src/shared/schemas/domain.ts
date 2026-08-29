@@ -158,15 +158,18 @@ export const openExternalSchema = z.object({
   url: z.string().url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Protocolo não permitido.')
 })
 
-export const metadataSearchSchema = z.object({ provider: z.string().trim().min(1).default('anilist'), query: z.string().trim().min(3).max(120) })
-export const metadataReviewSchema = z.object({ provider: z.string().trim().min(1), externalId: z.string().trim().min(1) })
+const metadataRequestIdSchema = z.string().trim().min(1).max(120).optional()
+export const metadataCancelSchema = z.object({ requestId: z.string().trim().min(1).max(120) })
+export const metadataSearchSchema = z.object({ provider: z.string().trim().min(1).default('anilist'), query: z.string().trim().min(3).max(120), requestId: metadataRequestIdSchema })
+export const metadataReviewSchema = z.object({ provider: z.string().trim().min(1), externalId: z.string().trim().min(1), requestId: metadataRequestIdSchema })
 export const metadataImportSchema = z.object({
   provider: z.string().trim().min(1), externalId: z.string().trim().min(1), title: z.string().trim().min(1),
   mediaType: mediaTypeSchema, userStatus: userStatusSchema, chapter: z.string().trim().min(1).nullable().optional(),
   lastReadNote: nullableText, allowProbableDuplicate: z.boolean().optional(),
+  requestId: metadataRequestIdSchema,
   source: createSourceSchema.omit({ workId: true }).optional()
 })
-export const metadataRefreshSchema = workIdSchema
+export const metadataRefreshSchema = workIdSchema.extend({ requestId: metadataRequestIdSchema })
 export const coverWorkSchema = workIdSchema
 export const coverPreviewSchema = z.object({
   url: z.string().url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Protocolo não permitido.')

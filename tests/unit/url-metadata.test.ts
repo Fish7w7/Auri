@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { extractPageMetadata } from '@main/services/url-metadata/page-metadata-extractor'
 import { SafePageFetcher } from '@main/services/url-metadata/safe-page-fetcher'
 import type { PageTransport, PageTransportResponse } from '@main/services/url-metadata/types'
@@ -53,6 +53,39 @@ describe('análise segura de páginas por URL', () => {
     try { await new SafePageFetcher(transport, publicResolver).fetch('https://safe.example/obra') } catch (error) { failure = error }
     expect(transport.calls).toEqual(['https://safe.example/obra'])
     expect(failure).toMatchObject({ code: 'URL_REDIRECT_BLOCKED' })
+  })
+
+  it('inclui a resolução DNS no prazo absoluto', async () => {
+    vi.useFakeTimers()
+    try {
+      const transport = new FakeTransport([])
+      const fetch = new SafePageFetcher(transport, async () => new Promise(() => undefined), { timeoutMs: 20, maxBytes: 1024, maxRedirects: 1 }).fetch('https://slow.example/obra')
+      const timeoutExpectation = expect(fetch).rejects.toMatchObject({ code: 'URL_FETCH_TIMEOUT' })
+      await vi.advanceTimersByTimeAsync(20)
+      await timeoutExpectation
+      expect(transport.calls).toHaveLength(0)
+    } finally { vi.useRealTimers() }
+  })
+
+  it.each([
+    [403, 'URL_ACCESS_DENIED'],
+    [404, 'URL_NOT_FOUND'],
+    [503, 'URL_SERVER_ERROR']
+  ])('traduz HTTP %i para um erro útil', async (statusCode, code) => {
+    const transport = new FakeTransport([{ statusCode, headers: {}, body: Buffer.alloc(0) }])
+    await expect(new SafePageFetcher(transport, publicResolver).fetch('https://safe.example/obra'))
+      .rejects.toMatchObject({ code })
+  })
+
+  it('reaplica a validação completa em uma tentativa posterior', async () => {
+    let resolutions = 0
+    const resolver = async () => (++resolutions === 1 ? ['10.0.0.8'] : ['93.184.216.34'])
+    const transport = new FakeTransport([htmlResponse('<html><title>Recuperada</title></html>')])
+    const fetcher = new SafePageFetcher(transport, resolver)
+    await expect(fetcher.fetch('https://retry.example/obra')).rejects.toMatchObject({ code: 'URL_DESTINATION_BLOCKED' })
+    await expect(fetcher.fetch('https://retry.example/obra')).resolves.toMatchObject({ finalUrl: 'https://retry.example/obra' })
+    expect(resolutions).toBe(2)
+    expect(transport.calls).toHaveLength(1)
   })
 })
 

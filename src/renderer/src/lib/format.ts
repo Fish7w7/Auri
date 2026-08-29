@@ -68,6 +68,8 @@ export function mapDomainError(error: unknown): string {
       return 'Esta fonte já está cadastrada para uma obra.'
     case 'METADATA_PROVIDER_UNAVAILABLE':
       return 'A pesquisa de metadados não está disponível agora.'
+    case 'METADATA_TIMEOUT':
+      return 'O AniList demorou demais para responder. Tente novamente.'
     case 'METADATA_RATE_LIMITED':
       return 'O AniList limitou as consultas temporariamente. Tente novamente em instantes.'
     case 'METADATA_NOT_FOUND':
@@ -95,6 +97,12 @@ export function mapDomainError(error: unknown): string {
       return 'A URL não retornou uma página HTML compatível.'
     case 'URL_FETCH_FAILED':
       return 'Não foi possível acessar essa página agora.'
+    case 'URL_NOT_FOUND':
+      return 'A página informada não foi encontrada.'
+    case 'URL_ACCESS_DENIED':
+      return 'O site não permitiu acessar essa página.'
+    case 'URL_SERVER_ERROR':
+      return 'O site está com um problema temporário. Tente novamente.'
     case 'COVER_TOO_LARGE':
       return 'A capa excede o limite de 10 MB.'
     case 'COVER_INVALID_IMAGE':

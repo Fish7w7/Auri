@@ -14,12 +14,12 @@ afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recur
 
 const base: MetadataWork = { provider: 'anilist', externalId: '42', title: 'Nano Machine', originalTitle: '나노마신', aliases: [{ name: 'Nano Mashin', kind: 'synonym' }], description: 'Descrição externa', mediaType: 'manhwa', publicationStatus: 'ongoing', countryCode: 'KR', startDate: '2020', endDate: null, creators: [{ name: 'Autor', role: 'author' }], genres: ['Ação'], coverUrl: null, canonicalUrl: 'https://anilist.co/manga/42' }
 
-function setup(initial: MetadataWork = base) {
+function setup(initial: MetadataWork = base, providerOverride?: MetadataProvider) {
   const fixture = createDomainFixture()
   const root = mkdtempSync(join(tmpdir(), 'auri-metadata-')); directories.push(root)
   let current = initial
   let searches = 0
-  const provider: MetadataProvider = { id: 'anilist', search: async () => { searches += 1; return [{ provider: current.provider, externalId: current.externalId, title: current.title, originalTitle: current.originalTitle, mediaType: current.mediaType, publicationStatus: current.publicationStatus, countryCode: current.countryCode, startDate: current.startDate, coverUrl: current.coverUrl, canonicalUrl: current.canonicalUrl }] }, getById: async (id) => id === current.externalId ? current : null }
+  const provider: MetadataProvider = providerOverride ?? { id: 'anilist', search: async () => { searches += 1; return [{ provider: current.provider, externalId: current.externalId, title: current.title, originalTitle: current.originalTitle, mediaType: current.mediaType, publicationStatus: current.publicationStatus, countryCode: current.countryCode, startDate: current.startDate, coverUrl: current.coverUrl, canonicalUrl: current.canonicalUrl }] }, getById: async (id) => id === current.externalId ? current : null }
   const assets = new AssetService(join(root, 'assets'), fixture.services.works)
   const covers = new CoverService(join(root, 'cache'), fixture.repositories.works, assets, { isOnline: () => false, download: async () => { throw new Error('offline') } })
   const service = new MetadataService(fixture.db, [provider], { works: fixture.repositories.works, aliases: fixture.repositories.aliases, creators: fixture.repositories.creators, genres: fixture.repositories.genres, externalRefs: fixture.repositories.externalRefs, overrides: fixture.repositories.overrides }, fixture.services.details, covers, fixture.clock)
@@ -27,6 +27,27 @@ function setup(initial: MetadataWork = base) {
 }
 
 describe('MetadataService', () => {
+  it('cancela uma busca substituída e deixa somente a nova concluir', async () => {
+    const result = [{ provider: 'anilist', externalId: '42', title: 'Nova', originalTitle: null, mediaType: 'manga' as const, publicationStatus: null, countryCode: null, startDate: null, coverUrl: null, canonicalUrl: null }]
+    let oldSignal: AbortSignal | undefined
+    const provider: MetadataProvider = {
+      id: 'anilist',
+      search: async (query, signal) => {
+        if (query === 'Nova') return result
+        oldSignal = signal
+        return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }))
+      },
+      getById: async () => null
+    }
+    const fixture = setup(base, provider)
+    const old = fixture.service.search({ query: 'Antiga', requestId: 'dialog-search' })
+    await Promise.resolve()
+    await expect(fixture.service.search({ query: 'Nova', requestId: 'dialog-search' })).resolves.toEqual(result)
+    await expect(old).rejects.toThrow('cancelled')
+    expect(oldSignal?.aborted).toBe(true)
+    fixture.db.close()
+  })
+
   it('deduplica busca, importa tudo atomicamente e detecta ref exata', async () => {
     const fixture = setup()
     const [first, second] = await Promise.all([fixture.service.search({ query: 'Nano' }), fixture.service.search({ query: 'Nano' })])

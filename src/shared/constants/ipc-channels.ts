@@ -75,7 +75,7 @@ export const IPC_CHANNELS = {
   },
   metadata: {
     search: 'auri:metadata:search', review: 'auri:metadata:review', import: 'auri:metadata:import',
-    previewRefresh: 'auri:metadata:preview-refresh', applyRefresh: 'auri:metadata:apply-refresh'
+    previewRefresh: 'auri:metadata:preview-refresh', applyRefresh: 'auri:metadata:apply-refresh', cancel: 'auri:metadata:cancel'
   },
   urlMetadata: {
     analyze: 'auri:url-metadata:analyze',
