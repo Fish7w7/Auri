@@ -344,11 +344,11 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .field--wide { grid-column: 1 / -1; }
 .field span { font-weight: 600; }
 .field small { color: var(--text-muted); font-weight: 400; }
-.field input, .field textarea { width: 100%; height: var(--control-height); padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface-input); transition: border-color var(--transition), background var(--transition); }
+.field input, .field textarea, .editable-row > input { width: 100%; height: var(--control-height); padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface-input); transition: border-color var(--transition), background var(--transition); }
 .field textarea { min-height: 76px; height: auto; padding-block: 10px; line-height: 1.45; }
-.field input:hover:not(:disabled), .field textarea:hover:not(:disabled) { border-color: var(--border-strong); }
-.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--focus-ring); }
-.field input:user-invalid, .field textarea:user-invalid, .field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: var(--danger); }
+.field input:hover:not(:disabled), .field textarea:hover:not(:disabled), .editable-row > input:hover:not(:disabled) { border-color: var(--border-strong); }
+.field input:focus, .field textarea:focus, .field select:focus, .editable-row > input:focus { border-color: var(--focus-ring); }
+.field input:user-invalid, .field textarea:user-invalid, .field input[aria-invalid="true"], .field textarea[aria-invalid="true"], .editable-row > input:user-invalid, .editable-row > input[aria-invalid="true"] { border-color: var(--danger); }
 
 .toast-region { position: fixed; z-index: 1000; right: 22px; bottom: 22px; max-width: calc(100vw - 44px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
 .toast { position: relative; width: fit-content; min-width: min(190px, calc(100vw - 44px)); max-width: min(410px, calc(100vw - 44px)); display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 12px 40px 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-elevated); box-shadow: 0 14px 46px var(--shadow); pointer-events: auto; animation: toast-enter 160ms ease-out both; }

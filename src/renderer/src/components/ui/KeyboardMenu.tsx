@@ -159,13 +159,13 @@ export function KeyboardMenu({ className, label, children }: { className: string
         style={popoverStyle}
         onPointerDown={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
-        onClickCapture={(event) => {
+        onClick={(event) => {
+          event.stopPropagation()
           if (event.target instanceof Element && event.target.closest('button:not(:disabled)')) {
             closeMenu()
             triggerRef.current?.focus()
           }
         }}
-        onClick={(event) => event.stopPropagation()}
         onKeyDown={handleKeyDown}
       >{children}</div>,
       portalTarget

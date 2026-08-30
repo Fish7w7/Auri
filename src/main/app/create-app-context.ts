@@ -1,6 +1,5 @@
 import { join } from 'node:path'
-import { existsSync } from 'node:fs'
-import { net, type App } from 'electron'
+import type { App } from 'electron'
 import { AliasRepository } from '../database/repositories/alias-repository'
 import { CollectionRepository } from '../database/repositories/collection-repository'
 import { CreatorRepository } from '../database/repositories/creator-repository'
@@ -22,7 +21,6 @@ import { SourceService } from '../services/source-service'
 import { SettingsService } from '../services/settings-service'
 import { SystemService } from '../services/system-service'
 import { UpdateService, type UpdaterAdapter } from '../services/update-service'
-import { DevelopmentUpdaterMock, resolveDevelopmentUpdaterScenario, shouldUseDevelopmentUpdaterMock } from '../services/development-updater-mock'
 import { WorkService } from '../services/work-service'
 import { WorkDetailsService } from '../services/work-details-service'
 import { AssetService } from '../services/asset-service'
@@ -45,6 +43,7 @@ import { SafePageFetcher } from '../services/url-metadata/safe-page-fetcher'
 import { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
 import { BulkLibraryService } from '../services/bulk-library-service'
 import { CURRENT_LOG_FILE_NAME } from './app-identity'
+import { createApplicationUpdateService } from '../services/application-update-service'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -158,20 +157,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,
       sources: sourcesRepository, history: historyRepository, externalRefs: externalRefsRepository
     }, details, backups, logger)
-    const updateEnvironment = options.updaterEnvironment ?? {
-      isPackaged: app.isPackaged,
-      isConfigured: app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))
-    }
-    const developmentUpdaterMock = !options.updater && shouldUseDevelopmentUpdaterMock(app.isPackaged)
-      ? new DevelopmentUpdaterMock(logger, app.getVersion(), resolveDevelopmentUpdaterScenario())
-      : undefined
-    const updates = new UpdateService(logger, {
-      currentVersion: app.getVersion(), ...updateEnvironment,
-      isDevelopmentMock: Boolean(developmentUpdaterMock),
-      criticalOperations, updater: developmentUpdaterMock ?? options.updater,
-      isOnline: () => net.isOnline()
-    })
-    updates.configure('stable')
+    const updates = createApplicationUpdateService(app, logger, criticalOperations, options)
 
     return {
       database,

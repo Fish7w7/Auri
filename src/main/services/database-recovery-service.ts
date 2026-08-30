@@ -17,6 +17,8 @@ export interface DatabaseOpenFailure {
   title: string
   explanation: string
   technicalDetails: string
+  databaseSchema?: number
+  supportedSchema?: number
 }
 
 export function classifyDatabaseOpenFailure(error: unknown): DatabaseOpenFailure {
@@ -24,7 +26,17 @@ export function classifyDatabaseOpenFailure(error: unknown): DatabaseOpenFailure
   const message = error instanceof Error ? error.message : 'Erro desconhecido.'
   const normalized = `${code} ${message}`.toLowerCase()
   const base = { technicalDetails: `${error instanceof Error ? error.name : 'Error'}${code ? ` (${code})` : ''}: ${message}` }
-  if (code === 'DATABASE_SCHEMA_TOO_NEW') return { kind: 'schema_too_new', title: 'Esta biblioteca usa um schema mais novo.', explanation: `Instale uma versão mais recente do ${APP_BRAND.name} ou restaure um backup compatível.`, ...base }
+  if (code === 'DATABASE_SCHEMA_TOO_NEW') {
+    const details = error instanceof DomainError ? error.details : undefined
+    return {
+      kind: 'schema_too_new',
+      title: 'Uma atualização do Auri é necessária',
+      explanation: 'Esta biblioteca foi usada por uma versão mais recente do Auri. Seus dados continuam seguros e não foram alterados.',
+      databaseSchema: typeof details?.databaseSchema === 'number' ? details.databaseSchema : undefined,
+      supportedSchema: typeof details?.supportedSchema === 'number' ? details.supportedSchema : undefined,
+      ...base
+    }
+  }
   if (code === 'ENOENT') return { kind: 'missing', title: 'O arquivo da biblioteca não foi encontrado.', explanation: 'Tente novamente ou restaure um backup existente.', ...base }
   if (code === 'EACCES' || code === 'EPERM' || normalized.includes('readonly')) return { kind: 'permission', title: `O ${APP_BRAND.name} não tem permissão para abrir a biblioteca.`, explanation: 'Verifique as permissões da pasta de dados e tente novamente.', ...base }
   if (normalized.includes('malformed') || normalized.includes('corrupt') || normalized.includes('not a database')) return { kind: 'corruption', title: 'A biblioteca apresentou sinais de corrupção.', explanation: 'Os dados não foram alterados. Você pode restaurar um backup com seu consentimento.', ...base }

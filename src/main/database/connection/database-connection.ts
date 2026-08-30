@@ -9,17 +9,38 @@ export interface DatabaseConnection {
   close(): void
 }
 
-export function assertDatabaseSchemaSupported(databasePath: string, supportedSchema: number): void {
-  if (!existsSync(databasePath)) return
+export type DatabaseSchemaCompatibility = 'missing' | 'older' | 'current' | 'newer'
+
+export interface DatabaseSchemaInspection {
+  databaseSchema: number
+  supportedSchema: number
+  compatibility: DatabaseSchemaCompatibility
+}
+
+export function inspectDatabaseSchemaCompatibility(databasePath: string, supportedSchema: number): DatabaseSchemaInspection {
+  if (!existsSync(databasePath)) return { databaseSchema: 0, supportedSchema, compatibility: 'missing' }
   const db = new Database(databasePath, { readonly: true, fileMustExist: true })
   try {
     const hasMigrations = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get() !== undefined
-    if (!hasMigrations) return
-    const databaseSchema = (db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get() as { version: number }).version
-    if (databaseSchema > supportedSchema) {
-      throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca foi atualizada por uma versão mais recente do ${APP_BRAND.name}. Banco: schema ${databaseSchema}. Esta versão suporta até: schema ${supportedSchema}.`, { databaseSchema, supportedSchema })
+    const databaseSchema = hasMigrations
+      ? (db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get() as { version: number }).version
+      : 0
+    return {
+      databaseSchema,
+      supportedSchema,
+      compatibility: databaseSchema > supportedSchema ? 'newer' : databaseSchema === supportedSchema ? 'current' : 'older'
     }
   } finally { db.close() }
+}
+
+export function assertDatabaseSchemaSupported(databasePath: string, supportedSchema: number): void {
+  const inspection = inspectDatabaseSchemaCompatibility(databasePath, supportedSchema)
+  if (inspection.compatibility === 'newer') {
+    throw new DomainError('DATABASE_SCHEMA_TOO_NEW', `Esta biblioteca foi atualizada por uma versão mais recente do ${APP_BRAND.name}. Banco: schema ${inspection.databaseSchema}. Esta versão suporta até: schema ${supportedSchema}.`, {
+      databaseSchema: inspection.databaseSchema,
+      supportedSchema: inspection.supportedSchema
+    })
+  }
 }
 
 export function openDatabase(databasePath: string, logger: Logger): DatabaseConnection {

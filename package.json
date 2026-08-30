@@ -12,7 +12,8 @@
   "main": "out/main/index.js",
   "scripts": {
     "brand:assets": "node scripts/generate-brand-assets.mjs",
-    "prebuild:app": "npm run brand:assets",
+    "compatibility:manifest": "node scripts/generate-compatibility-manifest.mjs",
+    "prebuild:app": "npm run brand:assets && npm run compatibility:manifest",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
@@ -116,6 +117,7 @@
         "releaseType": "draft",
         "channel": "latest"
       }
-    ]
+    ],
+    "afterAllArtifactBuild": "scripts/after-all-artifact-build.cjs"
   }
 }

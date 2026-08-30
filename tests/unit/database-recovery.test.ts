@@ -4,7 +4,9 @@ import { DomainError } from '@shared/errors/domain-error'
 
 describe('classifyDatabaseOpenFailure', () => {
   it('preserva a classificação de schema mais novo', () => {
-    expect(classifyDatabaseOpenFailure(new DomainError('DATABASE_SCHEMA_TOO_NEW', 'schema 2')).kind).toBe('schema_too_new')
+    expect(classifyDatabaseOpenFailure(new DomainError('DATABASE_SCHEMA_TOO_NEW', 'schema 4', { databaseSchema: 4, supportedSchema: 3 }))).toMatchObject({
+      kind: 'schema_too_new', databaseSchema: 4, supportedSchema: 3
+    })
   })
 
   it.each([

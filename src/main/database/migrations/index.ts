@@ -3,8 +3,7 @@ import type { Migration } from '@shared/types/database'
 import { createInitialSchemaMigration } from './001-initial-schema'
 import { createHiddenFromHomeMigration } from './002-hidden-from-home'
 import { createSourceSearchMigration } from './003-source-search'
-
-export const SUPPORTED_SCHEMA_VERSION = 3
+export { SUPPORTED_SCHEMA_VERSION } from '@shared/constants/schema-compatibility'
 
 export function createMigrations(db: Database.Database): readonly Migration[] {
   return [
