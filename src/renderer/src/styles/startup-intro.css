@@ -1,0 +1,76 @@
+.startup-intro {
+  position: absolute;
+  z-index: 19;
+  inset: var(--titlebar-height) 0 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--brand-navy-900);
+  animation: auri-intro-overlay 1.6s ease-out both;
+}
+
+.startup-intro__identity {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
+.startup-intro__halo {
+  position: absolute;
+  top: -18px;
+  width: 144px;
+  height: 144px;
+  border: 1px solid rgb(216 183 106 / 24%);
+  border-radius: 50%;
+  box-shadow: 0 0 34px rgb(216 183 106 / 10%), inset 0 0 28px rgb(216 183 106 / 6%);
+  pointer-events: none;
+  animation: auri-intro-halo 1.15s ease-out .08s both;
+}
+
+.startup-intro__mark {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  border-radius: 24px;
+  object-fit: contain;
+  user-select: none;
+  animation: auri-intro-mark .72s cubic-bezier(.2, .7, .25, 1) .08s both;
+}
+
+.startup-intro__name {
+  position: relative;
+  color: var(--brand-ivory);
+  font-size: 1.45rem;
+  font-weight: 620;
+  letter-spacing: 0;
+  line-height: 1;
+  animation: auri-intro-name .58s ease-out .28s both;
+}
+
+@keyframes auri-intro-overlay {
+  0%, 72% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes auri-intro-mark {
+  from { opacity: 0; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes auri-intro-name {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes auri-intro-halo {
+  from { opacity: 0; transform: scale(.88); }
+  55% { opacity: 1; }
+  to { opacity: .5; transform: scale(.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-intro__halo { display: none; }
+  .startup-intro__mark,
+  .startup-intro__name { opacity: 1; transform: none; animation: none; }
+}

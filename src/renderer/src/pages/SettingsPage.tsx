@@ -10,6 +10,7 @@ import { ConfirmDialog, Dialog } from '../components/ui/Dialog'
 import { Icon, type IconName } from '../components/ui/Icon'
 import { KeyboardMenu } from '../components/ui/KeyboardMenu'
 import { Select } from '../components/ui/Select'
+import { Switch } from '../components/ui/Switch'
 import { ErrorState, LoadingState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
 import { applyLibraryImport } from '../lib/apply-library-import'
@@ -252,6 +253,11 @@ export function SettingsPage() {
               <div aria-hidden="true">{Array.from({ length: cardPreviewCount(settings.cardSize) }, (_, index) => <article key={index}><div /><i /></article>)}</div>
             </div>
           </SettingsGroup>
+          <SettingsGroup title="Inicialização e comportamento da janela">
+            <SettingRow title="O botão Fechar mantém o Auri na bandeja" description="Ao clicar no X, o Auri continuará executando em segundo plano.">
+              <Switch checked={settings.closeToTray} label="O botão Fechar mantém o Auri na bandeja" onCheckedChange={(closeToTray) => void updateSettings({ closeToTray })} />
+            </SettingRow>
+          </SettingsGroup>
         </>}
 
         {section === 'library' && <>
@@ -275,7 +281,7 @@ export function SettingsPage() {
             <SettingRow title="Criar backup" description="Cria uma cópia completa do banco, preferências e arquivos permanentes."><Button variant="primary" disabled={busy} onClick={() => void createBackup()}>Criar backup</Button></SettingRow>
           </SettingsGroup>
           <SettingsGroup title="Backups automáticos">
-            <SettingRow title="Criar automaticamente" description="Mantém cópias recentes sem exigir uma ação manual."><label className="setting-toggle"><input type="checkbox" checked={settings.backupAutomatic} onChange={(event) => void updateSettings({ backupAutomatic: event.target.checked })} /><span>{settings.backupAutomatic ? 'Ativado' : 'Desativado'}</span></label></SettingRow>
+            <SettingRow title="Criar automaticamente" description="Mantém cópias recentes sem exigir uma ação manual."><Switch checked={settings.backupAutomatic} label="Criar backups automaticamente" onCheckedChange={(backupAutomatic) => void updateSettings({ backupAutomatic })} /></SettingRow>
             <SettingRow title="Frequência" description="Intervalo entre os backups automáticos."><Select label="Frequência" value={settings.backupFrequency} onChange={(backupFrequency) => void updateSettings({ backupFrequency: backupFrequency as 'daily' | 'weekly' })} options={[{ value: 'daily', label: 'Diário' }, { value: 'weekly', label: 'Semanal' }]} /></SettingRow>
             <SettingRow title="Manter os últimos" description="Quantidade máxima de backups automáticos mantidos."><Select label="Manter os últimos" value={String(settings.backupRetention)} onChange={(backupRetention) => void updateSettings({ backupRetention: Number(backupRetention) })} options={[5, 10, 20, 30].map((value) => ({ value: String(value), label: value + ' backups' }))} /></SettingRow>
           </SettingsGroup>

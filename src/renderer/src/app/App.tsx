@@ -15,12 +15,13 @@ import { KeyboardShortcutsProvider } from './keyboard-shortcuts'
 import { QuickSearchDialog } from '../components/library/QuickSearchDialog'
 import { WindowTitleBar } from '../components/shell/WindowTitleBar'
 import { BrandMark } from '../components/shell/BrandMark'
+import { StartupIntro } from '../components/shell/StartupIntro'
 
-const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null }
+const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
 
 export function App() {
-  return <div className="window-frame"><WindowTitleBar /><ToastProvider><AppShell /></ToastProvider></div>
+  return <div className="window-frame"><WindowTitleBar /><ToastProvider><AppShell /></ToastProvider><StartupIntro /></div>
 }
 
 function AppShell() {

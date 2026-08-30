@@ -4,6 +4,8 @@ import { app, BrowserWindow, clipboard, desktopCapturer, dialog, shell } from 'e
 import { createAppContext, type AppContext } from './app/create-app-context'
 import { registerIpcHandlers } from './ipc/register-ipc-handlers'
 import { createMainWindow } from './windows/create-main-window'
+import { createApplicationTray } from './windows/create-application-tray'
+import { restoreMainWindow, WindowTrayController } from './windows/window-tray-controller'
 import type { MetadataProvider } from './services/metadata/types'
 import type { CoverDownloadClient } from './services/covers/types'
 import type { MetadataWork } from '@shared/contracts'
@@ -18,6 +20,7 @@ import { APP_USER_MODEL_ID, CURRENT_LOG_FILE_NAME } from './app/app-identity'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
+let windowTrayController: WindowTrayController | undefined
 const isSmokeTest = process.argv.includes('--smoke-test')
 const isScreenshotTest = process.argv.includes('--screenshot-test')
 const isSettingsScrollTest = process.argv.includes('--settings-scroll-test')
@@ -70,8 +73,7 @@ if (!singleInstanceLock) {
   app.on('second-instance', () => {
     const window = BrowserWindow.getAllWindows()[0]
     if (!window) return
-    if (window.isMinimized()) window.restore()
-    window.focus()
+    restoreMainWindow(window)
   })
 
   app.whenReady().then(async () => {
@@ -200,6 +202,7 @@ if (!singleInstanceLock) {
         showWhenReady: !isSmokeTest && !isSettingsScrollTest,
         keepRenderingWhenHidden: isSmokeTest || isScreenshotTest || isSettingsScrollTest
       })
+      windowTrayController = manageMainWindow(mainWindow, context)
 
       if (isSmokeTest) {
         mainWindow.webContents.once('did-finish-load', () => {
@@ -1308,21 +1311,38 @@ if (!singleInstanceLock) {
     }
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0 && context) createMainWindow()
+      if (BrowserWindow.getAllWindows().length === 0 && context) {
+        windowTrayController?.dispose()
+        windowTrayController = manageMainWindow(createMainWindow(), context)
+      }
     })
   })
 }
 
 app.on('before-quit', () => {
+  windowTrayController?.beginQuit()
   unregisterIpc?.()
   context?.dispose()
+  windowTrayController?.dispose()
   unregisterIpc = undefined
   context = undefined
+  windowTrayController = undefined
 })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+function manageMainWindow(window: BrowserWindow, appContext: AppContext): WindowTrayController {
+  const settings = appContext.services.settings
+  return new WindowTrayController({
+    window,
+    getCloseToTray: () => settings.getSettings().closeToTray,
+    onCloseToTrayChange: (listener) => settings.onDidChange((next) => listener(next.closeToTray)),
+    createTray: createApplicationTray,
+    quitApplication: () => app.quit()
+  })
+}
 
 async function runReleasePersistenceSmoke(appContext: AppContext): Promise<void> {
   const markerPath = join(app.getPath('userData'), 'release-persistence-smoke.json')

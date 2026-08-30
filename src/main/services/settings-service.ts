@@ -6,8 +6,11 @@ import type { Logger } from '../logging/logger'
 import { parseDomainInput } from './service-utils'
 
 const DEFAULT_SETTINGS: AppSettings = appSettingsSchema.parse({})
+type SettingsListener = (settings: AppSettings) => void
 
 export class SettingsService {
+  private readonly listeners = new Set<SettingsListener>()
+
   constructor(
     private readonly settingsPath: string,
     private readonly logger: Logger
@@ -27,12 +30,16 @@ export class SettingsService {
     }
   }
 
+  onDidChange(listener: SettingsListener): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
   updateSettings(input: unknown): AppSettings {
     const patch = parseDomainInput(updateSettingsSchema, input) as UpdateSettingsRequest
     const next = appSettingsSchema.parse({ ...this.getSettings(), ...patch })
     try {
       writeFileSync(this.settingsPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
-      return next
     } catch (error) {
       this.logger.error('app', 'Não foi possível salvar configurações.', {
         event: 'settings.write_failed',
@@ -40,6 +47,15 @@ export class SettingsService {
       })
       throw new DomainError('INTERNAL_ERROR', 'Não foi possível salvar suas preferências.')
     }
+    for (const listener of this.listeners) {
+      try { listener(next) }
+      catch (error) {
+        this.logger.error('app', 'Configuração salva, mas a aplicação em runtime não pôde ser atualizada.', {
+          event: 'settings.listener_failed',
+          errorCode: error instanceof Error ? error.name : 'UNKNOWN'
+        })
+      }
+    }
+    return next
   }
 }
-

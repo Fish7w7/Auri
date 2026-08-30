@@ -73,10 +73,11 @@ describe('ações rápidas dos cards da Biblioteca', () => {
 
   it('mantém Ocultar da Home somente dentro do menu secundário', () => {
     const html = renderToStaticMarkup(createElement(HomeWorkCard, { work, showLastReadNote: false, onOpen() {}, onContinue() {}, onIncrement() {}, onHide() {} }))
+    const source = readFileSync(join(process.cwd(), 'src/renderer/src/components/home/HomeWorkCard.tsx'), 'utf8')
     expect(html).toContain('class="home-work-card__actions"')
     expect(html).toContain('class="work-overflow home-work-menu"')
-    expect(html).toContain('role="menu"><button>Ocultar da Home</button>')
-    expect(html.match(/Ocultar da Home/g)).toHaveLength(1)
+    expect(html).toContain('aria-haspopup="menu"')
+    expect(source.match(/Ocultar da Home/g)).toHaveLength(1)
   })
 
   it('fecha menus ao clicar fora e preserva a fronteira contra click-through', () => {
@@ -87,9 +88,11 @@ describe('ações rápidas dos cards da Biblioteca', () => {
     expect(source).toContain("event.key === 'Escape'")
   })
 
-  it('mantém o menu da Home flutuando acima das ações', () => {
+  it('mantém o menu da Home no popover compartilhado', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/src/styles/global.css'), 'utf8')
-    expect(css).toMatch(/\.work-overflow\.home-work-menu > div \{ top: auto; bottom: calc\(100% \+ 6px\); \}/)
+    expect(css).toContain('.keyboard-menu__popover {')
+    expect(css).toContain('.home-work-menu > .keyboard-menu__trigger')
+    expect(css).not.toContain('.work-overflow.home-work-menu > div')
   })
 
   it('remove as ações no modo de seleção múltipla', () => {
