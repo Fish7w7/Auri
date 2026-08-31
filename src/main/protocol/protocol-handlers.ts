@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, type Capability, type ProgressUpdateParams, type SourceAddParams, type SourceSummary } from '@auri/protocol'
+import { PROTOCOL_VERSION, type KnownCapability, type ProgressUpdateParams, type SourceAddParams, type SourceSummary } from '@auri/protocol'
 import type { WorkService } from '../services/work-service'
 import type { SourceService } from '../services/source-service'
 import type { ProgressService } from '../services/progress-service'
@@ -17,7 +17,7 @@ export interface ProtocolHandlerDependencies {
   desktop: DesktopCommandService
 }
 
-export function createProtocolHandlers(dependencies: ProtocolHandlerDependencies, capabilities: () => Capability[]): ProtocolHandlerMap {
+export function createProtocolHandlers(dependencies: ProtocolHandlerDependencies, capabilities: () => KnownCapability[]): ProtocolHandlerMap {
   return {
     'system.hello': (params) => {
       if (!params.supportedProtocolVersions.includes(PROTOCOL_VERSION)) throw new ProtocolHandlerError({ code: 'UNSUPPORTED_PROTOCOL_VERSION', message: 'Não há uma versão de protocolo compatível.' })
@@ -26,7 +26,11 @@ export function createProtocolHandlers(dependencies: ProtocolHandlerDependencies
     'work.resolve': (params) => dependencies.resolution.resolve(params),
     'work.open': (params) => { dependencies.works.getWork({ workId: params.workId }); dependencies.desktop.openWork(params.workId); return { opened: true } },
     'desktop.openAddWork': (params) => { dependencies.desktop.openAddWork(params); return { opened: true } },
-    'source.add': (params) => ({ source: sourceSummary(addSource(dependencies.sources, params)) }),
+    'source.add': (params) => {
+      const source = addSource(dependencies.sources, params)
+      dependencies.desktop.notifyWorkChanged({ workId: params.workId, kind: 'source' })
+      return { source: sourceSummary(source) }
+    },
     'progress.update': (params) => { updateProgress(dependencies, params); return { updated: true } }
   }
 }
@@ -39,6 +43,7 @@ function updateProgress(dependencies: ProtocolHandlerDependencies, params: Progr
   const sourceId = params.sourceId ?? (params.pageUrl ? dependencies.resolution.inferSource(params.workId, params.pageUrl)?.id : undefined)
   const result = dependencies.progress.updateProgress({ workId: params.workId, chapterLabel: params.chapter.value, sourceId: sourceId ?? null })
   if (!result.applied && result.requiresConfirmation) throw new ProtocolHandlerError({ code: 'CONFLICT', message: result.reason === 'regression' ? 'A atualização reduziria o progresso atual.' : 'A atualização representa um salto grande e precisa de confirmação no Auri.' })
+  dependencies.desktop.notifyWorkChanged({ workId: params.workId, kind: 'progress' })
 }
 
 function sourceSummary(source: Source): SourceSummary {

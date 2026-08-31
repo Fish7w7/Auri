@@ -1,6 +1,6 @@
 import {
   PROTOCOL_METHOD, PROTOCOL_METHODS, createErrorResponse, createSuccessResponse, safeParseRequest,
-  type Capability, type ProtocolError, type ProtocolMethod, type ProtocolParams, type ProtocolRequest,
+  type KnownCapability, type ProtocolError, type ProtocolMethod, type ProtocolParams, type ProtocolRequest,
   type ProtocolResponse, type ProtocolResult
 } from '@auri/protocol'
 import { DomainError } from '@shared/errors/domain-error'
@@ -8,16 +8,33 @@ import type { Logger } from '../logging/logger'
 
 export type ProtocolHandler<Method extends ProtocolMethod> = (params: ProtocolParams<Method>) => Promise<ProtocolResult<Method>> | ProtocolResult<Method>
 export type ProtocolHandlerMap = { [Method in ProtocolMethod]?: ProtocolHandler<Method> }
+export type ProtocolFeatureCapability = Exclude<KnownCapability, ProtocolMethod>
+
+export const DESKTOP_PROTOCOL_FEATURES = ['desktop.openAddWork.coverUrl'] as const satisfies readonly ProtocolFeatureCapability[]
+
+const FEATURE_REQUIREMENTS: Record<ProtocolFeatureCapability, ProtocolMethod> = {
+  'desktop.openAddWork.coverUrl': PROTOCOL_METHOD.desktopOpenAddWork
+}
 
 export class ProtocolHandlerError extends Error {
   constructor(readonly protocolError: ProtocolError) { super(protocolError.message) }
 }
 
 export class ProtocolDispatcher {
-  readonly capabilities: Capability[]
+  readonly capabilities: KnownCapability[]
 
-  constructor(private readonly handlers: ProtocolHandlerMap, private readonly logger: Logger) {
-    this.capabilities = PROTOCOL_METHODS.filter((method): method is Capability => method !== PROTOCOL_METHOD.systemHello && Boolean(handlers[method]))
+  constructor(
+    private readonly handlers: ProtocolHandlerMap,
+    private readonly logger: Logger,
+    features: readonly ProtocolFeatureCapability[] = []
+  ) {
+    const methods = PROTOCOL_METHODS.filter((method): method is Exclude<ProtocolMethod, typeof PROTOCOL_METHOD.systemHello> => (
+      method !== PROTOCOL_METHOD.systemHello && Boolean(handlers[method])
+    ))
+    this.capabilities = [
+      ...methods,
+      ...features.filter((feature) => Boolean(handlers[FEATURE_REQUIREMENTS[feature]]))
+    ]
   }
 
   async dispatch(input: unknown): Promise<ProtocolResponse> {

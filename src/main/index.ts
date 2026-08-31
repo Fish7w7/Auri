@@ -28,7 +28,7 @@ import {
 import { MIN_SUPPORTED_SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSION } from '@shared/constants/schema-compatibility'
 import { DesktopCommandService } from './services/desktop-command-service'
 import { createProtocolHandlers } from './protocol/protocol-handlers'
-import { ProtocolDispatcher } from './protocol/protocol-dispatcher'
+import { DESKTOP_PROTOCOL_FEATURES, ProtocolDispatcher } from './protocol/protocol-dispatcher'
 import { loadOrCreateBridgeIdentity } from './bridge/bridge-identity'
 import { NamedPipeBridgeServer } from './bridge/named-pipe-server'
 import { isNativeBridgeStartup, shouldRestoreWindowForSecondInstance } from './app/native-bridge-startup'
@@ -230,7 +230,7 @@ if (!singleInstanceLock) {
           works: context.services.works, sources: context.services.sources,
           progress: context.services.progress, desktop
         }, () => dispatcher.capabilities)
-        dispatcher = new ProtocolDispatcher(handlers, context.logger)
+        dispatcher = new ProtocolDispatcher(handlers, context.logger, DESKTOP_PROTOCOL_FEATURES)
         const identity = loadOrCreateBridgeIdentity(app.getPath('userData'), app.isPackaged)
         bridgeServer = new NamedPipeBridgeServer(identity.endpoint, identity.secret, dispatcher, context.logger)
         await bridgeServer.start()

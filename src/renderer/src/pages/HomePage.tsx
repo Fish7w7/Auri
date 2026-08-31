@@ -13,6 +13,7 @@ import { mapDomainError } from '../lib/format'
 import { getVisibleHomeSections } from '../lib/home-sections'
 import type { HomeSectionModel } from '../lib/home-sections'
 import { listEligibleReadingSources, openReadingSource, selectBestReadingSource } from '../lib/source-selection'
+import { subscribeToDataChanges } from '../app/data-changes'
 
 const EMPTY_HOME: HomeData = { continueReading: [], staleReading: [], waiting: [], recentlyAdded: [] }
 
@@ -37,7 +38,7 @@ export function HomePage() {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [alternativeSources, setAlternativeSources] = useState<Source[]>([])
   const load = useCallback(async () => { try { setData(await window.auri.library.home()); setState('ready') } catch { setState('error') } }, [])
-  useEffect(() => { void load(); const handler = () => void load(); window.addEventListener('auri:data-changed', handler); return () => window.removeEventListener('auri:data-changed', handler) }, [load])
+  useEffect(() => { void load(); return subscribeToDataChanges(() => void load()) }, [load])
   const refresh = useCallback(() => { refreshData() }, [refreshData])
   const actions = useWorkActions(refresh)
   const sections = getVisibleHomeSections(data)

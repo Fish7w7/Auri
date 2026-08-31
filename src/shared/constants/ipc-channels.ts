@@ -1,7 +1,8 @@
 export const IPC_CHANNELS = {
   desktopCommands: {
     openWork: 'auri:desktop-command:open-work',
-    openAddWork: 'auri:desktop-command:open-add-work'
+    openAddWork: 'auri:desktop-command:open-add-work',
+    workChanged: 'auri:desktop-command:work-changed'
   },
   bulk: {
     setStatus: 'auri:bulk:set-status',

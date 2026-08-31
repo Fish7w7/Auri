@@ -19,6 +19,7 @@ import { Select } from '../components/ui/Select'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../lib/format'
 import { listEligibleReadingSources, openReadingSource, selectBestReadingSource } from '../lib/source-selection'
 import { BrandMark } from '../components/shell/BrandMark'
+import { subscribeToDataChanges } from '../app/data-changes'
 
 const SOURCE_STATUS = { active: 'Ativa', unavailable: 'Indisponível', archived: 'Arquivada' }
 const LANGUAGES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Português', en: 'Inglês', es: 'Espanhol', ja: 'Japonês', ko: 'Coreano', zh: 'Chinês', other: 'Outro' }
@@ -46,8 +47,9 @@ export function WorkPage({ id }: { id: string }) {
     catch (error) { const code = typeof error === 'object' && error && 'error' in error ? (error as { error?: { code?: string } }).error?.code : ''; setPageState(code === 'WORK_NOT_FOUND' ? 'not-found' : 'error') }
   }, [id])
   const loadHistory = useCallback(async () => { try { setHistory(await window.auri.progress.history({ workId: id })); setHistoryError(false) } catch { setHistoryError(true) } }, [id])
-  const reload = useCallback(() => { void loadDetails(); void loadHistory(); refreshData() }, [loadDetails, loadHistory, refreshData])
+  const reload = useCallback(() => { refreshData() }, [refreshData])
   useEffect(() => { setPageState('loading'); void loadDetails(); void loadHistory() }, [loadDetails, loadHistory])
+  useEffect(() => subscribeToDataChanges(() => { void loadDetails(); void loadHistory() }, id), [id, loadDetails, loadHistory])
 
   const bestSource = selectBestReadingSource(details?.sources ?? [])
 

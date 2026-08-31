@@ -17,6 +17,7 @@ import { KeyboardMenu } from '../components/ui/KeyboardMenu'
 import { AddWorksToCollectionDialog } from '../components/collections/AddWorksToCollectionDialog'
 import { useToast } from '../components/ui/Toast'
 import { formatFilteredWorkCount, formatWorkCount, getLibraryEmptyStateKind } from '../lib/library-results'
+import { subscribeToDataChanges } from '../app/data-changes'
 
 const SORT_LABELS: Record<LibrarySort, string> = {
   last_read_desc: 'Última leitura', last_read_asc: 'Mais tempo sem ler', title_asc: 'Título A–Z', title_desc: 'Título Z–A', created_desc: 'Adicionado recentemente', updated_desc: 'Atualizado recentemente', chapter_desc: 'Capítulo', rating_desc: 'Nota', user_status: 'Status pessoal'
@@ -66,7 +67,7 @@ export function LibraryPage({ initialStatus, initialFavorite, initialSort, colle
     catch { setState('error') }
   }, [collectionId, effectiveQuery])
   useEffect(() => { void load() }, [load])
-  useEffect(() => { const handler = () => void load(); window.addEventListener('auri:data-changed', handler); return () => window.removeEventListener('auri:data-changed', handler) }, [load])
+  useEffect(() => subscribeToDataChanges(() => void load()), [load])
   useShortcutScope({
     focusSearch: () => searchRef.current?.focus(),
     escape: filtersOpen

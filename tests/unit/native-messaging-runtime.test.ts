@@ -21,13 +21,14 @@ describe('NativeMessagingRuntime', () => {
     const first = helloRequest('first'); const second = helloRequest('second')
     input.write(Buffer.concat([encodeLengthPrefixedJson(first), encodeLengthPrefixedJson(second)]))
     await vi.waitFor(() => expect(waiting.size).toBe(2))
-    waiting.get('second')!(helloResponse('second'))
+    waiting.get('second')!(helloResponse('second', ['desktop.future.capability']))
     waiting.get('first')!(helloResponse('first'))
     await vi.waitFor(() => expect(decodeAll(chunks)).toHaveLength(2))
     expect(decodeAll(chunks).map((response) => ({ id: response.id, method: response.method }))).toEqual([
       { id: 'second', method: 'system.hello' },
       { id: 'first', method: 'system.hello' }
     ])
+    expect(decodeAll(chunks)[0]).toMatchObject({ ok: true, result: { capabilities: ['desktop.future.capability'] } })
     input.end()
     await vi.waitFor(() => expect(transport.close).toHaveBeenCalledOnce())
   })
@@ -61,9 +62,9 @@ function helloRequest(id: string): ProtocolRequest {
   })
 }
 
-function helloResponse(id: string): ProtocolResponse {
+function helloResponse(id: string, capabilities: string[] = []): ProtocolResponse {
   return createSuccessResponse(id, 'system.hello', {
-    protocolVersion: 1, server: { kind: 'desktop', name: 'auri-desktop', version: '1.10.0' }, capabilities: []
+    protocolVersion: 1, server: { kind: 'desktop', name: 'auri-desktop', version: '1.10.0' }, capabilities
   })
 }
 
@@ -71,4 +72,3 @@ function decodeAll(chunks: Buffer[]): ProtocolResponse[] {
   const decoder = new LengthPrefixedJsonDecoder()
   return decoder.push(Buffer.concat(chunks)) as ProtocolResponse[]
 }
-

@@ -62,7 +62,16 @@ export function createManualWorkRequest(manual: WorkFormState): DetailedCreateWo
 }
 
 export function createExternalDraftForm(draft: DesktopAddWorkDraft): WorkFormState {
-  return { ...EMPTY_WORK_FORM, title: draft.title ?? '', chapter: draft.detectedChapter?.value ?? '', sourceName: draft.sourceName ?? '', sourceUrl: draft.canonicalUrl ?? draft.pageUrl, sourcePreferred: false }
+  return {
+    ...EMPTY_WORK_FORM,
+    title: draft.title ?? '',
+    chapter: draft.detectedChapter?.value ?? '',
+    sourceName: draft.sourceName ?? '',
+    sourceUrl: draft.canonicalUrl ?? draft.pageUrl,
+    sourcePreferred: false,
+    coverMode: draft.coverUrl ? 'remote' : 'none',
+    coverUrl: draft.coverUrl ?? ''
+  }
 }
 
 export function duplicateSourceNotice(error: unknown): { workId: string; workTitle: string } | null {
