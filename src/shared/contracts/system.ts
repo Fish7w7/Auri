@@ -6,6 +6,7 @@ import type { CoverApi } from './covers'
 import type { DataManagementApi } from './settings'
 import type { UpdatesApi } from './updates'
 import type { UrlMetadataApi } from './url-metadata'
+import type { DesktopCommandsApi } from './desktop-commands'
 
 export const dataPathsSchema = z.object({
   root: z.string(),
@@ -62,7 +63,7 @@ export interface SystemDiagnostics {
   integrity: LibraryIntegrityResult | null
 }
 
-export interface AuriApi extends DomainApi, SettingsApi, MetadataApi, CoverApi, DataManagementApi, UpdatesApi, UrlMetadataApi {
+export interface AuriApi extends DomainApi, SettingsApi, MetadataApi, CoverApi, DataManagementApi, UpdatesApi, UrlMetadataApi, DesktopCommandsApi {
   system: {
     getStatus(): Promise<SystemStatus>
     getDiagnostics(): Promise<SystemDiagnostics>

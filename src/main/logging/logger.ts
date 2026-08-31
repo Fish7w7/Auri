@@ -11,6 +11,7 @@ export type LogCategory =
   | 'backup'
   | 'updater'
   | 'migration'
+  | 'bridge'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 

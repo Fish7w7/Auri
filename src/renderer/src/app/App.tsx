@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppSettings, LibrarySummary, UpdateSettingsRequest } from '@shared/contracts'
+import type { AppSettings, DesktopAddWorkDraft, LibrarySummary, UpdateSettingsRequest } from '@shared/contracts'
 import { AppContext } from './app-context'
 import { useRoute } from './navigation'
 import { Sidebar } from '../components/shell/Sidebar'
@@ -16,6 +16,7 @@ import { QuickSearchDialog } from '../components/library/QuickSearchDialog'
 import { WindowTitleBar } from '../components/shell/WindowTitleBar'
 import { BrandMark } from '../components/shell/BrandMark'
 import { StartupIntro } from '../components/shell/StartupIntro'
+import { navigate } from './navigation'
 
 const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
@@ -30,6 +31,7 @@ function AppShell() {
   const [summary, setSummary] = useState(EMPTY_SUMMARY)
   const [ready, setReady] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [addDraft, setAddDraft] = useState<DesktopAddWorkDraft | null>(null)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const settingsUpdateQueue = useRef<Promise<void>>(Promise.resolve())
 
@@ -39,6 +41,11 @@ function AppShell() {
   useEffect(() => {
     void Promise.all([window.auri.settings.get().then(setSettings), loadSummary()]).finally(() => setReady(true))
   }, [loadSummary])
+  useEffect(() => {
+    const removeOpenWork = window.auri.desktopCommands.onOpenWork((workId) => navigate(`/work/${workId}`))
+    const removeOpenAddWork = window.auri.desktopCommands.onOpenAddWork((draft) => { setAddDraft(draft); setAddOpen(true) })
+    return () => { removeOpenWork(); removeOpenAddWork() }
+  }, [])
 
   const refreshData = useCallback(() => {
     void loadSummary()
@@ -52,7 +59,7 @@ function AppShell() {
     settingsUpdateQueue.current = operation.catch(() => undefined)
     await operation
   }, [])
-  const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => setAddOpen(true) }), [refreshData, settings, summary, updateSettings])
+  const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => { setAddDraft(null); setAddOpen(true) } }), [refreshData, settings, summary, updateSettings])
 
   if (!ready) return <div className="app-loading"><BrandMark large /><span>Preparando sua biblioteca…</span></div>
 
@@ -66,7 +73,7 @@ function AppShell() {
         {route.page === 'collections' && <CollectionsPage collectionId={route.id} />}
         {route.page === 'work' && <WorkPage id={route.id} />}
       </main>
-      <AddWorkDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={refreshData} />
+      <AddWorkDialog open={addOpen} draft={addDraft} onClose={() => { setAddOpen(false); setAddDraft(null) }} onCreated={refreshData} />
       <QuickSearchDialog open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
     </div></KeyboardShortcutsProvider></AppContext.Provider>
 }

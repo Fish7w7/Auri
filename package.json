@@ -1,6 +1,6 @@
 {
   "name": "auri-desktop",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Biblioteca local-first para obras seriadas",
   "author": "Auri",
   "repository": {
@@ -33,6 +33,7 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@auri/protocol": "github:Fish7w7/Auri-Protocol#v0.1.2",
     "better-sqlite3": "^13.0.2",
     "electron-updater": "^6.6.2",
     "react": "^19.2.8",

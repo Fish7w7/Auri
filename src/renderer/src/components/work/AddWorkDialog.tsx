@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Collection, CoverResult, DetailedCreateWorkRequest, MediaType, MetadataReview, MetadataSearchResult, UrlMetadataAnalysis, UrlMetadataDuplicate, UserStatus } from '@shared/contracts'
+import type { Collection, CoverResult, DesktopAddWorkDraft, DetailedCreateWorkRequest, MediaType, MetadataReview, MetadataSearchResult, UrlMetadataAnalysis, UrlMetadataDuplicate, UserStatus } from '@shared/contracts'
 import { navigate } from '../../app/navigation'
 import { useDebouncedValue } from '../../hooks/use-debounced-value'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../../lib/format'
@@ -61,7 +61,11 @@ export function createManualWorkRequest(manual: WorkFormState): DetailedCreateWo
   }
 }
 
-export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onClose(): void; onCreated(): void }) {
+export function createExternalDraftForm(draft: DesktopAddWorkDraft): WorkFormState {
+  return { ...EMPTY_WORK_FORM, title: draft.title ?? '', chapter: draft.detectedChapter?.value ?? '', sourceName: draft.sourceName ?? '', sourceUrl: draft.canonicalUrl ?? draft.pageUrl, sourcePreferred: false }
+}
+
+export function AddWorkDialog({ open, draft, onClose, onCreated }: { open: boolean; draft?: DesktopAddWorkDraft | null; onClose(): void; onCreated(): void }) {
   const [mode, setMode] = useState<Mode>('choose')
   const [quick, setQuick] = useState({ title: '', chapter: '', status: 'reading' as UserStatus })
   const [manual, setManual] = useState<WorkFormState>(EMPTY_WORK_FORM)
@@ -85,8 +89,15 @@ export function AddWorkDialog({ open, onClose, onCreated }: { open: boolean; onC
   const urlRequestId = useRef(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
+  const consumedDraft = useRef<DesktopAddWorkDraft | null>(null)
 
   useEffect(() => { if (open) void window.auri.collections.list().then(setCollections).catch(() => setCollections([])) }, [open])
+  useEffect(() => {
+    if (!open || !draft || consumedDraft.current === draft) return
+    consumedDraft.current = draft
+    setManual(createExternalDraftForm(draft))
+    setMode('manual')
+  }, [draft, open])
   useEffect(() => {
     if (!open || mode !== 'search') return
     const trimmed = debouncedQuery.trim()

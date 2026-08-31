@@ -44,6 +44,8 @@ import { UrlMetadataService } from '../services/url-metadata/url-metadata-servic
 import { BulkLibraryService } from '../services/bulk-library-service'
 import { CURRENT_LOG_FILE_NAME } from './app-identity'
 import { createApplicationUpdateService } from '../services/application-update-service'
+import { WorkResolutionRepository } from '../database/repositories/work-resolution-repository'
+import { WorkResolutionService } from '../services/work-resolution-service'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -65,6 +67,7 @@ export interface AppContext {
     backups: BackupService
     transfer: TransferService
     bulk: BulkLibraryService
+    resolution: WorkResolutionService
   }
   dispose(): void
 }
@@ -151,6 +154,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       logger
     )
     const externalNavigation = new ExternalNavigationService()
+    const resolution = new WorkResolutionService(new WorkResolutionRepository(database.db))
     const library = new LibraryService(worksRepository)
     const transfer = new TransferService(database.db, {
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
@@ -162,7 +166,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     return {
       database,
       logger,
-      services: { system, updates, works, progress, sources, library, settings, details, bulk, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
+      services: { system, updates, works, progress, sources, library, settings, details, bulk, resolution, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
       dispose() {
         updates.dispose()
         database.close()

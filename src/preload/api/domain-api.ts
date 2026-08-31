@@ -15,7 +15,7 @@ async function invoke<T>(channel: string, request?: unknown): Promise<T> {
   return result.data
 }
 
-export const domainApi: Omit<AuriApi, 'system' | 'settings'> = {
+export const domainApi: Omit<AuriApi, 'system' | 'settings' | 'desktopCommands'> = {
   bulk: {
     setStatus: (request) => invoke(IPC_CHANNELS.bulk.setStatus, request),
     setFavorite: (request) => invoke(IPC_CHANNELS.bulk.setFavorite, request),

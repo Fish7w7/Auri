@@ -26,10 +26,16 @@ import {
   type CompatibilityRecoveryState
 } from './services/release-compatibility-service'
 import { MIN_SUPPORTED_SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSION } from '@shared/constants/schema-compatibility'
+import { DesktopCommandService } from './services/desktop-command-service'
+import { createProtocolHandlers } from './protocol/protocol-handlers'
+import { ProtocolDispatcher } from './protocol/protocol-dispatcher'
+import { loadOrCreateBridgeIdentity } from './bridge/bridge-identity'
+import { NamedPipeBridgeServer } from './bridge/named-pipe-server'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
 let windowTrayController: WindowTrayController | undefined
+let bridgeServer: NamedPipeBridgeServer | undefined
 const isSmokeTest = process.argv.includes('--smoke-test')
 const isScreenshotTest = process.argv.includes('--screenshot-test')
 const isSettingsScrollTest = process.argv.includes('--settings-scroll-test')
@@ -213,6 +219,19 @@ if (!singleInstanceLock) {
         keepRenderingWhenHidden: isSmokeTest || isScreenshotTest || isSettingsScrollTest
       })
       windowTrayController = manageMainWindow(mainWindow, context)
+      if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest && !isReleaseDataSmokeTest) {
+        const desktop = new DesktopCommandService(() => BrowserWindow.getAllWindows()[0] ?? null)
+        let dispatcher!: ProtocolDispatcher
+        const handlers = createProtocolHandlers({
+          appVersion: app.getVersion(), resolution: context.services.resolution,
+          works: context.services.works, sources: context.services.sources,
+          progress: context.services.progress, desktop
+        }, () => dispatcher.capabilities)
+        dispatcher = new ProtocolDispatcher(handlers, context.logger)
+        const identity = loadOrCreateBridgeIdentity(app.getPath('userData'), app.isPackaged)
+        bridgeServer = new NamedPipeBridgeServer(identity.endpoint, identity.secret, dispatcher, context.logger)
+        await bridgeServer.start()
+      }
 
       if (isSmokeTest) {
         mainWindow.webContents.once('did-finish-load', () => {
@@ -1330,6 +1349,7 @@ if (!singleInstanceLock) {
 }
 
 app.on('before-quit', () => {
+  bridgeServer?.close()
   windowTrayController?.beginQuit()
   unregisterIpc?.()
   context?.dispose()
@@ -1337,6 +1357,7 @@ app.on('before-quit', () => {
   unregisterIpc = undefined
   context = undefined
   windowTrayController = undefined
+  bridgeServer = undefined
 })
 
 app.on('window-all-closed', () => {
