@@ -1,18 +1,13 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type Server, type Socket } from 'node:net'
 import type { ProtocolDispatcher } from '../protocol/protocol-dispatcher'
 import type { Logger } from '../logging/logger'
 import { BridgeFrameDecoder, BridgeFrameError, encodeBridgeFrame } from './bridge-framing'
-
-export const BRIDGE_HANDSHAKE_TIMEOUT_MS = 5_000
-export const BRIDGE_REQUEST_TIMEOUT_MS = 15_000
-export const BRIDGE_IDLE_TIMEOUT_MS = 60_000
-const HMAC_CONTEXT = 'auri-bridge-v1'
+import { createBridgeProof } from '@shared/native-bridge/authentication'
+import { BRIDGE_HANDSHAKE_TIMEOUT_MS, BRIDGE_IDLE_TIMEOUT_MS, BRIDGE_REQUEST_TIMEOUT_MS } from '@shared/native-bridge/constants'
+export { createBridgeProof } from '@shared/native-bridge/authentication'
+export { BRIDGE_HANDSHAKE_TIMEOUT_MS, BRIDGE_IDLE_TIMEOUT_MS, BRIDGE_REQUEST_TIMEOUT_MS } from '@shared/native-bridge/constants'
 export interface BridgeTimeouts { handshakeMs: number; requestMs: number; idleMs: number }
-
-export function createBridgeProof(secret: Buffer, serverNonce: string, clientNonce: string): string {
-  return createHmac('sha256', secret).update(`${HMAC_CONTEXT}:${serverNonce}:${clientNonce}`).digest('base64')
-}
 
 export class NamedPipeBridgeServer {
   private server: Server | null = null

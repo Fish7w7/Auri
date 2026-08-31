@@ -23,6 +23,7 @@
     "test:visual": "npm run build:app && electron . --screenshot-test",
     "test:backup-smoke": "npm run build:app && electron . --backup-smoke-test",
     "build:app": "electron-vite build",
+    "build:native-host": "node scripts/build-native-host.mjs",
     "build": "npm run typecheck && npm run test && npm run build:app",
     "dist": "npm run build && electron-builder --win nsis --x64 --publish never",
     "dist:dir": "npm run build && electron-builder --win --x64 --dir --publish never",
@@ -54,6 +55,8 @@
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "esbuild": "^0.25.12",
+    "postject": "^1.0.0-alpha.6",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^4.1.10"

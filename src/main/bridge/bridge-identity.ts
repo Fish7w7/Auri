@@ -1,20 +1,18 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-
-export const BRIDGE_SECRET_BYTES = 32
+import { dirname } from 'node:path'
+import { BRIDGE_SECRET_BYTES, resolveBridgeEndpoint as resolveSharedBridgeEndpoint, resolveBridgeSecretPath } from '@shared/native-bridge/identity'
+export { BRIDGE_SECRET_BYTES } from '@shared/native-bridge/identity'
 
 export interface BridgeIdentity { endpoint: string; secret: Buffer; secretPath: string }
 
-export function resolveBridgeEndpoint(userDataPath: string, isPackaged: boolean, userHome = homedir()): string {
-  const scope = createHash('sha256').update(`${userHome}\0${userDataPath}`).digest('hex').slice(0, 20)
-  return `\\\\.\\pipe\\${isPackaged ? 'auri-desktop' : 'auri-desktop-dev'}-v1-${scope}`
+export function resolveBridgeEndpoint(userDataPath: string, isPackaged: boolean, userHome?: string): string {
+  return resolveSharedBridgeEndpoint(userDataPath, !isPackaged, userHome)
 }
 
 export function loadOrCreateBridgeIdentity(userDataPath: string, isPackaged: boolean): BridgeIdentity {
-  const directory = join(userDataPath, 'native-bridge')
-  const secretPath = join(directory, 'secret')
+  const secretPath = resolveBridgeSecretPath(userDataPath)
+  const directory = dirname(secretPath)
   mkdirSync(directory, { recursive: true })
   let secret: Buffer
   try { secret = Buffer.from(readFileSync(secretPath, 'utf8').trim(), 'base64') }

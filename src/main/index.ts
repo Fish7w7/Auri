@@ -31,6 +31,7 @@ import { createProtocolHandlers } from './protocol/protocol-handlers'
 import { ProtocolDispatcher } from './protocol/protocol-dispatcher'
 import { loadOrCreateBridgeIdentity } from './bridge/bridge-identity'
 import { NamedPipeBridgeServer } from './bridge/named-pipe-server'
+import { isNativeBridgeStartup, shouldRestoreWindowForSecondInstance } from './app/native-bridge-startup'
 
 let context: AppContext | undefined
 let unregisterIpc: (() => void) | undefined
@@ -43,6 +44,7 @@ const isBackupSmokeTest = process.argv.includes('--backup-smoke-test')
 const isReleasePersistenceSmokeTest = process.argv.includes('--release-persistence-smoke-test')
 const isReleaseBackupRestoreTest = process.argv.includes('--release-backup-restore-test')
 const isReleaseDataSmokeTest = isReleasePersistenceSmokeTest || isReleaseBackupRestoreTest
+const isNativeBridgeStart = isNativeBridgeStartup(process.argv)
 const testCoverBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const testMetadata: MetadataWork = { provider: 'anilist', externalId: '987654', title: 'Auri Metadata Test', originalTitle: 'ルミテスト', aliases: [{ name: 'Auri Test', kind: 'synonym' }], description: 'Metadados determinísticos para validar a integração completa.', mediaType: 'manga', publicationStatus: 'ongoing', countryCode: 'JP', startDate: '2026-08', endDate: null, creators: [{ name: 'Auri Author', role: 'author' }], genres: ['Teste', 'Fantasia'], coverUrl: 'https://fixtures.auri.invalid/cover.png', canonicalUrl: 'https://anilist.co/manga/987654' }
 let testMetadataReads = 0
@@ -86,7 +88,8 @@ const singleInstanceLock = app.requestSingleInstanceLock()
 if (!singleInstanceLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, commandLine) => {
+    if (!shouldRestoreWindowForSecondInstance(commandLine)) return
     const window = BrowserWindow.getAllWindows()[0]
     if (!window) return
     restoreMainWindow(window)
@@ -215,7 +218,7 @@ if (!singleInstanceLock) {
       }
 
       const mainWindow = createMainWindow({
-        showWhenReady: !isSmokeTest && !isSettingsScrollTest,
+        showWhenReady: !isSmokeTest && !isSettingsScrollTest && !isNativeBridgeStart,
         keepRenderingWhenHidden: isSmokeTest || isScreenshotTest || isSettingsScrollTest
       })
       windowTrayController = manageMainWindow(mainWindow, context)
