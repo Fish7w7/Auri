@@ -92,7 +92,9 @@ export class DesktopConnector implements NativeHostTransport {
     const secret = readBridgeSecret(this.secretPath)
     const defaults: PipeClientTimeouts = { connectMs: 500, handshakeMs: 1_000, requestMs: 15_000 }
     const client = new AuthenticatedPipeClient(this.endpoint, secret, { ...defaults, ...this.options.pipeTimeouts })
-    return client.open()
+    const opened = await client.open()
+    this.options.logger.info('Conexão autenticada com o Desktop.', { event: 'native_host.pipe_connected' })
+    return opened
   }
 }
 
@@ -124,4 +126,3 @@ function startInstalledDesktop(executable: string): void {
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 }
-

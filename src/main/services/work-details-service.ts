@@ -59,6 +59,7 @@ export class WorkDetailsService {
 
   createDetailed(input: unknown): WorkDetails {
     const request = parseDomainInput(detailedCreateWorkSchema, input) as DetailedCreateWorkRequest
+    if (request.source) this.sourcesService.assertExternalDraftSourceAvailable(request.source)
     const operation = this.db.transaction(() => {
       const hasExplicitSourceProgress = request.source !== undefined && request.chapter !== null && request.chapter !== undefined
       const work = this.worksService.createWork(hasExplicitSourceProgress ? { ...request, chapter: null } : request)

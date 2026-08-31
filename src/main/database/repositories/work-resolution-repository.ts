@@ -31,6 +31,13 @@ export class WorkResolutionRepository {
     return this.map(rows, 'exact')
   }
 
+  findByAncestralSourceUrls(urls: readonly string[]): ResolutionCandidate[] {
+    return this.sources.findBySeriesUrls(urls).flatMap((source) => {
+      const work = this.works.findActiveById(source.workId)
+      return work ? [{ work, source, matchedBy: 'source_url' as const, confidence: 'high' as const }] : []
+    })
+  }
+
   findByDomainAndTitle(domain: string, normalizedTitle: string): ResolutionCandidate[] {
     const rows = this.db.prepare(`SELECT DISTINCT w.id AS work_id, s.id AS source_id,
       CASE WHEN w.normalized_title = ? THEN 'title' ELSE 'alias' END AS matched_by

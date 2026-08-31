@@ -65,6 +65,16 @@ export function createExternalDraftForm(draft: DesktopAddWorkDraft): WorkFormSta
   return { ...EMPTY_WORK_FORM, title: draft.title ?? '', chapter: draft.detectedChapter?.value ?? '', sourceName: draft.sourceName ?? '', sourceUrl: draft.canonicalUrl ?? draft.pageUrl, sourcePreferred: false }
 }
 
+export function duplicateSourceNotice(error: unknown): { workId: string; workTitle: string } | null {
+  if (!error || typeof error !== 'object' || !('error' in error)) return null
+  const shape = (error as { error?: { code?: string; details?: Record<string, unknown> } }).error
+  if (shape?.code !== 'DUPLICATE_SOURCE' || typeof shape.details?.workId !== 'string') return null
+  return {
+    workId: shape.details.workId,
+    workTitle: typeof shape.details.workTitle === 'string' ? shape.details.workTitle : 'Obra existente'
+  }
+}
+
 export function AddWorkDialog({ open, draft, onClose, onCreated }: { open: boolean; draft?: DesktopAddWorkDraft | null; onClose(): void; onCreated(): void }) {
   const [mode, setMode] = useState<Mode>('choose')
   const [quick, setQuick] = useState({ title: '', chapter: '', status: 'reading' as UserStatus })
@@ -253,7 +263,15 @@ export function AddWorkDialog({ open, draft, onClose, onCreated }: { open: boole
       if (manual.coverMode === 'custom') try { await window.auri.assets.selectCover({ workId: details.work.id }) } catch (error) { showToast({ kind: 'warning', message: `A obra foi criada, mas a capa não foi importada: ${mapDomainError(error)}` }) }
       onCreated(); close()
       showToast({ kind: 'success', message: `✓ ${details.work.title} foi adicionada à biblioteca.`, action: { label: 'Abrir obra', onClick: () => navigate(`/work/${details.work.id}`) } })
-    } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } finally { setBusy(false) }
+    } catch (error) {
+      const duplicate = duplicateSourceNotice(error)
+      if (duplicate) showToast({
+        kind: 'warning',
+        message: `Esta página parece pertencer a “${duplicate.workTitle}”, que já está na sua Biblioteca.`,
+        action: { label: 'Abrir obra', onClick: () => { close(); navigate(`/work/${duplicate.workId}`) } }
+      })
+      else showToast({ kind: 'error', message: mapDomainError(error) })
+    } finally { setBusy(false) }
   }
 
   const save = mode === 'quick' ? submitQuick : mode === 'manual' ? submitManual : mode === 'review' ? importMetadata : undefined

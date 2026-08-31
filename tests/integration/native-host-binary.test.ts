@@ -14,8 +14,8 @@ import { TestLogger } from '../helpers/test-logger'
 const roots: string[] = []; const servers: NamedPipeBridgeServer[] = []
 afterEach(() => { for (const server of servers.splice(0)) server.close(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
-describe('AuriNativeHost.exe', () => {
-  it('troca um frame real com o Desktop Bridge e encerra no EOF', async () => {
+describe('AuriNativeHostDev.exe', () => {
+  it('usa o bridge DEV fixado no build, troca um frame real e encerra no EOF', async () => {
     const appData = join(tmpdir(), `auri-native-binary-${randomUUID()}`); roots.push(appData)
     const userData = resolveBridgeUserData(appData, true); const secretPath = resolveBridgeSecretPath(userData); const secret = randomBytes(32)
     mkdirSync(join(userData, 'native-bridge'), { recursive: true }); writeFileSync(secretPath, secret.toString('base64'))
@@ -26,8 +26,8 @@ describe('AuriNativeHost.exe', () => {
     const server = new NamedPipeBridgeServer(resolveBridgeEndpoint(userData, true), secret, dispatcher, new TestLogger(), { handshakeMs: 1_000, requestMs: 1_000, idleMs: 5_000 })
     servers.push(server); await server.start()
 
-    const executable = join(process.cwd(), 'artifacts', 'native-host', 'AuriNativeHost.exe')
-    const child = spawn(executable, [], { env: { ...process.env, APPDATA: appData, AURI_NATIVE_HOST_MODE: 'dev' }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    const executable = join(process.cwd(), 'artifacts', 'native-host', 'dev', 'AuriNativeHostDev.exe')
+    const child = spawn(executable, [], { env: { ...process.env, APPDATA: appData, AURI_NATIVE_HOST_MODE: 'prod' }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     const decoder = new LengthPrefixedJsonDecoder(); const responses: ProtocolResponse[] = []
     child.stdout.on('data', (chunk) => responses.push(...decoder.push(chunk) as ProtocolResponse[]))
     child.stdin.write(encodeLengthPrefixedJson(createRequest('binary-hello', 'system.hello', {
@@ -49,4 +49,3 @@ async function waitFor(condition: () => boolean): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
 }
-

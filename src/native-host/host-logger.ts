@@ -9,6 +9,8 @@ export interface NativeHostLogFields {
   requestId?: string
   durationMs?: number
   errorCode?: string
+  mode?: 'prod' | 'dev'
+  status?: string
 }
 
 export interface NativeHostLog {
@@ -46,4 +48,3 @@ export class NativeHostLogger implements NativeHostLog {
     } catch { /* rotação é best effort */ }
   }
 }
-

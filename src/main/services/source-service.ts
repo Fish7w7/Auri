@@ -9,6 +9,7 @@ import {
 } from '@shared/schemas/domain'
 import type { Source } from '@shared/types/domain'
 import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
+import { isSourceUrlAncestor, sourceUrlAncestorCandidates, sourceUrlSpecificity } from '@shared/utils/source-url-ancestry'
 import type { SourceRepository } from '../database/repositories/source-repository'
 import type { WorkRepository } from '../database/repositories/work-repository'
 import { generateId, parseDomainInput, utcNow, type Clock, type IdGenerator } from './service-utils'
@@ -55,6 +56,12 @@ export class SourceService {
       return this.sources.create(source)
     })
     return create.immediate()
+  }
+
+  assertExternalDraftSourceAvailable(input: { seriesUrl?: string | null; lastReadUrl?: string | null }): void {
+    const seriesUrl = this.normalizeUrl(input.seriesUrl)
+    const lastReadUrl = this.normalizeUrl(input.lastReadUrl)
+    this.assertUrlAvailable(null, seriesUrl, lastReadUrl)
   }
 
   updateSource(input: unknown): Source {
@@ -170,14 +177,21 @@ export class SourceService {
     return normalized
   }
 
-  private assertUrlAvailable(workId: string, seriesUrl: string | null, lastReadUrl: string | null, ignoredSourceId?: string): void {
-    const incoming = new Set([seriesUrl, lastReadUrl].filter((value): value is string => Boolean(value)))
-    if (!incoming.size) return
-    const duplicate = this.sources.listAll().find((source) => source.id !== ignoredSourceId && [source.seriesUrl, source.lastReadUrl]
-      .map((value) => normalizeSourceUrl(value)).some((value) => value !== null && incoming.has(value)))
+  private assertUrlAvailable(workId: string | null, seriesUrl: string | null, lastReadUrl: string | null, ignoredSourceId?: string): void {
+    const incoming = [seriesUrl, lastReadUrl].filter((value): value is string => Boolean(value))
+    if (!incoming.length) return
+    const exact = this.sources.findByStoredUrls(incoming).filter((source) => source.id !== ignoredSourceId)
+    const ancestorUrls = [...new Set(incoming.flatMap(sourceUrlAncestorCandidates))]
+    const ancestral = this.sources.findBySeriesUrls(ancestorUrls).filter((source) =>
+      source.id !== ignoredSourceId && source.seriesUrl !== null && incoming.some((url) => isSourceUrlAncestor(source.seriesUrl!, url)))
+    const candidates = exact.length ? exact : ancestral
+    const specificity = candidates.length ? Math.max(...candidates.map((source) => sourceUrlSpecificity(source.seriesUrl ?? source.lastReadUrl ?? ''))) : 0
+    const duplicate = candidates.find((source) => sourceUrlSpecificity(source.seriesUrl ?? source.lastReadUrl ?? '') === specificity)
     if (duplicate) {
-      throw new DomainError('DUPLICATE_SOURCE', 'Esta fonte já está cadastrada para uma obra.', {
+      const work = this.works.findById(duplicate.workId)
+      throw new DomainError('DUPLICATE_SOURCE', 'Esta página parece pertencer a uma obra que já está na sua Biblioteca.', {
         workId: duplicate.workId,
+        workTitle: work?.title ?? 'Obra existente',
         sourceId: duplicate.id,
         sameWork: duplicate.workId === workId
       })

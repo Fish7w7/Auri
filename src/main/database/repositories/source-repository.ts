@@ -60,6 +60,21 @@ export class SourceRepository {
     )
   }
 
+  findByStoredUrls(urls: readonly string[]): Source[] {
+    if (!urls.length) return []
+    const placeholders = urls.map(() => '?').join(', ')
+    return this.mapMany(this.db.prepare(`SELECT ${SOURCE_COLUMNS} FROM sources
+      WHERE series_url IN (${placeholders}) OR last_read_url IN (${placeholders})
+      ORDER BY id`).all(...urls, ...urls) as SourceRow[])
+  }
+
+  findBySeriesUrls(urls: readonly string[]): Source[] {
+    if (!urls.length) return []
+    const placeholders = urls.map(() => '?').join(', ')
+    return this.mapMany(this.db.prepare(`SELECT ${SOURCE_COLUMNS} FROM sources
+      WHERE series_url IN (${placeholders}) ORDER BY length(series_url) DESC, id`).all(...urls) as SourceRow[])
+  }
+
   update(source: Source): Source {
     const safeSource = this.enforceStatusInvariant(source)
     this.db

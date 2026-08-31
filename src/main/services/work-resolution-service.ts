@@ -1,6 +1,7 @@
 import type { PageContext, SourceSummary, WorkResolveResult, WorkSummary } from '@auri/protocol'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
+import { isSourceUrlAncestor, sourceUrlAncestorCandidates, sourceUrlSpecificity } from '@shared/utils/source-url-ancestry'
 import type { Source, Work } from '@shared/types/domain'
 import type { ResolutionCandidate, WorkResolutionRepository } from '../database/repositories/work-resolution-repository'
 
@@ -11,6 +12,14 @@ export class WorkResolutionService {
     const urls = [...new Set([page.url, page.canonicalUrl].map(normalizeSourceUrl).filter((value): value is string => value !== null))]
     const exactSource = this.repository.findByExactUrls(urls)
     if (exactSource.length) return this.result(exactSource)
+
+    const ancestorUrls = [...new Set(urls.flatMap(sourceUrlAncestorCandidates))]
+    const ancestors = this.repository.findByAncestralSourceUrls(ancestorUrls)
+      .filter((candidate) => candidate.source?.seriesUrl && urls.some((url) => isSourceUrlAncestor(candidate.source!.seriesUrl!, url)))
+    if (ancestors.length) {
+      const specificity = Math.max(...ancestors.map((candidate) => sourceUrlSpecificity(candidate.source!.seriesUrl!)))
+      return this.result(ancestors.filter((candidate) => sourceUrlSpecificity(candidate.source!.seriesUrl!) === specificity))
+    }
 
     const title = page.title ? normalizeSearchText(page.title) : ''
     const domain = this.hostname(urls)

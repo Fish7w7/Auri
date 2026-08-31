@@ -30,6 +30,33 @@ describe('WorkDetailsService', () => {
     fixture.db.close()
   })
 
+  it('impede segunda Work quando o draft usa página descendente de Source existente', () => {
+    const fixture = createDomainFixture()
+    const existing = createMinimalWork(fixture, 'A Transmissão do Super-Humano')
+    fixture.services.sources.createSource({
+      workId: existing.id,
+      seriesUrl: 'https://toonlivre.net/a-transmissao-do-super-humano',
+      status: 'archived'
+    })
+
+    expect(() => fixture.services.details.createDetailed({
+      title: 'Duplicata acidental', mediaType: 'manhwa', userStatus: 'reading',
+      source: { seriesUrl: 'https://toonlivre.net/a-transmissao-do-super-humano/44' }
+    })).toThrowError(expect.objectContaining({
+      code: 'DUPLICATE_SOURCE',
+      details: expect.objectContaining({ workId: existing.id, workTitle: existing.title })
+    }))
+    expect(fixture.services.library.getSummary().total).toBe(1)
+
+    const distinct = fixture.services.details.createDetailed({
+      title: 'Outra obra do mesmo site', mediaType: 'manhwa', userStatus: 'want_to_read',
+      source: { seriesUrl: 'https://toonlivre.net/outra-obra/44' }
+    })
+    expect(distinct.work.title).toBe('Outra obra do mesmo site')
+    expect(fixture.services.library.getSummary().total).toBe(2)
+    fixture.db.close()
+  })
+
   it('gerencia aliases, creators, gêneros, tags e coleções sem duplicar por casing', () => {
     const fixture = createDomainFixture()
     const work = createMinimalWork(fixture)
