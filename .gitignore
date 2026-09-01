@@ -1,10 +1,27 @@
-node_modules/
-out/
-dist/
-release/
-coverage/
-artifacts/
+# Dependencies
+/node_modules/
+
+# Application and build outputs
+/out/
+/dist/
+/coverage/
+/build/assets/
+/build/generated/
+
+# Native Host outputs
+/artifacts/
+
+# Release artifacts
+/release/
+
+# Logs
 *.log
+
+# Local environment
 .env
 .env.*
 !.env.example
+
+# Operating system
+.DS_Store
+Thumbs.db

@@ -11,8 +11,8 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "brand:assets": "node scripts/generate-brand-assets.mjs",
-    "compatibility:manifest": "node scripts/generate-compatibility-manifest.mjs",
+    "brand:assets": "node scripts/build/generate-brand-assets.mjs",
+    "compatibility:manifest": "node scripts/build/generate-compatibility-manifest.mjs",
     "prebuild:app": "npm run brand:assets && npm run compatibility:manifest",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
@@ -23,12 +23,12 @@
     "test:visual": "npm run build:app && electron . --screenshot-test",
     "test:backup-smoke": "npm run build:app && electron . --backup-smoke-test",
     "build:app": "electron-vite build",
-    "build:native-host": "node scripts/build-native-host.mjs",
-    "build:native-host:dev": "node scripts/build-native-host.mjs --mode=dev",
-    "prepare:native-host:production": "node scripts/native-host-production.js",
-    "prepare:native-host:release": "node scripts/native-host-production.js --release",
-    "native-host:register-dev": "node scripts/native-host-dev.js register",
-    "native-host:unregister-dev": "node scripts/native-host-dev.js unregister",
+    "build:native-host": "node scripts/build/build-native-host.mjs",
+    "build:native-host:dev": "node scripts/build/build-native-host.mjs --mode=dev",
+    "prepare:native-host:production": "node scripts/release/native-host-production.js",
+    "prepare:native-host:release": "node scripts/release/native-host-production.js --release",
+    "native-host:register-dev": "node scripts/dev/native-host.js register",
+    "native-host:unregister-dev": "node scripts/dev/native-host.js unregister",
     "build": "npm run typecheck && npm run test && npm run build:app",
     "dist": "npm run prepare:native-host:production && electron-builder --win nsis --x64 --publish never",
     "dist:dir": "npm run prepare:native-host:production && electron-builder --win --x64 --dir --publish never",
@@ -106,7 +106,7 @@
       "en-US"
     ],
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "build/assets/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -117,10 +117,10 @@
       ]
     },
     "nsis": {
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico",
-      "include": "build/installer.nsh",
+      "installerIcon": "build/assets/icon.ico",
+      "uninstallerIcon": "build/assets/icon.ico",
+      "installerHeaderIcon": "build/assets/icon.ico",
+      "include": "build/nsis/installer.nsh",
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
@@ -135,6 +135,6 @@
         "channel": "latest"
       }
     ],
-    "afterAllArtifactBuild": "scripts/after-all-artifact-build.cjs"
+    "afterAllArtifactBuild": "scripts/release/after-all-artifact-build.cjs"
   }
 }
