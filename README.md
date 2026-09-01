@@ -8,7 +8,7 @@ Ele foi pensado para quem acompanha obras em diferentes sites e quer manter tít
 
 > **Local-first:** sua biblioteca, progresso, notas e preferências ficam no seu computador.
 
-[Baixar Auri](https://github.com/Fish7w7/Auri/releases)
+[Baixar Auri](https://github.com/Fish7w7/Auri/releases) · [Auri Extension](https://github.com/Fish7w7/Auri-Extension)
 
 ## O que você pode fazer
 
@@ -30,6 +30,8 @@ A **Auri Extension** conecta páginas de leitura ao Auri Desktop por comunicaç�
 - abrir a obra no Auri;
 - adicionar uma obra ou uma nova fonte;
 - atualizar o capítulo atual.
+
+**Auri Extension:** [ver no GitHub](https://github.com/Fish7w7/Auri-Extension)
 
 A extensão é opcional e instalada separadamente. O Auri Desktop continua funcionando normalmente sem ela, e a integração não depende de conta ou nuvem. As funções exigem a Auri Extension e o Auri Desktop 1.10.0 ou uma versão posterior compatível.
 
