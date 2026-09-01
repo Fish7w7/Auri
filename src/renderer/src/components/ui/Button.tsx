@@ -6,6 +6,7 @@ export function Button({
   icon,
   children,
   className = '',
+  type = 'button',
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -13,7 +14,7 @@ export function Button({
   children: ReactNode
 }) {
   return (
-    <button className={`button button--${variant} ${className}`} {...props}>
+    <button type={type} className={`button button--${variant} ${className}`} {...props}>
       {icon && <Icon name={icon} />}
       <span>{children}</span>
     </button>
@@ -27,4 +28,3 @@ export function IconButton({ label, icon, className = '', ...props }: ButtonHTML
     </button>
   )
 }
-

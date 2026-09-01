@@ -351,7 +351,10 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .field input:user-invalid, .field textarea:user-invalid, .field input[aria-invalid="true"], .field textarea[aria-invalid="true"], .editable-row > input:user-invalid, .editable-row > input[aria-invalid="true"] { border-color: var(--danger); }
 
 .toast-region { position: fixed; z-index: 1000; right: 22px; bottom: 22px; max-width: calc(100vw - 44px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
+.toast-slot { width: fit-content; max-width: 100%; }
+.toast-slot.is-repositioning { animation: toast-reposition 160ms ease-out both; }
 .toast { position: relative; width: fit-content; min-width: min(190px, calc(100vw - 44px)); max-width: min(410px, calc(100vw - 44px)); display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 12px 40px 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-elevated); box-shadow: 0 14px 46px var(--shadow); pointer-events: auto; animation: toast-enter 160ms ease-out both; }
+.toast.is-exiting { animation: toast-exit 140ms ease-in both; }
 .toast__indicator { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--info); }
 .toast--success .toast__indicator { background: var(--success); }
 .toast--warning .toast__indicator { background: var(--warning); }
@@ -363,6 +366,8 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; col
 .toast__close { position: absolute; top: 7px; right: 8px; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--text-muted); background: transparent; font-size: 1.1rem; }
 .toast__close:hover, .toast__close:focus-visible { color: var(--text-primary); background: var(--surface-hover); }
 @keyframes toast-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toast-exit { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes toast-reposition { from { transform: translateY(var(--toast-shift-y)); } to { transform: translateY(0); } }
 
 .trash-list { display: grid; gap: 4px; }
 .trash-item { min-height: 74px; display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-bottom: 1px solid var(--border); }

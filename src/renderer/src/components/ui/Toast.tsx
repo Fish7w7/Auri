@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 export type ToastKind = 'success' | 'info' | 'warning' | 'error' | 'progress'
 export type ToastId = string
@@ -24,6 +24,7 @@ export interface ToastItem extends Omit<ToastInput, 'kind' | 'durationMs'> {
   durationMs: number | null
   revision: number
   overflowCount?: number
+  exiting?: boolean
 }
 
 export interface ToastState {
@@ -40,17 +41,24 @@ export const TOAST_DURATIONS = {
 } as const
 export const MAX_VISIBLE_TOASTS = 2
 export const MAX_TOAST_QUEUE = 6
+export const TOAST_EXIT_DURATION_MS = 140
 
 const OVERFLOW_KEY = '__auri_toast_overflow__'
 const INITIAL_STATE: ToastState = { visible: [], queue: [] }
 
-type ToastEvent =
+export type ToastEvent =
   | { type: 'enqueue'; item: ToastItem }
   | { type: 'update'; id: ToastId; patch: ToastUpdate }
+  | { type: 'start-dismiss'; id: ToastId }
+  | { type: 'cancel-dismiss'; id: ToastId }
   | { type: 'dismiss'; id: ToastId }
 
 export function pauseToastDuration(remainingMs: number, startedAt: number, now: number): number {
   return Math.max(0, remainingMs - (now - startedAt))
+}
+
+export function shouldResumeToastTimer(containsTarget: (target: EventTarget) => boolean, relatedTarget: EventTarget | null): boolean {
+  return relatedTarget === null || !containsTarget(relatedTarget)
 }
 
 export async function runToastActionOnce(id: ToastId, locks: Set<ToastId>, action: () => void | Promise<void>): Promise<boolean> {
@@ -128,6 +136,14 @@ function mergeSemanticDuplicate(items: ToastItem[], incoming: ToastItem): ToastI
 }
 
 export function toastReducer(state: ToastState, event: ToastEvent): ToastState {
+  if (event.type === 'start-dismiss' || event.type === 'cancel-dismiss') {
+    const exiting = event.type === 'start-dismiss'
+    return {
+      visible: state.visible.map((item) => item.id === event.id ? { ...item, exiting } : item),
+      queue: state.queue.map((item) => item.id === event.id ? { ...item, exiting } : item)
+    }
+  }
+
   if (event.type === 'dismiss') {
     const visible = state.visible.filter((item) => item.id !== event.id)
     if (visible.length !== state.visible.length) return fillVisible(visible, state.queue)
@@ -184,7 +200,7 @@ function ToastCard({ toast, busy, onDismiss, onAction }: {
   const timer = useRef<number | null>(null)
   const remaining = useRef<number | null>(null)
   const startedAt = useRef(0)
-  const hovering = useRef(false)
+  const pauseReasons = useRef(new Set<'hover' | 'focus'>())
 
   const clearTimer = () => {
     if (timer.current !== null) window.clearTimeout(timer.current)
@@ -200,30 +216,37 @@ function ToastCard({ toast, busy, onDismiss, onAction }: {
   useEffect(() => {
     clearTimer()
     remaining.current = toast.durationMs
-    if (toast.durationMs !== null && !hovering.current) startTimer(toast.durationMs)
+    if (toast.durationMs !== null && !toast.exiting && pauseReasons.current.size === 0) startTimer(toast.durationMs)
     return clearTimer
-  }, [toast.id, toast.revision, toast.durationMs, onDismiss])
+  }, [toast.id, toast.revision, toast.durationMs, toast.exiting, onDismiss])
 
-  const pauseTimer = () => {
-    hovering.current = true
+  const pauseTimer = (reason: 'hover' | 'focus') => {
+    const alreadyPaused = pauseReasons.current.size > 0
+    pauseReasons.current.add(reason)
+    if (alreadyPaused) return
     if (timer.current === null || remaining.current === null) return
     remaining.current = pauseToastDuration(remaining.current, startedAt.current, performance.now())
     clearTimer()
   }
-  const resumeTimer = () => {
-    hovering.current = false
+  const resumeTimer = (reason: 'hover' | 'focus') => {
+    pauseReasons.current.delete(reason)
+    if (pauseReasons.current.size > 0 || toast.exiting) return
     if (remaining.current === null || timer.current !== null) return
     if (remaining.current <= 0) onDismiss(toast.id)
     else startTimer(remaining.current)
   }
 
   return <div
-    className={`toast toast--${toast.kind}`}
+    className={`toast toast--${toast.kind}${toast.exiting ? ' is-exiting' : ''}`}
     role={toast.kind === 'error' ? 'alert' : 'status'}
     aria-atomic="true"
     aria-busy={toast.kind === 'progress' || undefined}
-    onMouseEnter={pauseTimer}
-    onMouseLeave={resumeTimer}
+    onMouseEnter={() => pauseTimer('hover')}
+    onMouseLeave={() => resumeTimer('hover')}
+    onFocusCapture={() => pauseTimer('focus')}
+    onBlurCapture={(event) => {
+      if (shouldResumeToastTimer((target) => event.currentTarget.contains(target as Node), event.relatedTarget)) resumeTimer('focus')
+    }}
   >
     <span className="toast__indicator" aria-hidden="true" />
     <p>{toast.message}</p>
@@ -232,11 +255,58 @@ function ToastCard({ toast, busy, onDismiss, onAction }: {
   </div>
 }
 
+function ToastRegion({ toasts, actionBusy, onDismiss, onAction }: {
+  toasts: ToastItem[]
+  actionBusy: Set<ToastId>
+  onDismiss(id: ToastId): void
+  onAction(toast: ToastItem): Promise<void>
+}) {
+  const region = useRef<HTMLDivElement>(null)
+  const previousPositions = useRef(new Map<ToastId, number>())
+
+  useLayoutEffect(() => {
+    const nextPositions = new Map<ToastId, number>()
+    const slots = region.current?.querySelectorAll<HTMLElement>('[data-toast-id]') ?? []
+    for (const slot of slots) {
+      const id = slot.dataset.toastId
+      if (!id) continue
+      const top = slot.getBoundingClientRect().top
+      const previousTop = previousPositions.current.get(id)
+      nextPositions.set(id, top)
+      if (previousTop === undefined || previousTop === top) continue
+      slot.classList.remove('is-repositioning')
+      slot.style.setProperty('--toast-shift-y', `${previousTop - top}px`)
+      void slot.offsetWidth
+      slot.classList.add('is-repositioning')
+    }
+    previousPositions.current = nextPositions
+  }, [toasts])
+
+  return <div ref={region} className="toast-region" aria-live="polite" aria-relevant="additions text" aria-label="Notificações">
+    {toasts.map((toast) => <div
+      className="toast-slot"
+      data-toast-id={toast.id}
+      key={toast.id}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) event.currentTarget.classList.remove('is-repositioning')
+      }}
+    >
+      <ToastCard toast={toast} busy={actionBusy.has(toast.id)} onDismiss={onDismiss} onAction={onAction} />
+    </div>)}
+  </div>
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ToastState>(INITIAL_STATE)
   const [actionBusy, setActionBusy] = useState<Set<ToastId>>(() => new Set())
   const sequence = useRef(0)
   const actionLocks = useRef(new Set<ToastId>())
+  const exitTimers = useRef(new Map<ToastId, number>())
+
+  useEffect(() => () => {
+    for (const timer of exitTimers.current.values()) window.clearTimeout(timer)
+    exitTimers.current.clear()
+  }, [])
 
   useEffect(() => {
     const liveIds = new Set([...state.visible, ...state.queue].map((item) => item.id))
@@ -248,13 +318,32 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [state.visible, state.queue])
 
   const dispatch = useCallback((event: ToastEvent) => setState((current) => toastReducer(current, event)), [])
-  const dismissToast = useCallback((id: ToastId) => dispatch({ type: 'dismiss', id }), [dispatch])
-  const updateToast = useCallback((id: ToastId, patch: ToastUpdate) => dispatch({ type: 'update', id, patch }), [dispatch])
+  const cancelDismiss = useCallback((id: ToastId) => {
+    const timer = exitTimers.current.get(id)
+    if (timer === undefined) return
+    window.clearTimeout(timer)
+    exitTimers.current.delete(id)
+    dispatch({ type: 'cancel-dismiss', id })
+  }, [dispatch])
+  const dismissToast = useCallback((id: ToastId) => {
+    if (exitTimers.current.has(id)) return
+    dispatch({ type: 'start-dismiss', id })
+    const timer = window.setTimeout(() => {
+      exitTimers.current.delete(id)
+      dispatch({ type: 'dismiss', id })
+    }, TOAST_EXIT_DURATION_MS)
+    exitTimers.current.set(id, timer)
+  }, [dispatch])
+  const updateToast = useCallback((id: ToastId, patch: ToastUpdate) => {
+    cancelDismiss(id)
+    dispatch({ type: 'update', id, patch })
+  }, [cancelDismiss, dispatch])
   const showToast = useCallback((input: ToastInput) => {
     const id = input.dedupeKey ? `toast-key-${input.dedupeKey}` : `toast-${Date.now()}-${++sequence.current}`
+    cancelDismiss(id)
     dispatch({ type: 'enqueue', item: createToastItem(input, id) })
     return id
-  }, [dispatch])
+  }, [cancelDismiss, dispatch])
 
   const runAction = async (toast: ToastItem) => {
     if (!toast.action || actionLocks.current.has(toast.id)) return
@@ -277,9 +366,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="toast-region" aria-live="polite" aria-relevant="additions text" aria-label="Notificações">
-        {state.visible.map((toast) => <ToastCard key={toast.id} toast={toast} busy={actionBusy.has(toast.id)} onDismiss={dismissToast} onAction={runAction} />)}
-      </div>
+      <ToastRegion toasts={state.visible} actionBusy={actionBusy} onDismiss={dismissToast} onAction={runAction} />
     </ToastContext.Provider>
   )
 }

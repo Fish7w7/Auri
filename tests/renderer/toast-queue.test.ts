@@ -5,6 +5,7 @@ import {
   createToastItem,
   pauseToastDuration,
   runToastActionOnce,
+  shouldResumeToastTimer,
   toastReducer,
   type ToastState
 } from '@renderer/components/ui/Toast'
@@ -23,12 +24,31 @@ describe('fila de notificações', () => {
     expect(state.queue.map((item) => item.message)).toEqual(['C'])
   })
 
-  it('preenche imediatamente uma vaga visível com o primeiro item da fila', () => {
+  it('mantém o toast durante a saída e promove a fila após a remoção definitiva', () => {
     let state = empty()
     for (const [id, message] of [['a', 'A'], ['b', 'B'], ['c', 'C']] as const) state = enqueue(state, id, message)
+    state = toastReducer(state, { type: 'start-dismiss', id: 'a' })
+    expect(state.visible.map((item) => ({ message: item.message, exiting: item.exiting }))).toEqual([
+      { message: 'A', exiting: true },
+      { message: 'B', exiting: undefined }
+    ])
+    expect(state.queue.map((item) => item.message)).toEqual(['C'])
+
     state = toastReducer(state, { type: 'dismiss', id: 'a' })
     expect(state.visible.map((item) => item.message)).toEqual(['B', 'C'])
     expect(state.queue).toEqual([])
+  })
+
+  it('preserva a ação existente durante o estado de saída', () => {
+    const undo = vi.fn()
+    let state = toastReducer(empty(), {
+      type: 'enqueue',
+      item: createToastItem({ message: 'Obra ocultada', action: { label: 'Desfazer', onClick: undo } }, 'undo')
+    })
+
+    state = toastReducer(state, { type: 'start-dismiss', id: 'undo' })
+    expect(state.visible[0]).toMatchObject({ id: 'undo', exiting: true })
+    expect(state.visible[0].action?.onClick).toBe(undo)
   })
 
   it('atualiza o toast semântico de progresso mesmo quando já está visível', () => {
@@ -75,8 +95,15 @@ describe('fila de notificações', () => {
     expect(state.visible[0]).toMatchObject({ id: 'backup', kind: 'success', message: 'Backup criado', durationMs: 5_000 })
   })
 
-  it('pausa preservando o tempo restante e executa uma ação somente uma vez', async () => {
+  it('pausa por foco preservando o tempo restante e só retoma ao sair do toast', async () => {
     expect(pauseToastDuration(5_000, 1_000, 2_250)).toBe(3_750)
+    const inside = {} as EventTarget
+    const outside = {} as EventTarget
+    const containsTarget = vi.fn((target: EventTarget) => target === inside)
+    expect(shouldResumeToastTimer(containsTarget, inside)).toBe(false)
+    expect(shouldResumeToastTimer(containsTarget, outside)).toBe(true)
+    expect(shouldResumeToastTimer(containsTarget, null)).toBe(true)
+
     const locks = new Set<string>()
     let release!: () => void
     const pending = new Promise<void>((resolve) => { release = resolve })
