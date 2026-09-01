@@ -28,6 +28,12 @@ O Auri oferece três caminhos:
 
 Nenhum resultado externo é salvo sem a sua confirmação. Se um site não disponibilizar informações confiáveis, o Auri apresenta os dados parciais para que você possa completá-los manualmente.
 
+## Auri no navegador
+
+Com a Auri Extension instalada em um navegador Chromium compatível, páginas de leitura podem se conectar localmente ao Auri Desktop 1.10.0 ou superior compatível. A extensão reconhece obras e fontes cadastradas, mostra o progresso, abre a obra no Desktop e permite adicionar fontes, obras ou atualizações de capítulo sem depender de conta ou nuvem.
+
+As funções de navegador exigem a Auri Extension e uma versão compatível do Auri Desktop. O aplicativo continua funcionando por completo sem a extensão.
+
 ## Seus dados ficam com você
 
 O Auri é **local-first**: sua biblioteca, progresso, notas e preferências ficam no seu computador.
@@ -112,7 +118,7 @@ Comandos principais:
 npm test          # executa os testes
 npm run typecheck # verifica os tipos
 npm run build     # valida e compila o aplicativo
-npm run dist      # gera o instalador Windows sem publicar
+npm run dist      # gera um instalador preparado com origins autorizadas, sem publicar
 ```
 
 Os testes e smokes usam dados temporários e não acessam a biblioteca real do usuário.
@@ -123,6 +129,8 @@ Os testes e smokes usam dados temporários e não acessam a biblioteca real do u
 O Renderer é isolado do Node e acessa as operações permitidas por uma API tipada no Preload. O processo Main valida as entradas, aplica as regras de domínio e persiste os dados em SQLite. No Windows, os dados do aplicativo ficam em `%APPDATA%\Auri`. Backups legados `.lumi-backup` podem ser restaurados manualmente após a instalação limpa.
 
 O `package.json` é a fonte da versão. `npm run dist` e `npm run dist:dir` nunca publicam artefatos.
+
+O Native Host de produção é configurado somente por variáveis de ambiente. Pelo menos uma das variáveis `AURI_EXTENSION_CHROME_ID`, `AURI_EXTENSION_EDGE_ID` ou `AURI_EXTENSION_BRAVE_ID` precisa conter um ID oficial; variáveis ausentes são omitidas do manifest. Uma primeira release somente para Edge pode definir apenas `AURI_EXTENSION_EDGE_ID`. Sem nenhum ID, o empacotamento falha de forma fechada.
 
 Para preparar uma release, valide a versão, faça o commit e crie uma tag com o mesmo número prefixado por `v`. Em um ambiente Windows x64, forneça `GH_TOKEN` somente como variável de ambiente ou segredo do CI e execute:
 

@@ -25,12 +25,14 @@
     "build:app": "electron-vite build",
     "build:native-host": "node scripts/build-native-host.mjs",
     "build:native-host:dev": "node scripts/build-native-host.mjs --mode=dev",
+    "prepare:native-host:production": "node scripts/native-host-production.js",
+    "prepare:native-host:release": "node scripts/native-host-production.js --release",
     "native-host:register-dev": "node scripts/native-host-dev.js register",
     "native-host:unregister-dev": "node scripts/native-host-dev.js unregister",
     "build": "npm run typecheck && npm run test && npm run build:app",
-    "dist": "npm run build && electron-builder --win nsis --x64 --publish never",
-    "dist:dir": "npm run build && electron-builder --win --x64 --dir --publish never",
-    "release:win": "npm run build && electron-builder --win nsis --x64 --publish always",
+    "dist": "npm run prepare:native-host:production && electron-builder --win nsis --x64 --publish never",
+    "dist:dir": "npm run prepare:native-host:production && electron-builder --win --x64 --dir --publish never",
+    "release:win": "npm run typecheck && npm run test && npm run build:native-host && npm run build:app && npm run prepare:native-host:release && electron-builder --win nsis --x64 --publish always",
     "test:settings-scroll": "npm run build:app && electron . --settings-scroll-test"
   },
   "engines": {
@@ -93,6 +95,12 @@
       "node_modules/better-sqlite3/prebuilds/win32-x64.node",
       "node_modules/@img/sharp-win32-x64/lib/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "artifacts/native-host/AuriNativeHost.exe",
+        "to": "native-host/AuriNativeHost.exe"
+      }
+    ],
     "electronLanguages": [
       "pt-BR",
       "en-US"
@@ -112,6 +120,8 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
+      "include": "build/installer.nsh",
+      "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Auri"

@@ -2,9 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import type { ProtocolRequest, ProtocolResponse } from '@auri/protocol'
-import { BRIDGE_SECRET_BYTES, resolveBridgeEndpoint, resolveBridgeSecretPath, resolveBridgeUserData } from '@shared/native-bridge/identity'
+import { BRIDGE_SECRET_BYTES, resolveBridgeEndpointForProfile, resolveBridgeSecretPath } from '@shared/native-bridge/identity'
 import { AuthenticatedPipeClient, NativeHostTransportError, type PipeClientTimeouts } from './pipe-client'
 import type { NativeHostLog } from './host-logger'
+import { NATIVE_HOST_PIPE_PREFIX, NATIVE_HOST_USER_DATA_DIRECTORY } from './build-mode'
 
 export const HOST_DESKTOP_STARTUP_TIMEOUT_MS = 8_000
 const RETRY_DELAYS_MS = [100, 150, 250, 400, 700, 1_000]
@@ -34,8 +35,8 @@ export class DesktopConnector implements NativeHostTransport {
   private readonly startupTimeoutMs: number
 
   constructor(private readonly options: DesktopConnectorOptions) {
-    this.userDataPath = resolveBridgeUserData(options.appDataPath, options.development)
-    this.endpoint = resolveBridgeEndpoint(this.userDataPath, options.development)
+    this.userDataPath = join(options.appDataPath, NATIVE_HOST_USER_DATA_DIRECTORY)
+    this.endpoint = resolveBridgeEndpointForProfile(this.userDataPath, NATIVE_HOST_PIPE_PREFIX)
     this.secretPath = resolveBridgeSecretPath(this.userDataPath)
     this.startupTimeoutMs = options.startupTimeoutMs ?? HOST_DESKTOP_STARTUP_TIMEOUT_MS
   }

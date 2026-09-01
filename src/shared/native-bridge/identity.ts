@@ -13,6 +13,10 @@ export function resolveBridgeSecretPath(userDataPath: string): string {
 }
 
 export function resolveBridgeEndpoint(userDataPath: string, development: boolean, userHome = homedir()): string {
+  return resolveBridgeEndpointForProfile(userDataPath, development ? 'auri-desktop-dev' : 'auri-desktop', userHome)
+}
+
+export function resolveBridgeEndpointForProfile(userDataPath: string, pipePrefix: string, userHome = homedir()): string {
   const scope = createHash('sha256').update(`${userHome}\0${userDataPath}`).digest('hex').slice(0, 20)
-  return `\\\\.\\pipe\\${development ? 'auri-desktop-dev' : 'auri-desktop'}-v1-${scope}`
+  return `\\\\.\\pipe\\${pipePrefix}-v1-${scope}`
 }

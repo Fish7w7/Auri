@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -33,7 +33,11 @@ await build({
   minify: true,
   sourcemap: false,
   logLevel: 'warning',
-  define: { __AURI_NATIVE_HOST_BUILD_MODE__: JSON.stringify(mode) },
+  define: {
+    __AURI_NATIVE_HOST_BUILD_MODE__: JSON.stringify(mode),
+    __AURI_NATIVE_HOST_USER_DATA_DIRECTORY__: JSON.stringify(mode === 'dev' ? 'Auri-Dev' : 'Auri'),
+    __AURI_NATIVE_HOST_PIPE_PREFIX__: JSON.stringify(mode === 'dev' ? 'auri-desktop-dev' : 'auri-desktop')
+  },
   plugins: [{
     name: 'auri-path-aliases',
     setup(buildContext) {
@@ -59,9 +63,20 @@ run(process.execPath, [
   '--sentinel-fuse', seaFuse, '--overwrite'
 ], 'injetar o Native Host no executável')
 
+if (mode === 'prod') assertProductionExecutable(executablePath)
+
 process.stdout.write(`${executableName} (${mode.toUpperCase()}) criado em ${executablePath}\n`)
 
 function run(command, args, operation) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', windowsHide: true })
   if (result.status !== 0) throw new Error(`Falha ao ${operation} (código ${result.status ?? 'desconhecido'}).`)
+}
+
+function assertProductionExecutable(path) {
+  const executable = readFileSync(path)
+  for (const forbidden of ['app.auri.native_host.dev', 'AuriNativeHostDev.exe', 'Auri-Dev']) {
+    if (executable.includes(Buffer.from(forbidden))) {
+      throw new Error(`O Native Host PROD contém referência DEV proibida: ${forbidden}.`)
+    }
+  }
 }
