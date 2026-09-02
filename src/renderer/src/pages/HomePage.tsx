@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { HomeData, Source, Work } from '@shared/contracts'
 import { APP_BRAND } from '@shared/constants/app-branding'
 import { useAppContext } from '../app/app-context'
-import { navigate } from '../app/navigation'
+import { navigate, navigateToWork } from '../app/navigation'
 import { HomeWorkCard } from '../components/home/HomeWorkCard'
 import { AlternativeSourceDialog } from '../components/work/AlternativeSourceDialog'
 import { Button } from '../components/ui/Button'
@@ -40,7 +40,7 @@ export function HomePage() {
   const load = useCallback(async () => { try { setData(await window.auri.library.home()); setState('ready') } catch { setState('error') } }, [])
   useEffect(() => { void load(); return subscribeToDataChanges(() => void load()) }, [load])
   const refresh = useCallback(() => { refreshData() }, [refreshData])
-  const actions = useWorkActions(refresh)
+  const actions = useWorkActions(refresh, (work) => navigateToWork(work.id, 'home'))
   const sections = getVisibleHomeSections(data)
 
   async function openSource(source: Source, availableSources: Source[]): Promise<boolean> {
@@ -67,7 +67,7 @@ export function HomePage() {
       const sources = await window.auri.sources.list({ workId: work.id })
       const source = selectBestReadingSource(sources)
       if (!source) {
-        showToast({ kind: 'warning', message: 'Nenhuma fonte utilizável foi cadastrada para esta obra.', action: { label: 'Abrir obra', onClick: () => navigate(`/work/${work.id}`) } })
+        showToast({ kind: 'warning', message: 'Nenhuma fonte utilizável foi cadastrada para esta obra.', action: { label: 'Abrir obra', onClick: () => navigateToWork(work.id, 'home') } })
         return
       }
       await openSource(source, sources)

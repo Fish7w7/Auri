@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { LibrarySort, UserStatus } from '@shared/contracts'
+import type { LibraryNavigationSnapshot, WorkNavigationOrigin } from './navigation-session'
+import {
+  armLibraryContextReturn,
+  clearNavigationIntent,
+  finishWorkNavigation,
+  registerWorkNavigation
+} from './navigation-session'
 
 export type AppRoute =
   | { page: 'home' }
@@ -25,7 +32,27 @@ export function parseRoute(hash = window.location.hash): AppRoute {
 }
 
 export function navigate(path: string): void {
+  const workId = path.match(/^\/work\/([^/]+)$/)?.[1]
+  if (workId) registerWorkNavigation(workId, 'direct')
+  else clearNavigationIntent()
   window.location.hash = path
+}
+
+export function navigateToWork(workId: string, origin: WorkNavigationOrigin, snapshot?: LibraryNavigationSnapshot): void {
+  registerWorkNavigation(workId, origin, snapshot)
+  window.location.hash = `/work/${workId}`
+}
+
+export function navigateFromWork(workId: string): void {
+  const target = finishWorkNavigation(workId)
+  clearNavigationIntent()
+  window.location.hash = target.path
+  if (target.libraryContextId !== undefined) armLibraryContextReturn(target.libraryContextId)
+}
+
+export function currentNavigationPath(hash = window.location.hash): string {
+  const path = hash.replace(/^#/, '')
+  return path.startsWith('/') ? path : `/${path}`
 }
 
 export function useRoute(): AppRoute {

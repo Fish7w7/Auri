@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { Collection, LibraryQuery, LibrarySort, UserStatus, Work } from '@shared/contracts'
 import { useAppContext } from '../app/app-context'
 import { FilterPanel } from '../components/library/FilterPanel'
@@ -12,12 +12,17 @@ import { useWorkActions } from '../hooks/use-work-actions'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../lib/format'
 import { EMPTY_LIBRARY_SELECTION, librarySelectionReducer } from '../lib/library-selection'
 import { useShortcutScope } from '../app/keyboard-shortcuts'
-import { navigate } from '../app/navigation'
+import { currentNavigationPath, navigate, navigateToWork } from '../app/navigation'
 import { KeyboardMenu } from '../components/ui/KeyboardMenu'
 import { AddWorksToCollectionDialog } from '../components/collections/AddWorksToCollectionDialog'
 import { useToast } from '../components/ui/Toast'
 import { formatFilteredWorkCount, formatWorkCount, getLibraryEmptyStateKind } from '../lib/library-results'
 import { subscribeToDataChanges } from '../app/data-changes'
+import { runLatestLibraryRequest } from '../lib/latest-library-request'
+import { acknowledgeLibraryNavigationContext, peekLibraryNavigationContext } from '../app/navigation-session'
+import { closeLibraryFilters, focusLibraryTarget, type LibraryFocusIntent } from '../lib/library-focus'
+
+const FILTER_PANEL_ID = 'library-filter-panel'
 
 const SORT_LABELS: Record<LibrarySort, string> = {
   last_read_desc: 'Última leitura', last_read_asc: 'Mais tempo sem ler', title_asc: 'Título A–Z', title_desc: 'Título Z–A', created_desc: 'Adicionado recentemente', updated_desc: 'Atualizado recentemente', chapter_desc: 'Capítulo', rating_desc: 'Nota', user_status: 'Status pessoal'
@@ -26,23 +31,33 @@ const SORT_LABELS: Record<LibrarySort, string> = {
 export function LibraryPage({ initialStatus, initialFavorite, initialSort, collection, onEditCollection, onDeleteCollection }: { initialStatus?: UserStatus; initialFavorite?: boolean; initialSort?: LibrarySort; collection?: Collection; onEditCollection?(): void; onDeleteCollection?(): void }) {
   const { settings, summary, updateSettings, refreshData, openAddWork } = useAppContext()
   const { showToast } = useToast()
-  const [search, setSearch] = useState('')
+  const [restoredContext] = useState(() => peekLibraryNavigationContext(currentNavigationPath()))
+  const [search, setSearch] = useState(() => restoredContext?.search ?? '')
   const debouncedSearch = useDebouncedValue(search)
-  const [query, setQuery] = useState<LibraryQuery>(() => ({ userStatuses: initialStatus ? [initialStatus] : undefined, favorite: initialFavorite, sort: initialSort ?? settings.librarySort }))
+  const [query, setQuery] = useState<LibraryQuery>(() => restoredContext?.query ?? ({ userStatuses: initialStatus ? [initialStatus] : undefined, favorite: initialFavorite, sort: initialSort ?? settings.librarySort }))
   const [works, setWorks] = useState<Work[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [updating, setUpdating] = useState(true)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [addWorksOpen, setAddWorksOpen] = useState(false)
   const [selection, dispatchSelection] = useReducer(librarySelectionReducer, EMPTY_LIBRARY_SELECTION)
+  const pageRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const filterAnchorRef = useRef<HTMLDivElement>(null)
+  const scrollPosition = useRef(restoredContext?.scrollTop ?? 0)
+  const scrollRestoration = useRef(restoredContext?.scrollTop)
+  const pendingFocus = useRef<LibraryFocusIntent | null>(null)
   const selectionAnchor = useRef<string | null>(null)
   const previousSelectionContext = useRef('')
+  const requestGeneration = useRef(0)
+  const hasAcceptedResult = useRef(false)
   const collectionId = collection?.id
   const hasSearch = search.trim().length > 0
   const collectionTotal = collection?.workCount ?? 0
 
-  useEffect(() => setQuery((current) => ({ ...current, userStatuses: initialStatus ? [initialStatus] : undefined, favorite: initialFavorite })), [initialFavorite, initialStatus])
+  useEffect(() => {
+    if (restoredContext) acknowledgeLibraryNavigationContext(restoredContext.id)
+  }, [restoredContext])
   const effectiveQuery = useMemo(() => ({ ...query, search: hasSearch ? debouncedSearch || undefined : undefined, collectionIds: collectionId ? [collectionId] : undefined }), [collectionId, debouncedSearch, hasSearch, query])
   const selectionContext = JSON.stringify({
     search,
@@ -61,21 +76,64 @@ export function LibraryPage({ initialStatus, initialFavorite, initialSort, colle
     previousSelectionContext.current = selectionContext
   }, [selectionContext])
   useEffect(() => { if (!selection.active) selectionAnchor.current = null }, [selection.active])
+  useLayoutEffect(() => {
+    const intent = pendingFocus.current
+    if (!intent || (intent === 'selection') !== selection.active) return
+    focusLibraryTarget(pageRef.current, intent)
+    pendingFocus.current = null
+  }, [selection.active])
 
   const load = useCallback(async () => {
-    try { setState((current) => current === 'ready' ? current : 'loading'); const next = await window.auri.library.query(effectiveQuery); setWorks(next); dispatchSelection({ type: 'reconcile', workIds: next.map((work) => work.id) }); setState('ready') }
-    catch { setState('error') }
-  }, [collectionId, effectiveQuery])
+    await runLatestLibraryRequest({
+      generation: requestGeneration,
+      hasAcceptedResult,
+      request: () => window.auri.library.query(effectiveQuery),
+      onStart: (phase) => {
+        setUpdating(true)
+        if (phase === 'initial') setState('loading')
+      },
+      onSuccess: (next) => {
+        if (next.length === 0) {
+          scrollRestoration.current = undefined
+          scrollPosition.current = 0
+        }
+        setWorks(next)
+        dispatchSelection({ type: 'reconcile', workIds: next.map((work) => work.id) })
+        setState('ready')
+      },
+      onError: (_error, phase) => {
+        if (phase === 'initial') setState('error')
+      },
+      onSettled: () => setUpdating(false)
+    })
+  }, [effectiveQuery])
   useEffect(() => { void load() }, [load])
   useEffect(() => subscribeToDataChanges(() => void load()), [load])
+  useEffect(() => () => { requestGeneration.current += 1 }, [])
+  const closeFilters = useCallback(() => {
+    const trigger = filterAnchorRef.current?.querySelector<HTMLElement>('[data-library-filter-trigger]') ?? null
+    closeLibraryFilters(setFiltersOpen, trigger)
+  }, [])
+  const exitSelection = useCallback(() => {
+    pendingFocus.current = 'select-trigger'
+    dispatchSelection({ type: 'exit' })
+  }, [])
   useShortcutScope({
     focusSearch: () => searchRef.current?.focus(),
-    escape: filtersOpen
-      ? () => { setFiltersOpen(false); filterAnchorRef.current?.querySelector<HTMLElement>('button')?.focus() }
-      : selection.active ? () => dispatchSelection({ type: 'exit' }) : undefined
+    escape: filtersOpen ? closeFilters : selection.active ? exitSelection : undefined
   })
   const refresh = useCallback(() => { refreshData() }, [refreshData])
-  const actions = useWorkActions(refresh)
+  const openWork = useCallback((work: Work) => {
+    navigateToWork(work.id, 'library', {
+      path: currentNavigationPath(),
+      search,
+      query,
+      scrollTop: scrollPosition.current
+    })
+  }, [query, search])
+  const actions = useWorkActions(refresh, openWork)
+  const recordScrollPosition = useCallback((scrollTop: number) => { scrollPosition.current = scrollTop }, [])
+  const cancelScrollRestoration = () => { scrollRestoration.current = undefined }
   const removeFromCollection = async (work: Work) => {
     if (!collection) return
     try {
@@ -125,21 +183,21 @@ export function LibraryPage({ initialStatus, initialFavorite, initialSort, colle
     }
   }
 
-  return <div className="page library-page">
-    <header className={`page-header ${collection ? 'collection-detail-header' : ''}`}><div>{collection ? <button className="collection-breadcrumb" onClick={() => navigate('/collections')}>Coleções <span>/</span></button> : <span className="page-kicker">Sua coleção</span>}<h1>{collection?.name ?? 'Biblioteca'}</h1>{collection?.description && <p>{collection.description}</p>}<span className="page-header__count">{count}</span></div><div className="page-header__actions">{!selection.active && <Button onClick={() => dispatchSelection({ type: 'enter' })}>Selecionar</Button>}{collection ? <><Button variant="primary" icon="plus" onClick={() => setAddWorksOpen(true)}>Adicionar obras</Button><KeyboardMenu className="collection-detail-menu" label={`Ações de ${collection.name}`}><button onClick={onEditCollection}>Editar coleção</button><button className="is-danger" onClick={onDeleteCollection}>Excluir coleção</button></KeyboardMenu></> : <Button variant="primary" icon="plus" title="Adicionar obra (Ctrl+N)" onClick={openAddWork}>Adicionar obra</Button>}</div></header>
+  return <div className="page library-page" ref={pageRef} onPointerDownCapture={cancelScrollRestoration} onKeyDownCapture={cancelScrollRestoration} onWheelCapture={cancelScrollRestoration}>
+    <header className={`page-header ${collection ? 'collection-detail-header' : ''}`}><div>{collection ? <button className="collection-breadcrumb" onClick={() => navigate('/collections')}>Coleções <span>/</span></button> : <span className="page-kicker">Sua coleção</span>}<h1>{collection?.name ?? 'Biblioteca'}</h1>{collection?.description && <p>{collection.description}</p>}<span className="page-header__count">{count}</span></div><div className="page-header__actions">{!selection.active && <Button data-library-select-trigger onClick={() => { pendingFocus.current = 'selection'; dispatchSelection({ type: 'enter' }) }}>Selecionar</Button>}{collection ? <><Button variant="primary" icon="plus" onClick={() => setAddWorksOpen(true)}>Adicionar obras</Button><KeyboardMenu className="collection-detail-menu" label={`Ações de ${collection.name}`}><button onClick={onEditCollection}>Editar coleção</button><button className="is-danger" onClick={onDeleteCollection}>Excluir coleção</button></KeyboardMenu></> : <Button variant="primary" icon="plus" title="Adicionar obra (Ctrl+N)" onClick={openAddWork}>Adicionar obra</Button>}</div></header>
     <div className="library-toolbar">
       <div className="search-field"><label className="sr-only" htmlFor="library-search">Pesquisar Biblioteca</label><span aria-hidden="true">⌕</span><input id="library-search" ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar títulos, aliases, autores ou fontes…" />{hasSearch && <IconButton type="button" className="search-field__clear" icon="x-circle" label="Limpar pesquisa" onClick={clearSearch} />}<kbd>/</kbd></div>
-      <div className="filter-anchor" ref={filterAnchorRef}><Button icon="filter" className={chips.length ? 'has-indicator' : ''} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>Filtros</Button>{filtersOpen && <FilterPanel query={query} onChange={setQuery} onClose={() => setFiltersOpen(false)} />}</div>
+      <div className="filter-anchor" ref={filterAnchorRef}><Button data-library-filter-trigger icon="filter" className={chips.length ? 'has-indicator' : ''} aria-expanded={filtersOpen} aria-controls={FILTER_PANEL_ID} aria-haspopup="dialog" onClick={() => setFiltersOpen((open) => !open)}>Filtros</Button>{filtersOpen && <FilterPanel id={FILTER_PANEL_ID} query={query} onChange={setQuery} onClose={closeFilters} />}</div>
       <div className="sort-select"><Select label="Ordenar por" value={query.sort ?? 'last_read_desc'} onChange={(value) => { const sort = value as LibrarySort; setQuery((current) => ({ ...current, sort })); void updateSettings({ librarySort: sort }) }} options={Object.entries(SORT_LABELS).map(([value, label]) => ({ value, label }))} /></div>
-      <div className="segmented" aria-label="Visualização"><IconButton icon="grid" label="Visualização em grade" className={settings.libraryView === 'grid' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'grid' })} /><IconButton icon="list" label="Visualização em lista" className={settings.libraryView === 'list' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'list' })} /></div>
+      <div className="segmented" role="group" aria-label="Visualização"><IconButton icon="grid" label="Visualização em grade" aria-pressed={settings.libraryView === 'grid'} className={settings.libraryView === 'grid' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'grid' })} /><IconButton icon="list" label="Visualização em lista" aria-pressed={settings.libraryView === 'list'} className={settings.libraryView === 'list' ? 'is-active' : ''} onClick={() => void updateSettings({ libraryView: 'list' })} /></div>
     </div>
     {chips.length > 0 && <div className="active-filters">{chips.map((chip) => <button key={chip.key} onClick={chip.clear}>{chip.label}<span>×</span></button>)}<button className="clear-all" onClick={clearFilters}>Limpar todos</button></div>}
-    {selection.active && <LibraryBulkActions selectedIds={selection.selectedIds} resultIds={works.map((work) => work.id)} onSelectAll={() => dispatchSelection({ type: 'select-all', workIds: works.map((work) => work.id) })} onClear={() => dispatchSelection({ type: 'clear' })} onExit={() => dispatchSelection({ type: 'exit' })} onApplied={(affectedIds) => { dispatchSelection({ type: 'remove', workIds: affectedIds }); refreshData() }} currentCollection={collection ? { id: collection.id, name: collection.name } : undefined} />}
-    <div className="library-content">
+    {selection.active && <LibraryBulkActions selectedIds={selection.selectedIds} resultIds={works.map((work) => work.id)} onSelectAll={() => dispatchSelection({ type: 'select-all', workIds: works.map((work) => work.id) })} onClear={() => dispatchSelection({ type: 'clear' })} onExit={exitSelection} onApplied={(affectedIds) => { dispatchSelection({ type: 'remove', workIds: affectedIds }); refreshData() }} currentCollection={collection ? { id: collection.id, name: collection.name } : undefined} />}
+    <div className="library-content" aria-busy={updating || undefined}>
       {state === 'loading' && <LoadingState label="Abrindo sua biblioteca…" />}
       {state === 'error' && <ErrorState onRetry={() => void load()} />}
       {state === 'ready' && works.length === 0 && renderEmptyState()}
-      {state === 'ready' && works.length > 0 && <VirtualLibrary works={works} view={settings.libraryView} cardSize={settings.cardSize} {...actions.handlers} onRemoveFromCollection={collection ? removeFromCollection : undefined} selectionMode={selection.active} selectedIds={selection.selectedIds} onSelect={(work, extendRange) => {
+      {state === 'ready' && works.length > 0 && <VirtualLibrary works={works} view={settings.libraryView} cardSize={settings.cardSize} {...actions.handlers} scrollRestoration={scrollRestoration} onScrollPositionChange={recordScrollPosition} onRemoveFromCollection={collection ? removeFromCollection : undefined} selectionMode={selection.active} selectedIds={selection.selectedIds} onSelect={(work, extendRange) => {
         const anchorIndex = selectionAnchor.current ? works.findIndex((item) => item.id === selectionAnchor.current) : -1
         const workIndex = works.findIndex((item) => item.id === work.id)
         if (extendRange && anchorIndex >= 0 && workIndex >= 0) {

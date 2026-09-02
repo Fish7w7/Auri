@@ -5,7 +5,7 @@ import { ConfirmDialog } from '../components/ui/Dialog'
 import { useToast } from '../components/ui/Toast'
 import { mapDomainError } from '../lib/format'
 
-export function useWorkActions(refresh: () => void) {
+export function useWorkActions(refresh: () => void, onOpen: (work: Work) => void = (work) => navigate(`/work/${work.id}`)) {
   const { showToast } = useToast()
   const [trashTarget, setTrashTarget] = useState<Work | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,7 +56,7 @@ export function useWorkActions(refresh: () => void) {
 
   return {
     handlers: {
-      onOpen: (work: Work) => navigate(`/work/${work.id}`),
+      onOpen,
       onFavorite: (work: Work) => void favorite(work),
       onIncrement: (work: Work) => void increment(work),
       onTrash: (work: Work) => setTrashTarget(work)
@@ -64,4 +64,3 @@ export function useWorkActions(refresh: () => void) {
     dialog: <ConfirmDialog open={trashTarget !== null} title="Mover para a Lixeira?" context={trashTarget ? <strong>{trashTarget.title}</strong> : undefined} description="A obra poderá ser restaurada depois. Seu progresso, histórico, fontes e notas serão preservados." confirmLabel="Mover para a Lixeira" danger busy={busy} onConfirm={confirmTrash} onClose={() => setTrashTarget(null)} />
   }
 }
-

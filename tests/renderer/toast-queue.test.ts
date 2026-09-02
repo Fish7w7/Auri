@@ -88,6 +88,20 @@ describe('fila de notificações', () => {
     expect(state.visible[0]).toMatchObject({ id: 'a', revision: 1 })
   })
 
+  it('renova uma duplicata sem chave durante a saída e ignora a conclusão antiga', () => {
+    let state = enqueue(empty(), 'a', 'Backup concluído')
+    state = toastReducer(state, { type: 'start-dismiss', id: 'a' })
+    state = enqueue(state, 'b', 'Backup concluído')
+    expect(state.visible).toHaveLength(1)
+    expect(state.visible[0]).toMatchObject({ id: 'a', revision: 1, exiting: false })
+
+    state = toastReducer(state, { type: 'finish-dismiss', id: 'a' })
+    expect(state.visible).toHaveLength(1)
+    state = toastReducer(state, { type: 'start-dismiss', id: 'a' })
+    state = toastReducer(state, { type: 'finish-dismiss', id: 'a' })
+    expect(state.visible).toEqual([])
+  })
+
   it('atualiza progresso no mesmo ID e passa a usar timeout de sucesso', () => {
     let state = toastReducer(empty(), { type: 'enqueue', item: createToastItem({ kind: 'progress', message: 'Criando backup…', dedupeKey: 'backup-create' }, 'backup') })
     expect(state.visible[0]).toMatchObject({ id: 'backup', durationMs: null })

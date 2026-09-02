@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type UIEventHandler } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type UIEventHandler } from 'react'
 import type { CardSize, LibraryView, Work } from '@shared/contracts'
 import { WorkCard } from '../work/WorkCard'
 import { WorkListRow } from '../work/WorkListRow'
@@ -15,6 +15,8 @@ interface Props {
   selectionMode?: boolean
   selectedIds?: ReadonlySet<string>
   onSelect?(work: Work, extendRange: boolean): void
+  scrollRestoration?: { current: number | undefined }
+  onScrollPositionChange?(scrollTop: number): void
 }
 
 export const LIBRARY_CARD_LAYOUT: Record<CardSize, { targetWidth: number; gap: number; detailsHeight: number }> = {
@@ -31,17 +33,32 @@ export function getGridMetrics(containerWidth: number, cardSize: CardSize) {
   return { columns, width, gap: layout.gap, rowHeight: cardHeight + layout.gap }
 }
 
+export function clampLibraryScrollTop(scrollTop: number, scrollHeight: number, clientHeight: number): number {
+  return Math.min(Math.max(0, scrollTop), Math.max(0, scrollHeight - clientHeight))
+}
+
+export function restoreLibraryScroll(
+  pending: { current: number | undefined },
+  viewport: Pick<HTMLElement, 'scrollTop' | 'scrollHeight' | 'clientHeight'>
+): number | undefined {
+  if (pending.current === undefined) return undefined
+  const scrollTop = clampLibraryScrollTop(pending.current, viewport.scrollHeight, viewport.clientHeight)
+  pending.current = undefined
+  viewport.scrollTop = scrollTop
+  return scrollTop
+}
+
 export function VirtualLibrary(props: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
-  const [metrics, setMetrics] = useState({ width: 800, height: 600, scrollTop: 0 })
+  const [metrics, setMetrics] = useState({ width: 800, height: 600, scrollTop: 0, measured: false })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = viewportRef.current
     if (!element) return
     const updateSize = () => {
       const width = element.clientWidth
       const height = element.clientHeight
-      setMetrics((current) => ({ ...current, width, height }))
+      setMetrics((current) => ({ ...current, width, height, measured: true }))
     }
     const observer = new ResizeObserver(updateSize)
     observer.observe(element)
@@ -66,9 +83,19 @@ export function VirtualLibrary(props: Props) {
   const visible = props.works.slice(virtual.start, virtual.end)
   const firstRow = Math.floor(virtual.start / virtual.columns)
 
+  useLayoutEffect(() => {
+    const element = viewportRef.current
+    if (!element || !metrics.measured || !props.scrollRestoration) return
+    const scrollTop = restoreLibraryScroll(props.scrollRestoration, element)
+    if (scrollTop === undefined) return
+    setMetrics((current) => ({ ...current, scrollTop }))
+    props.onScrollPositionChange?.(scrollTop)
+  }, [metrics.measured, props.scrollRestoration, props.onScrollPositionChange, virtual.totalHeight])
+
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
     const scrollTop = event.currentTarget.scrollTop
     setMetrics((current) => ({ ...current, scrollTop }))
+    props.onScrollPositionChange?.(scrollTop)
   }
 
   return (

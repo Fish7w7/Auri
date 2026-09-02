@@ -51,6 +51,7 @@ export type ToastEvent =
   | { type: 'update'; id: ToastId; patch: ToastUpdate }
   | { type: 'start-dismiss'; id: ToastId }
   | { type: 'cancel-dismiss'; id: ToastId }
+  | { type: 'finish-dismiss'; id: ToastId }
   | { type: 'dismiss'; id: ToastId }
 
 export function pauseToastDuration(remainingMs: number, startedAt: number, now: number): number {
@@ -90,7 +91,7 @@ function fingerprint(item: Pick<ToastItem, 'kind' | 'message' | 'action'>): stri
 }
 
 function mergeDuplicate(current: ToastItem, incoming: ToastItem): ToastItem {
-  return { ...current, ...incoming, id: current.id, revision: current.revision + 1 }
+  return { ...current, ...incoming, id: current.id, revision: current.revision + 1, exiting: false }
 }
 
 function updateItem(item: ToastItem, patch: ToastUpdate): ToastItem {
@@ -144,7 +145,9 @@ export function toastReducer(state: ToastState, event: ToastEvent): ToastState {
     }
   }
 
-  if (event.type === 'dismiss') {
+  if (event.type === 'finish-dismiss' && ![...state.visible, ...state.queue].some((item) => item.id === event.id && item.exiting)) return state
+
+  if (event.type === 'dismiss' || event.type === 'finish-dismiss') {
     const visible = state.visible.filter((item) => item.id !== event.id)
     if (visible.length !== state.visible.length) return fillVisible(visible, state.queue)
     return { ...state, queue: state.queue.filter((item) => item.id !== event.id) }
@@ -318,21 +321,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [state.visible, state.queue])
 
   const dispatch = useCallback((event: ToastEvent) => setState((current) => toastReducer(current, event)), [])
+  useEffect(() => {
+    const exitingIds = new Set([...state.visible, ...state.queue].filter((item) => item.exiting).map((item) => item.id))
+    for (const [id, timer] of exitTimers.current) {
+      if (exitingIds.has(id)) continue
+      window.clearTimeout(timer)
+      exitTimers.current.delete(id)
+    }
+    for (const id of exitingIds) {
+      if (exitTimers.current.has(id)) continue
+      const timer = window.setTimeout(() => {
+        exitTimers.current.delete(id)
+        dispatch({ type: 'finish-dismiss', id })
+      }, TOAST_EXIT_DURATION_MS)
+      exitTimers.current.set(id, timer)
+    }
+  }, [dispatch, state.visible, state.queue])
   const cancelDismiss = useCallback((id: ToastId) => {
     const timer = exitTimers.current.get(id)
-    if (timer === undefined) return
-    window.clearTimeout(timer)
+    if (timer !== undefined) window.clearTimeout(timer)
     exitTimers.current.delete(id)
     dispatch({ type: 'cancel-dismiss', id })
   }, [dispatch])
   const dismissToast = useCallback((id: ToastId) => {
-    if (exitTimers.current.has(id)) return
     dispatch({ type: 'start-dismiss', id })
-    const timer = window.setTimeout(() => {
-      exitTimers.current.delete(id)
-      dispatch({ type: 'dismiss', id })
-    }, TOAST_EXIT_DURATION_MS)
-    exitTimers.current.set(id, timer)
   }, [dispatch])
   const updateToast = useCallback((id: ToastId, patch: ToastUpdate) => {
     cancelDismiss(id)

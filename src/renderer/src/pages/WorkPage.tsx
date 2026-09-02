@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReadingHistory, Source, UserStatus, Work, WorkDetails } from '@shared/contracts'
 import { useAppContext } from '../app/app-context'
-import { navigate } from '../app/navigation'
+import { navigate, navigateFromWork } from '../app/navigation'
+import { getWorkReturnTarget } from '../app/navigation-session'
 import { CoverDialog } from '../components/work/CoverDialog'
 import { ProgressDialog } from '../components/work/ProgressDialog'
 import { RelationDialog, type RelationKind } from '../components/work/RelationDialog'
@@ -41,6 +42,7 @@ export function WorkPage({ id }: { id: string }) {
   const [trashOpen, setTrashOpen] = useState(false)
   const { refreshData } = useAppContext()
   const { showToast } = useToast()
+  const returnTarget = getWorkReturnTarget(id)
 
   const loadDetails = useCallback(async () => {
     try { setDetails(await window.auri.works.getDetails({ workId: id })); setPageState('ready') }
@@ -54,11 +56,11 @@ export function WorkPage({ id }: { id: string }) {
   const bestSource = selectBestReadingSource(details?.sources ?? [])
 
   if (pageState === 'loading') return <WorkSkeleton />
-  if (pageState === 'not-found') return <div className="page"><ErrorState title="Esta obra não foi encontrada." description="O endereço pode estar antigo ou a obra pode ter sido excluída permanentemente." onRetry={() => navigate('/library')} /></div>
+  if (pageState === 'not-found') return <div className="page"><ErrorState title="Esta obra não foi encontrada." description="O endereço pode estar antigo ou a obra pode ter sido excluída permanentemente." onRetry={() => navigateFromWork(id)} /></div>
   if (pageState === 'error' || !details) return <div className="page"><ErrorState title="Não foi possível carregar esta obra." description="Seus dados permanecem seguros no dispositivo." onRetry={() => void loadDetails()} /></div>
   const work = details.work
 
-  if (work.deletedAt) return <div className="page trashed-work-state"><BrandMark large /><h1>Esta obra está na Lixeira.</h1><p>O progresso, o histórico, as fontes e as notas continuam preservados.</p><div><Button onClick={() => navigate('/library')}>Voltar à Biblioteca</Button><Button variant="primary" onClick={async () => { try { await window.auri.works.restore({ workId: work.id }); showToast({ kind: 'success', message: `“${work.title}” foi restaurada.` }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }}>Restaurar</Button></div></div>
+  if (work.deletedAt) return <div className="page trashed-work-state"><BrandMark large /><h1>Esta obra está na Lixeira.</h1><p>O progresso, o histórico, as fontes e as notas continuam preservados.</p><div><Button onClick={() => navigateFromWork(id)}>Voltar à {returnTarget.label}</Button><Button variant="primary" onClick={async () => { try { await window.auri.works.restore({ workId: work.id }); showToast({ kind: 'success', message: `“${work.title}” foi restaurada.` }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }}>Restaurar</Button></div></div>
 
   const originalAlias = details.aliases.find((alias) => alias.kind === 'original') ?? details.aliases[0]
   const numericProgress = work.lastReadChapter?.number != null
@@ -124,7 +126,7 @@ export function WorkPage({ id }: { id: string }) {
   }
 
   return <div className="page work-page">
-    <div className="work-page__topbar"><Button variant="ghost" icon="chevron-left" onClick={() => navigate('/library')}>Biblioteca</Button><KeyboardMenu className="work-overflow" label="Mais ações"><button onClick={() => setDialog('edit')}>Editar obra</button>{syncedReference && <button onClick={() => setDialog('metadata')}>Atualizar metadados</button>}<button onClick={() => { setEditingSource(null); setDialog('source') }}>Gerenciar fontes</button><button onClick={() => setDialog('cover')}>Alterar capa</button><button onClick={() => void updateHomeVisibility()}>{work.hiddenFromHome ? 'Mostrar na Home' : 'Ocultar da Home'}</button><button className="is-danger" onClick={() => setTrashOpen(true)}>Mover para Lixeira</button></KeyboardMenu></div>
+    <div className="work-page__topbar"><Button variant="ghost" icon="chevron-left" onClick={() => navigateFromWork(id)}>{returnTarget.label}</Button><KeyboardMenu className="work-overflow" label="Mais ações"><button onClick={() => setDialog('edit')}>Editar obra</button>{syncedReference && <button onClick={() => setDialog('metadata')}>Atualizar metadados</button>}<button onClick={() => { setEditingSource(null); setDialog('source') }}>Gerenciar fontes</button><button onClick={() => setDialog('cover')}>Alterar capa</button><button onClick={() => void updateHomeVisibility()}>{work.hiddenFromHome ? 'Mostrar na Home' : 'Ocultar da Home'}</button><button className="is-danger" onClick={() => setTrashOpen(true)}>Mover para Lixeira</button></KeyboardMenu></div>
 
     <header className="work-hero"><WorkCover work={work} /><div className="work-hero__content"><div className="work-title-line"><div><span className="page-kicker">{MEDIA_TYPE_LABELS[work.mediaType]}</span><h1>{work.title}</h1>{originalAlias && <p className="work-original-title">{originalAlias.name}</p>}</div><IconButton icon="star" className={work.favorite ? 'is-favorite' : ''} label={work.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'} onClick={() => void updateFavorite()} /></div><div className="work-meta-line"><span>{MEDIA_TYPE_LABELS[work.mediaType]}</span>{work.startDate && <span>{work.startDate.slice(0, 4)}</span>}{work.publicationStatus && <span>{PUBLICATION_LABELS[work.publicationStatus]}</span>}{syncedReference && <span title={syncedReference.lastSyncedAt ?? undefined}>AniList</span>}</div><label className="status-select"><span>Status pessoal</span><Select label="Status pessoal" value={work.userStatus} onChange={(value) => void updateStatus(value as UserStatus)} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label></div></header>
 

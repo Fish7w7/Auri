@@ -7,9 +7,23 @@ function ToggleGroup<T extends string>({ title, values, selected, labels, onChan
   return <fieldset className="filter-group"><legend>{title}</legend>{values.map((value) => <label key={value} className="check-row"><input type="checkbox" checked={selected.includes(value)} onChange={() => onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value])} /><span>{labels[value]}</span></label>)}</fieldset>
 }
 
-export function FilterPanel({ query, onChange, onClose }: { query: LibraryQuery; onChange(next: LibraryQuery): void; onClose(): void }) {
+interface FilterPanelKeyEvent {
+  key: string
+  preventDefault(): void
+  stopPropagation(): void
+}
+
+export function handleFilterPanelKeyDown(event: FilterPanelKeyEvent, onClose: () => void): boolean {
+  if (event.key !== 'Escape') return false
+  event.preventDefault()
+  event.stopPropagation()
+  onClose()
+  return true
+}
+
+export function FilterPanel({ id, query, onChange, onClose }: { id: string; query: LibraryQuery; onChange(next: LibraryQuery): void; onClose(): void }) {
   const publication = query.publicationStatuses ?? []
-  return <div className="filter-popover" role="dialog" aria-label="Filtros da Biblioteca">
+  return <div id={id} className="filter-popover" role="dialog" aria-label="Filtros da Biblioteca" onKeyDownCapture={(event) => handleFilterPanelKeyDown(event, onClose)}>
     <div className="filter-popover__header"><div><strong>Filtros</strong><span>Refine sua biblioteca</span></div><button onClick={onClose} aria-label="Fechar filtros">×</button></div>
     <div className="filter-popover__content">
       <ToggleGroup title="Status pessoal" values={Object.keys(STATUS_LABELS) as UserStatus[]} selected={query.userStatuses ?? []} labels={STATUS_LABELS} onChange={(userStatuses) => onChange({ ...query, userStatuses })} />

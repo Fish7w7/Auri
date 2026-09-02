@@ -1,18 +1,38 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UpdateState } from '@shared/contracts'
 import { APP_BRAND } from '@shared/constants/app-branding'
 import { Button } from '../ui/Button'
-import { LoadingState } from '../ui/States'
+import { ErrorState, LoadingState } from '../ui/States'
 import { useToast } from '../ui/Toast'
 import { ReleaseNotes } from './ReleaseNotes'
 
 export function UpdatesSettings() {
   const [state, setState] = useState<UpdateState | null>(null)
+  const [initialLoad, setInitialLoad] = useState<InitialUpdateLoad['status']>('loading')
+  const initialLoadPending = useRef(false)
+  const mounted = useRef(false)
   const [busy, setBusy] = useState(false)
   const { showToast } = useToast()
-  const load = useCallback(() => void window.auri.updates.state().then(setState), [])
+  const loadInitial = useCallback(() => void loadInitialUpdateState(
+    initialLoadPending,
+    () => window.auri.updates.state(),
+    (next) => {
+      setInitialLoad(next.status)
+      if (next.status === 'ready') setState(next.state)
+    },
+    () => mounted.current
+  ), [])
+  const load = useCallback(() => {
+    void window.auri.updates.state()
+      .then((next) => { if (mounted.current) setState(next) })
+      .catch(() => { /* Uma falha de consulta posterior preserva o estado conhecido. */ })
+  }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    mounted.current = true
+    loadInitial()
+    return () => { mounted.current = false }
+  }, [loadInitial])
   useEffect(() => {
     if (!state || !shouldPollUpdateState(state.status)) return
     const timer = window.setInterval(load, 750)
@@ -43,7 +63,7 @@ export function UpdatesSettings() {
     }
   }
 
-  if (!state) return <><SettingsHeading /><LoadingState /></>
+  if (!state) return <><SettingsHeading /><InitialUpdateStateFeedback status={initialLoad} onRetry={loadInitial} /></>
   const readyForActions = state.availability === 'ready'
   const checkedAt = state.lastCheckedAt ? formatUpdateCheckedAt(state.lastCheckedAt) : null
   const progress = Math.round(state.progressPercent ?? 0)
@@ -86,6 +106,36 @@ export function UpdatesSettings() {
       <div className="settings-group__body"><ReleaseNotes notes={state.releaseNotes} /></div>
     </section>}
   </>
+}
+
+export type InitialUpdateLoad =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; state: UpdateState }
+
+export async function loadInitialUpdateState(
+  pending: { current: boolean },
+  request: () => Promise<UpdateState>,
+  onChange: (next: InitialUpdateLoad) => void,
+  isActive: () => boolean = () => true
+): Promise<void> {
+  if (pending.current) return
+  pending.current = true
+  onChange({ status: 'loading' })
+  try {
+    const state = await request()
+    if (isActive()) onChange({ status: 'ready', state })
+  } catch {
+    if (isActive()) onChange({ status: 'error' })
+  } finally {
+    pending.current = false
+  }
+}
+
+export function InitialUpdateStateFeedback({ status, onRetry }: { status: InitialUpdateLoad['status']; onRetry(): void }) {
+  if (status === 'error') return <ErrorState title="Não foi possível carregar o estado das atualizações." description="A consulta não foi concluída." onRetry={onRetry} />
+  if (status === 'loading') return <LoadingState />
+  return null
 }
 
 function SettingsHeading() {
