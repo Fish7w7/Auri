@@ -130,6 +130,7 @@ if (!singleInstanceLock) {
       }
       unregisterIpc = registerIpcHandlers(
         {
+          browserExtension: context.services.browserExtension,
           system: context.services.system,
           works: context.services.works,
           progress: context.services.progress,

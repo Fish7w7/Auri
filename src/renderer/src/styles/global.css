@@ -839,3 +839,12 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 @media (max-width: 1040px) {
   .sidebar-tooltip { left: calc(var(--sidebar-compact) + 8px); }
 }
+/* Browser extension settings reuse the existing settings groups and buttons. */
+.browser-extension-included { font-weight: 600; }
+.browser-extension-card { display: grid; gap: 12px; }
+.browser-extension-card p { margin: 0; }
+.browser-extension-card ol { margin: 0; padding-left: 24px; line-height: 1.9; }
+.browser-extension-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.browser-extension-note { line-height: 1.6; color: var(--text-secondary); }
+.browser-extension-feedback { line-height: 1.6; }
+#browser-install-heading:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }

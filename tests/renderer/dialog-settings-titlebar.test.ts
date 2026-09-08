@@ -23,6 +23,7 @@ describe('modais, Configurações e title bar do Auri', () => {
       'Biblioteca e Home',
       'Backup e dados',
       'Atualizações',
+      'Extensão do navegador',
       'Atalhos',
       'Manutenção',
       'Sobre'

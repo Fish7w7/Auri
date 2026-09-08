@@ -1,4 +1,6 @@
 import { join } from 'node:path'
+import { createBrowserExtensionService } from '../services/create-browser-extension-service'
+import type { BrowserExtensionService } from '../services/browser-extension-service'
 import type { App } from 'electron'
 import { AliasRepository } from '../database/repositories/alias-repository'
 import { CollectionRepository } from '../database/repositories/collection-repository'
@@ -51,6 +53,7 @@ export interface AppContext {
   readonly database: DatabaseConnection
   readonly logger: Logger
   readonly services: {
+    browserExtension: BrowserExtensionService
     system: SystemService
     updates: UpdateService
     works: WorkService
@@ -166,7 +169,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     return {
       database,
       logger,
-      services: { system, updates, works, progress, sources, library, settings, details, bulk, resolution, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
+      services: { browserExtension: createBrowserExtensionService(app), system, updates, works, progress, sources, library, settings, details, bulk, resolution, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
       dispose() {
         updates.dispose()
         database.close()

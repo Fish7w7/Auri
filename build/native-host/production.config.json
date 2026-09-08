@@ -1,4 +1,5 @@
 {
+  "officialEmbeddedRelease": true,
   "extensionIdEnvironmentVariables": {
     "chrome": "AURI_EXTENSION_CHROME_ID",
     "edge": "AURI_EXTENSION_EDGE_ID",

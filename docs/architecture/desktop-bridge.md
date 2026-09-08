@@ -22,11 +22,11 @@ O host apenas lê `native-bridge/secret`; a criação e a posse do secret contin
 
 O instalador inclui `AuriNativeHost.exe` em `<installDir>\resources\native-host`. Depois de extrair os arquivos, o NSIS cria `app.auri.native_host.json` no mesmo diretório com o caminho absoluto do executável e registra `app.auri.native_host` em HKCU para Chrome, Edge e Brave. Updates substituem o executável, regeneram o manifest e reescrevem os três registros para o caminho atual.
 
-Os IDs autorizados têm uma única configuração versionada em `build/native-host/production.config.json`, que aponta para as variáveis de release `AURI_EXTENSION_CHROME_ID`, `AURI_EXTENSION_EDGE_ID` e `AURI_EXTENSION_BRAVE_ID`. Cada valor precisa ter 32 caracteres entre `a` e `p`; duplicatas são removidas e o manifest aceita somente origins `chrome-extension://<id>/`. O pipeline oficial falha com `IDs de produção da Auri Extension não configurados.` quando nenhum ID foi informado.
+Na 1.12.0, `build/native-host/production.config.json` ativa a configuração oficial Embedded. Os IDs vêm de `build/browser-extension.config.json`: Edge `alnngjgmhiebpnjefjmhbhmhfpgoibnh` e Embedded `agefiaohfielfgadiagemnflekbboblp`. O manifest autoriza exatamente essas duas origins `chrome-extension://<id>/`, sem wildcard ou IDs DEV.
 
-Cada variável ausente é omitida, sem origin substituta. Uma release inicial somente para Microsoft Edge Add-ons pode definir apenas `AURI_EXTENSION_EDGE_ID`; não é necessário configurar Chrome ou Brave. As três chaves de Registry continuam apontando para o mesmo manifest, que autoriza apenas as origins oficiais realmente informadas.
+`AURI_EXTENSION_CHROME_ID` e `AURI_EXTENSION_BRAVE_ID` devem estar ausentes: não há IDs de loja desses navegadores neste release. `AURI_EXTENSION_EDGE_ID`, se informado, deve coincidir com o Edge oficial. As três chaves Registry continuam apontando ao mesmo manifest, sem registrar a extensão nem aplicar policies.
 
-Para validar localmente o instalador antes dos IDs finais, defina explicitamente `AURI_NATIVE_HOST_PACKAGING_MODE=test` e pelo menos uma das mesmas variáveis de ID com um ID de teste real. Esse modo fica registrado nos metadados locais de empacotamento e é recusado por `prepare:native-host:release`; ele não deve ser usado para publicação.
+A configuração oficial recusa modo `test` e IDs divergentes. O mecanismo genérico permanece coberto por testes isolados; o fluxo DEV separado permanece intacto. Consulte [Embedded, instalação guiada e segurança](../development/browser-extension.md) para o build reproduzível e atualização futura do pacote.
 
 No uninstall, cada chave é removida somente quando seu valor ainda aponta para o manifest da instalação removida. As chaves parent, hosts de terceiros e `app.auri.native_host.dev` não são tocados. O manifest e o executável somem junto de `resources/native-host`; `%APPDATA%/Auri` e `%APPDATA%/Auri-Dev` não são alterados por essa integração.
 

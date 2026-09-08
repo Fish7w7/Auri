@@ -1,4 +1,11 @@
 export const IPC_CHANNELS = {
+  browserExtension: {
+    getStatus: 'auri:browser-extension:status',
+    openEdgeStore: 'auri:browser-extension:edge-store',
+    openExtensionsPage: 'auri:browser-extension:extensions-page',
+    openFolder: 'auri:browser-extension:open-folder',
+    copyPath: 'auri:browser-extension:copy-path'
+  },
   desktopCommands: {
     openWork: 'auri:desktop-command:open-work',
     openAddWork: 'auri:desktop-command:open-add-work',

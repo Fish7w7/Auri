@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { BrowserExtensionApi } from './browser-extension'
 import type { DomainApi } from './domain'
 import type { SettingsApi } from './settings'
 import type { MetadataApi } from './metadata'
@@ -64,6 +65,7 @@ export interface SystemDiagnostics {
 }
 
 export interface AuriApi extends DomainApi, SettingsApi, MetadataApi, CoverApi, DataManagementApi, UpdatesApi, UrlMetadataApi, DesktopCommandsApi {
+  browserExtension: BrowserExtensionApi
   system: {
     getStatus(): Promise<SystemStatus>
     getDiagnostics(): Promise<SystemDiagnostics>

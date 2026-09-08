@@ -7,12 +7,24 @@
 /coverage/
 /build/assets/
 /build/generated/
+*.tsbuildinfo
 
-# Native Host outputs
+# Local caches and test reports
+/.vite/
+/.cache/
+/test-results/
+/playwright-report/
+
+# Generated Native Host, release audits and local working notes
 /artifacts/
 
 # Release artifacts
 /release/
+# Packaging outputs if a tool writes them to the project root
+/Auri-Setup-*.exe
+/Auri-Setup-*.exe.blockmap
+/latest.yml
+/auri-compatibility.json
 
 # Logs
 *.log

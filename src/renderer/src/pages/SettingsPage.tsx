@@ -5,6 +5,7 @@ import { useAppContext } from '../app/app-context'
 import { BrandMark } from '../components/shell/BrandMark'
 import { SettingRow } from '../components/settings/SettingRow'
 import { UpdatesSettings } from '../components/settings/UpdatesSettings'
+import { BrowserExtensionSettings } from '../components/settings/BrowserExtensionSettings'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog, Dialog } from '../components/ui/Dialog'
 import { Icon, type IconName } from '../components/ui/Icon'
@@ -20,6 +21,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'library', label: 'Biblioteca e Home', icon: 'home' },
   { id: 'backup-data', label: 'Backup e dados', icon: 'library' },
   { id: 'updates', label: 'Atualizações', icon: 'rotate' },
+  { id: 'browser-extension', label: 'Extensão do navegador', icon: 'link' },
   { id: 'shortcuts', label: 'Atalhos', icon: 'panel-left' },
   { id: 'maintenance', label: 'Manutenção', icon: 'settings' },
   { id: 'about', label: 'Sobre', icon: 'alert' }
@@ -300,6 +302,7 @@ export function SettingsPage() {
         </>}
 
         {section === 'updates' && <UpdatesSettings />}
+        {section === 'browser-extension' && <BrowserExtensionSettings />}
 
         {section === 'shortcuts' && <>
           <SettingsHeading title="Atalhos" description="Consulte os comandos de teclado disponíveis no Auri." />

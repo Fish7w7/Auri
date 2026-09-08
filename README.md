@@ -33,7 +33,7 @@ A **Auri Extension** conecta páginas de leitura ao Auri Desktop por comunicaç�
 
 **Auri Extension:** [ver no GitHub](https://github.com/Fish7w7/Auri-Extension)
 
-A extensão é opcional e instalada separadamente. O Auri Desktop continua funcionando normalmente sem ela, e a integração não depende de conta ou nuvem. As funções exigem a Auri Extension e o Auri Desktop 1.10.0 ou uma versão posterior compatível.
+A extensão é opcional. No **Microsoft Edge**, use a distribuição oficial no [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/auri/alnngjgmhiebpnjefjmhbhmhfpgoibnh). Para **Google Chrome e Brave**, o Auri Desktop 1.12 inclui a Auri Extension 0.2.0 e oferece instalação manual guiada em **Configurações → Extensão do navegador**. O Desktop continua funcionando sem a extensão; a integração não depende de conta ou nuvem.
 
 Quando a página corresponde a uma obra ou fonte cadastrada, a extensão apresenta as informações da biblioteca e as ações disponíveis. Para conteúdo ainda não cadastrado, ela inicia o fluxo no Desktop para que você revise os dados antes de salvar.
 

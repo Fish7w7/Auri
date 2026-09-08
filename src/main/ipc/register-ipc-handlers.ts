@@ -1,5 +1,6 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
+import type { BrowserExtensionService } from '../services/browser-extension-service'
 import { APP_BRAND } from '@shared/constants/app-branding'
 import { DomainError, type ApiResult } from '@shared/errors/domain-error'
 import type { Logger } from '../logging/logger'
@@ -21,6 +22,7 @@ import type { UrlMetadataService } from '../services/url-metadata/url-metadata-s
 import type { BulkLibraryService } from '../services/bulk-library-service'
 
 export interface IpcServices {
+  browserExtension: BrowserExtensionService
   system: SystemService
   works: WorkService
   progress: ProgressService
@@ -56,6 +58,11 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
   })
 
   const domainHandlers: Array<[string, (request: unknown, event: IpcMainInvokeEvent) => unknown]> = [
+    [IPC_CHANNELS.browserExtension.getStatus, () => services.browserExtension.getStatus()],
+    [IPC_CHANNELS.browserExtension.openEdgeStore, () => services.browserExtension.openEdgeStore()],
+    [IPC_CHANNELS.browserExtension.openExtensionsPage, (request) => services.browserExtension.openExtensionsPage(request)],
+    [IPC_CHANNELS.browserExtension.openFolder, () => services.browserExtension.openFolder()],
+    [IPC_CHANNELS.browserExtension.copyPath, () => services.browserExtension.copyPath()],
     [IPC_CHANNELS.system.getDiagnostics, () => services.system.getDiagnostics()],
     [IPC_CHANNELS.system.checkIntegrity, () => services.system.checkIntegrity()],
     [IPC_CHANNELS.system.clearCoverCache, () => services.system.clearCoverCache()],

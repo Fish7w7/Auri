@@ -25,6 +25,14 @@ export function extensionOrigin(extensionId) {
 export function loadProductionExtensionConfiguration(environment = process.env, config = readProductionConfig(root)) {
   const mode = environment.AURI_NATIVE_HOST_PACKAGING_MODE?.trim() || 'release'
   if (!PACKAGING_MODES.includes(mode)) throw new Error(`Modo de empacotamento do Native Host inválido: ${mode}.`)
+  if (config.officialEmbeddedRelease) {
+    const embedded = JSON.parse(readFileSync(join(root, 'build/browser-extension.config.json'), 'utf8'))
+    if (mode !== 'release') throw new Error('A configuração oficial exige modo release.')
+    if (environment.AURI_EXTENSION_CHROME_ID?.trim() || environment.AURI_EXTENSION_BRAVE_ID?.trim()) throw new Error('Este release não possui IDs oficiais de loja Chrome/Brave.')
+    if (environment.AURI_EXTENSION_EDGE_ID?.trim() && environment.AURI_EXTENSION_EDGE_ID.trim() !== embedded.edgeExtensionId) throw new Error('ID Edge divergente da configuração oficial.')
+    const extensionIds = [embedded.edgeExtensionId, embedded.extensionId].map(validateProductionExtensionId)
+    return { mode, byBrowser: { edge: embedded.edgeExtensionId }, extensionIds, allowedOrigins: extensionIds.map(extensionOrigin) }
+  }
   const byBrowser = Object.fromEntries(Object.entries(config.extensionIdEnvironmentVariables).flatMap(([browser, variable]) => {
     const value = environment[variable]?.trim()
     return value ? [[browser, validateProductionExtensionId(value)]] : []

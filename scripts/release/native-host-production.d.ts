@@ -5,6 +5,7 @@ export interface ProductionRegistryAdapter {
 }
 
 export interface ProductionNativeHostConfig {
+  officialEmbeddedRelease?: boolean
   extensionIdEnvironmentVariables: Record<'chrome' | 'edge' | 'brave', string>
 }
 

@@ -1,4 +1,5 @@
 export * from './system'
+export * from './browser-extension'
 export * from './domain'
 export * from './settings'
 export * from './metadata'

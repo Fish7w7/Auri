@@ -13,7 +13,9 @@
   "scripts": {
     "brand:assets": "node scripts/build/generate-brand-assets.mjs",
     "compatibility:manifest": "node scripts/build/generate-compatibility-manifest.mjs",
-    "prebuild:app": "npm run brand:assets && npm run compatibility:manifest",
+    "prepare:browser-extension": "node scripts/build/prepare-browser-extension.mjs",
+    "predev": "npm run prepare:browser-extension",
+    "prebuild:app": "npm run brand:assets && npm run compatibility:manifest && npm run prepare:browser-extension",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
@@ -97,6 +99,14 @@
     ],
     "extraResources": [
       {
+        "from": "build/generated/browser-extension",
+        "to": "browser-extension"
+      },
+      {
+        "from": "build/generated/browser-extension-integrity.json",
+        "to": "browser-extension-integrity.json"
+      },
+      {
         "from": "artifacts/native-host/AuriNativeHost.exe",
         "to": "native-host/AuriNativeHost.exe"
       }
@@ -135,6 +145,7 @@
         "channel": "latest"
       }
     ],
+    "beforePack": "scripts/release/before-pack.cjs",
     "afterAllArtifactBuild": "scripts/release/after-all-artifact-build.cjs"
   }
 }
