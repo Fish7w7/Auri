@@ -7,10 +7,12 @@
 ## Desenvolvimento
 
 - [Updater em desenvolvimento](development/updater.md): simulação local dos estados de atualização.
+- [Extensão do navegador](development/browser-extension.md): Embedded oficial, build reproduzível, instalação guiada e segurança.
 - [Build e publicação](development/release.md): empacotamento, configuração do Native Host e publicação de releases.
 
 ## Releases
 
 - [Changelog](../CHANGELOG.md): mudanças por versão.
+- [Auri 1.12.0](releases/1.12.0.md): extensão do navegador e instalação guiada.
 - [Auri 1.11.0](releases/1.11.0.md): refinamento da experiência; instalador oficial ainda não gerado.
 - [Auri 1.10.0](releases/1.10.0.md): notas e identificação do artefato publicado.
