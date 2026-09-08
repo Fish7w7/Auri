@@ -22,7 +22,16 @@ O host apenas lê `native-bridge/secret`; a criação e a posse do secret contin
 
 O instalador inclui `AuriNativeHost.exe` em `<installDir>\resources\native-host`. Depois de extrair os arquivos, o NSIS cria `app.auri.native_host.json` no mesmo diretório com o caminho absoluto do executável e registra `app.auri.native_host` em HKCU para Chrome, Edge e Brave. Updates substituem o executável, regeneram o manifest e reescrevem os três registros para o caminho atual.
 
-Na 1.12.0, `build/native-host/production.config.json` ativa a configuração oficial Embedded. Os IDs vêm de `build/browser-extension.config.json`: Edge `alnngjgmhiebpnjefjmhbhmhfpgoibnh` e Embedded `agefiaohfielfgadiagemnflekbboblp`. O manifest autoriza exatamente essas duas origins `chrome-extension://<id>/`, sem wildcard ou IDs DEV.
+Na 1.12.0, `build/native-host/production.config.json` ativa a configuração oficial Embedded. Os IDs vêm de `build/browser-extension.config.json`: Edge `alnngjgmhiebpnjefjmhbhmhfpgoibnh` e Embedded `agefiaohfielfgadiagemnflekbboblp`. O manifest autoriza exatamente:
+
+```json
+[
+  "chrome-extension://agefiaohfielfgadiagemnflekbboblp/",
+  "chrome-extension://alnngjgmhiebpnjefjmhbhmhfpgoibnh/"
+]
+```
+
+Não há wildcard ou IDs DEV. O guia de instalação não modifica esse manifest: apenas prepara a pasta e orienta o usuário. A detecção de processos e a decisão de iniciar o navegador pertencem ao Desktop, não ao Native Host.
 
 `AURI_EXTENSION_CHROME_ID` e `AURI_EXTENSION_BRAVE_ID` devem estar ausentes: não há IDs de loja desses navegadores neste release. `AURI_EXTENSION_EDGE_ID`, se informado, deve coincidir com o Edge oficial. As três chaves Registry continuam apontando ao mesmo manifest, sem registrar a extensão nem aplicar policies.
 
@@ -70,11 +79,12 @@ Esta integração é exclusiva para desenvolvimento. Ela registra somente `app.a
 No repositório da Auri Extension, em PowerShell:
 
 ```powershell
-$env:VITE_AURI_TRANSPORT = 'native'
-npm run build
+npm run build:dev:native
 ```
 
-Carregue a pasta `dist/` como extensão unpacked em `chrome://extensions` ou `edge://extensions` e copie o ID exibido. Chrome e Edge podem atribuir IDs diferentes.
+Carregue a pasta `artifacts/dev-native/` desse repositório como extensão unpacked em `chrome://extensions/` ou `edge://extensions/` e copie o ID exibido. Chrome e Edge podem atribuir IDs diferentes.
+
+Esse comando fixa `app.auri.native_host.dev` no bundle. O `npm run build` comum e o pacote Embedded oficial usam `app.auri.native_host`, de produção; definir apenas `VITE_AURI_TRANSPORT=native` não transforma um build de produção em DEV.
 
 No repositório Auri, gere somente o host DEV:
 
@@ -101,6 +111,8 @@ npm run native-host:register-dev -- --chrome-extension-id=<ID_CHROME_DA_EXTENSAO
 ```
 
 Substitua os IDs de exemplo pelos IDs reais exibidos pelos navegadores. O manifest absoluto é regenerado em `artifacts/native-host/dev/app.auri.native_host.dev.json`; `allowed_origins` contém somente os IDs informados explicitamente.
+
+O script DEV atual oferece registro para Chrome e Edge. Isso é separado do instalador PROD, que registra o host para Chrome, Edge e Brave. A instalação manual do Embedded no Brave não registra o host DEV.
 
 ### Teste manual
 

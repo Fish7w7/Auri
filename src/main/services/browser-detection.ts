@@ -1,12 +1,12 @@
 import { win32 } from 'node:path'
 import { stat } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
-import { SUPPORTED_BROWSERS, type SupportedBrowser } from '@shared/contracts/browser-extension'
+import { BROWSER_EXTENSIONS_URLS, SUPPORTED_BROWSERS, type SupportedBrowser } from '@shared/contracts/browser-extension'
 
 export const BROWSER_DEFINITIONS = {
-  edge: { displayName: 'Microsoft Edge', exe: 'msedge.exe', directory: 'Microsoft\\Edge\\Application', url: 'edge://extensions/' },
-  chrome: { displayName: 'Google Chrome', exe: 'chrome.exe', directory: 'Google\\Chrome\\Application', url: 'chrome://extensions/' },
-  brave: { displayName: 'Brave', exe: 'brave.exe', directory: 'BraveSoftware\\Brave-Browser\\Application', url: 'brave://extensions/' }
+  edge: { displayName: 'Microsoft Edge', exe: 'msedge.exe', directory: 'Microsoft\\Edge\\Application', url: BROWSER_EXTENSIONS_URLS.edge },
+  chrome: { displayName: 'Google Chrome', exe: 'chrome.exe', directory: 'Google\\Chrome\\Application', url: BROWSER_EXTENSIONS_URLS.chrome },
+  brave: { displayName: 'Brave', exe: 'brave.exe', directory: 'BraveSoftware\\Brave-Browser\\Application', url: BROWSER_EXTENSIONS_URLS.brave }
 } as const
 
 export interface BrowserDetectionDependencies {

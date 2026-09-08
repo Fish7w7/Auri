@@ -12,20 +12,64 @@ afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { rec
 function fixture() {
   const deps: BrowserExtensionDependencies = {
     folder: resolve('build/generated/browser-extension'),
+    isRunning: vi.fn(async () => false),
     detect: vi.fn(async () => ({ edge: 'C:\\Edge\\msedge.exe', chrome: 'C:\\Chrome\\chrome.exe', brave: 'C:\\Brave\\brave.exe' })),
     embeddedAvailable: vi.fn(async () => true), launch: vi.fn(async () => {}), openExternal: vi.fn(async () => {}), openPath: vi.fn(async () => ''), copyText: vi.fn()
   }
   return { deps, service: new BrowserExtensionService(deps) }
 }
 describe('ações restritas da extensão no Main', () => {
+  it.each(['chrome', 'brave', 'edge'] as const)('mantém %s existente sem abrir processo, janela ou URL', async (browser) => {
+    const { service, deps } = fixture()
+    deps.isRunning = vi.fn(async () => true)
+    expect(await service.openExtensionsPage(browser)).toEqual({ state: 'already-running' })
+    expect(deps.isRunning).toHaveBeenCalledExactlyOnceWith(browser)
+    expect(deps.launch).not.toHaveBeenCalled()
+    expect(deps.openExternal).not.toHaveBeenCalled()
+  })
+  it.each(['chrome', 'brave', 'edge'] as const)('não abre %s quando não pode verificar processos', async (browser) => {
+    const { service, deps } = fixture()
+    deps.isRunning = vi.fn(async () => { throw new Error('Access denied') })
+    expect(await service.openExtensionsPage(browser)).toEqual({ state: 'unknown' })
+    expect(deps.launch).not.toHaveBeenCalled()
+  })
+  it('consulta novamente em cada ação e detecta navegador fechado depois', async () => {
+    const { service, deps } = fixture()
+    deps.isRunning = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    expect(await service.openExtensionsPage('brave')).toEqual({ state: 'already-running' })
+    expect(await service.openExtensionsPage('brave')).toEqual({ state: 'launch-requested' })
+    expect(deps.launch).toHaveBeenCalledOnce()
+  })
+  it('duas chamadas concorrentes compartilham a consulta e uma única abertura', async () => {
+    const { service, deps } = fixture()
+    let finish!: (running: boolean) => void
+    deps.isRunning = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve }))
+    const first = service.openExtensionsPage('brave')
+    const second = service.openExtensionsPage('brave')
+    await vi.waitFor(() => expect(deps.isRunning).toHaveBeenCalledOnce())
+    expect(deps.launch).not.toHaveBeenCalled()
+    finish(false)
+    expect(await Promise.all([first, second])).toEqual([{ state: 'launch-requested' }, { state: 'launch-requested' }])
+    expect(deps.launch).toHaveBeenCalledOnce()
+  })
+  it.each(['chrome', 'brave', 'edge'])('copia apenas a URL interna fixa de %s', async (browser) => {
+    const { service, deps } = fixture()
+    await service.copyExtensionsUrl(browser)
+    expect(deps.copyText).toHaveBeenCalledExactlyOnceWith(browser + '://extensions/')
+    expect(deps.launch).not.toHaveBeenCalled()
+    expect(deps.openExternal).not.toHaveBeenCalled()
+  })
   it.each([['chrome', 'C:\\Chrome\\chrome.exe', 'chrome://extensions/'], ['brave', 'C:\\Brave\\brave.exe', 'brave://extensions/'], ['edge', 'C:\\Edge\\msedge.exe', 'edge://extensions/']])('abre %s com executável e argumento separados', async (browser, exe, url) => {
-    const { service, deps } = fixture(); await service.openExtensionsPage(browser)
+    const { service, deps } = fixture()
+    expect(await service.openExtensionsPage(browser)).toEqual({ state: 'launch-requested' })
     expect(deps.launch).toHaveBeenCalledWith(exe, [url]); expect(deps.openExternal).not.toHaveBeenCalled()
   })
   it.each(['firefox', 'C:\\evil.exe', 'chrome --x', null, {}, ['chrome'], 'toString'])('recusa valor arbitrário %j', async (value) => {
     const { service, deps } = fixture()
     await expect(service.openExtensionsPage(value)).rejects.toThrow('Navegador não suportado')
+    await expect(service.copyExtensionsUrl(value)).rejects.toThrow('Navegador não suportado')
     expect(deps.launch).not.toHaveBeenCalled()
+    expect(deps.copyText).not.toHaveBeenCalled()
   })
   it('abre somente a URL oficial e a pasta fixa, copia somente o caminho fixo', async () => {
     const { service, deps } = fixture()
@@ -76,9 +120,9 @@ describe('ações restritas da extensão no Main', () => {
   })
 })
 describe('preload mínimo tipado', () => {
-  it('expõe somente cinco ações e não encaminha paths/URLs extras', async () => {
+  it('expõe somente seis ações específicas e não encaminha paths/URLs extras', async () => {
     const invoke = vi.fn(async () => ({ ok: true, data: undefined })); const api = createBrowserExtensionApi({ invoke })
-    expect(Object.keys(api)).toEqual(['getStatus', 'openEdgeStore', 'openExtensionsPage', 'openFolder', 'copyPath'])
+    expect(Object.keys(api)).toEqual(['getStatus', 'openEdgeStore', 'openExtensionsPage', 'openFolder', 'copyPath', 'copyExtensionsUrl'])
     expect(Object.isFrozen(api)).toBe(true)
     await (api.openFolder as (...args: unknown[]) => Promise<void>)('C:\\arbitrary')
     expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.browserExtension.openFolder)
@@ -86,6 +130,7 @@ describe('preload mínimo tipado', () => {
     expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.browserExtension.openEdgeStore)
     await api.openExtensionsPage('brave'); expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.browserExtension.openExtensionsPage, 'brave')
     await api.copyPath(); expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.browserExtension.copyPath)
+    await api.copyExtensionsUrl('brave'); expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.browserExtension.copyExtensionsUrl, 'brave')
     await api.getStatus(); expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.browserExtension.getStatus)
   })
   it('propaga mensagem sanitizada do Main', async () => {

@@ -14,6 +14,7 @@ export function createBrowserExtensionApi(ipc: { invoke(channel: string, ...args
     openEdgeStore: () => invoke(channels.openEdgeStore),
     openExtensionsPage: (browser) => invoke(channels.openExtensionsPage, browser),
     openFolder: () => invoke(channels.openFolder),
-    copyPath: () => invoke(channels.copyPath)
+    copyPath: () => invoke(channels.copyPath),
+    copyExtensionsUrl: (browser) => invoke(channels.copyExtensionsUrl, browser)
   } satisfies BrowserExtensionApi)
 }

@@ -63,6 +63,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.browserExtension.openExtensionsPage, (request) => services.browserExtension.openExtensionsPage(request)],
     [IPC_CHANNELS.browserExtension.openFolder, () => services.browserExtension.openFolder()],
     [IPC_CHANNELS.browserExtension.copyPath, () => services.browserExtension.copyPath()],
+    [IPC_CHANNELS.browserExtension.copyExtensionsUrl, (request) => services.browserExtension.copyExtensionsUrl(request)],
     [IPC_CHANNELS.system.getDiagnostics, () => services.system.getDiagnostics()],
     [IPC_CHANNELS.system.checkIntegrity, () => services.system.checkIntegrity()],
     [IPC_CHANNELS.system.clearCoverCache, () => services.system.clearCoverCache()],

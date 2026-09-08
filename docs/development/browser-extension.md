@@ -1,5 +1,38 @@
 # Extensão do navegador — Desktop 1.12.0
 
+## Desenvolvimento local
+
+Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.2.0 e sua metadata ficam em `Auri-Extension/release/`.
+
+Com os inputs disponíveis, na raiz do Desktop:
+
+```powershell
+npm ci
+npm run dev
+```
+
+O `predev` valida e prepara o Embedded antes de iniciar o aplicativo. Se o ZIP ou a metadata não existir ou não corresponder aos hashes fixados, obtenha os inputs oficiais; não substitua os hashes apenas para aceitar outro arquivo.
+
+`npm run start` executa o conteúdo já compilado em `out/`; não recompila o projeto. Após mudar Main, preload ou contratos IPC, feche completamente a instância antiga antes de abrir o build atualizado. Recarregar somente a tela pode combinar um renderer novo com handlers antigos e causar falhas em ações como **Copiar endereço**. No desenvolvimento contínuo, `npm run dev -- --watch` habilita recompilação de Main/preload e reinício ou recarga pelo electron-vite.
+
+A tela e a detecção podem ser conferidas em DEV, mas o Embedded oficial usa o Native Host **PROD**. Para testar a comunicação com o Desktop em `Auri-Dev`, use a [extensão e o host específicos de desenvolvimento](../architecture/desktop-bridge.md#native-messaging-dev). Não redirecione o pacote Embedded oficial para o host DEV.
+
+## Instalação pelo Desktop
+
+Abra **Configurações → Extensão do navegador**. Edge oferece o link oficial do Edge Add-ons. Chrome e Brave oferecem **Instalar no Chrome** e **Instalar no Brave** quando o navegador e os arquivos Embedded estão disponíveis.
+
+Na instalação manual, o Auri valida os arquivos e abre a pasta antes de verificar a instância do navegador:
+
+| Estado da consulta | Comportamento |
+| --- | --- |
+| Navegador em execução | Mantém a instância existente e orienta copiar o endereço no guia. |
+| Navegador fechado | Tenta iniciar o executável detectado com sua URL interna de extensões. |
+| Consulta inconclusiva | Evita uma nova abertura e orienta navegar manualmente. |
+
+Use **Copiar endereço** e cole o valor na barra de endereço do navegador. Em seguida, ative o **Modo do desenvolvedor**, clique em **Carregar sem compactação** e selecione a pasta preparada. **Abrir pasta** e **Copiar caminho** permitem repetir essas ações. Nenhuma dessas etapas detecta ou confirma que a extensão foi instalada.
+
+Se uma ação falhar, o guia permanece disponível e o toast identifica a etapa. **Atualizar detecção** refaz a consulta dos navegadores instalados; a verificação de processos ocorre a cada solicitação de abertura de extensões.
+
 ## Entrada e build reproduzível
 
 `build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.2.0 é `../Auri-Extension/release/auri-extension-0.2.0-embedded.zip`, com metadata no `.json` de mesmo nome.
@@ -39,7 +72,21 @@ As três chaves HKCU sob `Software\Google\Chrome`, `Software\Microsoft\Edge` e `
 
 Detecção por App Paths HKCU (64/32), HKLM (64/32), LOCALAPPDATA, Program Files e Program Files (x86), nessa ordem. Apenas executáveis de nomes conhecidos, caminhos absolutos locais e arquivos existentes são aceitos. Consultas Registry usam reg.exe com argumentos separados, timeout e shell desabilitado. Não se leem perfis, histórico, cookies, Preferences ou extensões instaladas.
 
-API isolada `window.auri.browserExtension`: `getStatus()`, `openEdgeStore()`, `openExtensionsPage(edge|chrome|brave)`, `openFolder()`, `copyPath()`. Não expõe executáveis, shell/spawn, URL ou path arbitrário. O Main valida a enumeração em runtime; folder/copy ignoram qualquer payload extra e usam exclusivamente a pasta fixa. Erros retornados são sanitizados. Schemes internos usam spawn do executável detectado, com URL fixa em argumento separado e `shell: false`.
+API isolada `window.auri.browserExtension`: `getStatus()`, `openEdgeStore()`, `openExtensionsPage(edge|chrome|brave)`, `openFolder()`, `copyPath()`, `copyExtensionsUrl(edge|chrome|brave)`. Não expõe executáveis, shell/spawn, URL, texto ou path arbitrário. O Main valida a enumeração em runtime; folder/copyPath ignoram qualquer payload extra e usam exclusivamente a pasta fixa. A cópia do endereço usa apenas as três URLs internas fixas do contrato. Erros retornados são sanitizados.
+
+## Abertura e fallback de navegação
+
+O Brave 1.94.121 usado na investigação da 1.12.0 utiliza Chromium 152.0.7977.83. A causa da Nova guia é o filtro de URLs de inicialização do Chromium: a URL interna não é uma URL web-safe aceita pela navegação normal via linha de comando. O evento `spawn` não comprova navegação. Referências: [versão usada pelo Brave](https://raw.githubusercontent.com/brave/brave-core/v1.94.121/package.json), [delegação de tabs do Brave](https://raw.githubusercontent.com/brave/brave-core/v1.94.121/browser/ui/startup/brave_startup_tab_provider_impl.cc) e [ValidateLaunchUrlWebUnsafe no Chromium correspondente](https://raw.githubusercontent.com/chromium/chromium/152.0.7977.83/chrome/browser/ui/startup/url_util.cc).
+
+Antes de cada tentativa, o Main consulta os processos Brave, Chrome e Edge na sessão atual do Windows. A consulta PowerShell usa script fixo, `-NoProfile`, janela oculta, timeout de quatro segundos e `shell: false`. Retorna apenas nomes de processos; não consulta perfis, abas, títulos ou linhas de comando. Processos em segundo plano também contam como navegador em execução, evitando disparar outra janela nessa situação.
+
+Se o navegador já estiver em execução, não há spawn nem envio da URL interna: o guia orienta copiar o endereço na janela existente. Se a consulta falhar, o resultado é desconhecido e a navegação fica manual. Somente quando a consulta confirma ausência de processo é feita a tentativa com o executável detectado e exatamente um argumento: `brave://extensions/`, `chrome://extensions/` ou `edge://extensions/`, com `shell: false`. Sem flags de perfil, guest, incognito, headless ou bypass. Não há confirmação de página carregada nem inspeção do perfil. O IPC retorna `already-running`, `launch-requested` ou `unknown`; chamadas simultâneas para o mesmo navegador compartilham a operação para evitar aberturas duplicadas.
+
+Conforme fallback manual aprovado, o guia mantém **Copiar endereço** e a instrução de colar na barra de endereço quando a tentativa automática não abrir a página. O Main só copia a URL fixa correspondente ao navegador validado. Esse fallback também está disponível para Chrome e para a ação secundária do Edge.
+
+Ao iniciar instalação manual, o Auri valida a integridade e aguarda `openFolder()` antes de verificar a instância e, se necessário, solicitar o navegador por último, sem delays arbitrários. Cada etapa é tratada separadamente: falha na pasta não impede verificar o navegador, e falha no navegador preserva a pasta aberta e o guia. Os toasts distinguem navegador já em execução, solicitação de abertura e consulta inconclusiva. O sistema operacional controla o foco final; o Auri não muda o foco da janela existente.
+
+Os três cards usam status textual e ícone, sem controles para browsers ausentes. Um único guia segue a seleção Chrome/Brave, com três passos, fallback de endereço, ações individuais e nota de recarregamento. Feedback temporário usa os toasts existentes; atualizar detecção fica no topo e tentar novamente aparece apenas após erro de carregamento. O guia não recebe foco programático.
 
 A UI informa detecção de navegador e disponibilidade do Embedded, sem alegar extensão instalada. O usuário ativa o Modo do desenvolvedor, clica em Carregar sem compactação e seleciona a pasta. Não há instalação silenciosa, automação, seleção de pasta pelo aplicativo, telemetria, analytics ou envio de detecção à nuvem.
 

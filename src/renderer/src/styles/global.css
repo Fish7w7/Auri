@@ -839,12 +839,47 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 @media (max-width: 1040px) {
   .sidebar-tooltip { left: calc(var(--sidebar-compact) + 8px); }
 }
-/* Browser extension settings reuse the existing settings groups and buttons. */
-.browser-extension-included { font-weight: 600; }
-.browser-extension-card { display: grid; gap: 12px; }
-.browser-extension-card p { margin: 0; }
-.browser-extension-card ol { margin: 0; padding-left: 24px; line-height: 1.9; }
+/* Scoped to this settings category; retain shared controls and theme tokens. */
+.settings-layout nav [data-settings-section="browser-extension"] span { white-space: normal; text-overflow: clip; }
+.browser-extension-settings p { margin: 0; }
+.browser-extension-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 20px 0 16px; }
+.browser-extension-included { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .78rem; font-weight: 600; }
+.browser-extension-included > svg { width: 16px; height: 16px; color: var(--text-muted); }
+.browser-extension-version { padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: .7rem; font-weight: 500; }
+.browser-extension-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); align-items: start; gap: 12px; }
+.browser-extension-card { min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.browser-extension-card.is-unavailable { background: var(--background-elevated); border-color: var(--border-subtle); color: var(--text-muted); }
+.browser-extension-card.is-selected { border-color: var(--accent); }
+.browser-extension-card header { display: flex; align-items: center; gap: 9px; }
+.browser-extension-card h3 { margin: 0; font-size: .87rem; }
+.browser-extension-icon { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--radius-sm); background: var(--surface-elevated); color: var(--text-secondary); }
+.browser-extension-icon svg { width: 16px; height: 16px; }
+.browser-extension-status { display: flex; align-items: center; gap: 6px; font-size: .7rem; color: var(--text-muted); }
+.browser-extension-status svg { width: 13px; height: 13px; }
+.browser-extension-status.is-detected { color: var(--success); }
+.browser-extension-description { font-size: .77rem; line-height: 1.65; color: var(--text-secondary); }
+.browser-extension-description strong { display: block; margin-bottom: 3px; font-size: .7rem; font-weight: 600; }
+.browser-extension-card.is-unavailable .browser-extension-description { color: var(--text-muted); }
+.browser-extension-card-actions { display: flex; flex-direction: column; gap: 4px; }
+.browser-extension-settings .button { white-space: normal; line-height: 1.4; padding-top: 8px; padding-bottom: 8px; }
+.browser-extension-guide { margin-top: 20px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.browser-extension-guide > header { display: flex; gap: 12px; }
+.browser-extension-guide > header > svg { width: 21px; height: 21px; flex-shrink: 0; margin-top: 3px; color: var(--accent); }
+.browser-extension-eyebrow { font-size: .7rem; color: var(--text-muted); }
+.browser-extension-guide h3 { margin: 4px 0 8px; font-size: 1rem; }
+.browser-extension-guide header p { font-size: .78rem; line-height: 1.6; color: var(--text-secondary); }
+.browser-extension-steps { display: flex; flex-direction: column; gap: 16px; margin: 24px 0; padding: 0; list-style: none; }
+.browser-extension-steps li { display: flex; align-items: start; gap: 12px; font-size: .8rem; line-height: 1.6; }
+.browser-extension-steps li > span { display: grid; place-items: center; flex: 0 0 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-elevated); color: var(--accent); font-weight: 600; }
+.browser-extension-steps strong { font-weight: 600; }
+.browser-extension-steps p { margin-top: 3px; color: var(--text-muted); font-size: .75rem; }
 .browser-extension-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.browser-extension-note { line-height: 1.6; color: var(--text-secondary); }
-.browser-extension-feedback { line-height: 1.6; }
-#browser-install-heading:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.browser-extension-address { margin-top: 14px; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-input); font-size: .75rem; line-height: 1.6; color: var(--text-secondary); }
+.browser-extension-address > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: 8px; }
+.browser-extension-address code { overflow-wrap: anywhere; color: var(--text-primary); }
+.browser-extension-update, .browser-extension-privacy, .browser-extension-notice { display: flex; align-items: start; gap: 8px; font-size: .74rem; line-height: 1.6; color: var(--text-secondary); }
+.browser-extension-update > svg, .browser-extension-privacy > svg, .browser-extension-notice > svg { flex: 0 0 14px; width: 14px; height: 14px; margin-top: 3px; }
+.browser-extension-update { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.browser-extension-privacy { margin-top: 18px; padding: 12px; border-radius: var(--radius-sm); background: var(--background-elevated); color: var(--text-muted); }
+.browser-extension-notice { padding: 14px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.browser-extension-notice .button { margin-top: 8px; }
