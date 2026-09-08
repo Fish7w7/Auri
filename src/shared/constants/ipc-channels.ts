@@ -4,7 +4,8 @@ export const IPC_CHANNELS = {
     openEdgeStore: 'auri:browser-extension:edge-store',
     openExtensionsPage: 'auri:browser-extension:extensions-page',
     openFolder: 'auri:browser-extension:open-folder',
-    copyPath: 'auri:browser-extension:copy-path'
+    copyPath: 'auri:browser-extension:copy-path',
+    copyExtensionsUrl: 'auri:browser-extension:copy-extensions-url'
   },
   desktopCommands: {
     openWork: 'auri:desktop-command:open-work',

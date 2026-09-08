@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFile, lstat, readdir } from 'node:fs/promises'
 import { join, resolve, isAbsolute, relative } from 'node:path'
 import { DomainError } from '@shared/errors/domain-error'
-import { SUPPORTED_BROWSERS, type BrowserExtensionStatus, type SupportedBrowser } from '@shared/contracts/browser-extension'
+import { BROWSER_EXTENSIONS_URLS, SUPPORTED_BROWSERS, type BrowserExtensionStatus, type SupportedBrowser, type BrowserOpenResult } from '@shared/contracts/browser-extension'
 import { BROWSER_DEFINITIONS } from './browser-detection'
 import config from '../../../build/browser-extension.config.json'
 import integrity from '../../../build/generated/browser-extension-integrity.json'
@@ -12,6 +12,7 @@ export interface BrowserExtensionDependencies {
   detect(): Promise<Record<SupportedBrowser, string | null>>
   embeddedAvailable(): Promise<boolean>
   launch(executable: string, args: string[]): Promise<void>
+  isRunning(browser: SupportedBrowser): Promise<boolean>
   openExternal(url: string): Promise<void>
   openPath(path: string): Promise<string>
   copyText(text: string): void
@@ -42,6 +43,7 @@ export function embeddedDirectory(isPackaged: boolean, resourcesPath: string, ap
 }
 
 export class BrowserExtensionService {
+  private readonly opening = new Map<SupportedBrowser, Promise<BrowserOpenResult>>()
   constructor(private readonly deps: BrowserExtensionDependencies) {
     if (!isAbsolute(deps.folder)) throw new Error('Embedded directory must be absolute.')
   }
@@ -67,13 +69,24 @@ export class BrowserExtensionService {
     })
   }
 
-  async openExtensionsPage(value: unknown): Promise<void> {
+  async openExtensionsPage(value: unknown): Promise<BrowserOpenResult> {
     if (typeof value !== 'string' || !SUPPORTED_BROWSERS.includes(value as SupportedBrowser)) throw new DomainError('INVALID_INPUT', 'Navegador não suportado.')
     const browser = value as SupportedBrowser
-    await this.perform(async () => {
+    const pending = this.opening.get(browser)
+    if (pending) return pending
+    const operation = this.perform<BrowserOpenResult>(async () => {
       const executable = await this.requireBrowser(browser)
+      try {
+        if (await this.deps.isRunning(browser)) return { state: 'already-running' }
+      } catch {
+        // Failure to inspect is not proof that the browser is closed.
+        return { state: 'unknown' }
+      }
       await this.deps.launch(executable, [BROWSER_DEFINITIONS[browser].url])
+      return { state: 'launch-requested' }
     })
+    this.opening.set(browser, operation)
+    try { return await operation } finally { this.opening.delete(browser) }
   }
 
   async openFolder(): Promise<void> {
@@ -87,6 +100,11 @@ export class BrowserExtensionService {
     await this.perform(async () => { await this.requireEmbedded(); this.deps.copyText(this.deps.folder) })
   }
 
+  async copyExtensionsUrl(value: unknown): Promise<void> {
+    if (typeof value !== 'string' || !SUPPORTED_BROWSERS.includes(value as SupportedBrowser)) throw new DomainError('INVALID_INPUT', 'Navegador não suportado.')
+    await this.perform(async () => { this.deps.copyText(BROWSER_EXTENSIONS_URLS[value as SupportedBrowser]) })
+  }
+
   private async requireBrowser(browser: SupportedBrowser): Promise<string> {
     const executable = (await this.deps.detect())[browser]
     if (!executable) throw new DomainError('INVALID_INPUT', 'Navegador não encontrado neste computador. Tente novamente.')
@@ -97,8 +115,8 @@ export class BrowserExtensionService {
     if (!await this.deps.embeddedAvailable()) throw new DomainError('SYSTEM_FOLDER_UNAVAILABLE', 'Os arquivos da Auri Extension não estão disponíveis nesta instalação. Atualize ou reinstale o Auri.')
   }
 
-  private async perform(operation: () => Promise<void>): Promise<void> {
-    try { await operation() } catch (error) {
+  private async perform<T>(operation: () => Promise<T>): Promise<T> {
+    try { return await operation() } catch (error) {
       if (error instanceof DomainError) throw error
       throw new DomainError('INTERNAL_ERROR', 'Não foi possível concluir a ação. Tente novamente.')
     }
