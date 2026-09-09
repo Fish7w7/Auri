@@ -48,6 +48,7 @@ import { CURRENT_LOG_FILE_NAME } from './app-identity'
 import { createApplicationUpdateService } from '../services/application-update-service'
 import { WorkResolutionRepository } from '../database/repositories/work-resolution-repository'
 import { WorkResolutionService } from '../services/work-resolution-service'
+import { SourceIdentityService } from '../services/source-identity-service'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -131,7 +132,8 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       historyRepository,
       sourcesRepository
     )
-    const sources = new SourceService(database.db, sourcesRepository, worksRepository)
+    const sourceIdentity = new SourceIdentityService(sourcesRepository, worksRepository, historyRepository)
+    const sources = new SourceService(database.db, sourcesRepository, worksRepository, sourceIdentity)
     const details = new WorkDetailsService(database.db, {
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,
@@ -157,7 +159,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       logger
     )
     const externalNavigation = new ExternalNavigationService()
-    const resolution = new WorkResolutionService(new WorkResolutionRepository(database.db))
+    const resolution = new WorkResolutionService(new WorkResolutionRepository(database.db), sourceIdentity)
     const library = new LibraryService(worksRepository)
     const transfer = new TransferService(database.db, {
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,

@@ -12,7 +12,9 @@ import {
   tagWorkSchema, updateAliasSchema, updateCollectionSchema, updateCreatorSchema, workIdSchema
 } from '@shared/schemas/domain'
 import type { Alias, Collection, Creator, Genre, Tag, Work } from '@shared/types/domain'
+import { normalizeChapter } from '@shared/utils/normalize-chapter'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
+import type { SourceIdentityInput } from '@shared/utils/source-identity'
 import type { AliasRepository } from '../database/repositories/alias-repository'
 import type { CollectionRepository } from '../database/repositories/collection-repository'
 import type { CreatorRepository } from '../database/repositories/creator-repository'
@@ -59,8 +61,9 @@ export class WorkDetailsService {
 
   createDetailed(input: unknown): WorkDetails {
     const request = parseDomainInput(detailedCreateWorkSchema, input) as DetailedCreateWorkRequest
-    if (request.source) this.sourcesService.assertExternalDraftSourceAvailable(request.source)
+    const sourceIdentityContext = this.createSourceIdentityContext(request)
     const operation = this.db.transaction(() => {
+      if (request.source) this.sourcesService.assertExternalDraftSourceAvailable(request.source, sourceIdentityContext)
       const hasExplicitSourceProgress = request.source !== undefined && request.chapter !== null && request.chapter !== undefined
       const work = this.worksService.createWork(hasExplicitSourceProgress ? { ...request, chapter: null } : request)
       for (const creator of request.creators ?? []) this.createCreatorRecord(work.id, creator)
@@ -70,7 +73,9 @@ export class WorkDetailsService {
         this.requireCollection(collectionId)
         this.repositories.collections.addWork(collectionId, work.id, this.clock())
       }
-      const source = request.source ? this.sourcesService.createSource({ ...request.source, workId: work.id }) : null
+      const source = request.source
+        ? this.sourcesService.createSource({ ...request.source, workId: work.id }, sourceIdentityContext)
+        : null
       if (hasExplicitSourceProgress && source) {
         this.progressService.initializeProgress(work.id, request.chapter!, source.id, request.lastReadNote ?? null)
       }
@@ -200,6 +205,32 @@ export class WorkDetailsService {
 
   private compose(work: Work): WorkDetails {
     return { work, aliases: this.repositories.aliases.listByWork(work.id), creators: this.repositories.creators.listByWork(work.id), genres: this.repositories.genres.listByWork(work.id), tags: this.repositories.tags.listByWork(work.id), collections: this.repositories.collections.listByWork(work.id), allCollections: this.repositories.collections.listAll(), sources: this.repositories.sources.listByWork(work.id), metadataOverrides: this.repositories.overrides.listByWork(work.id), externalRefs: this.repositories.externalRefs.listByWork(work.id) }
+  }
+  private createSourceIdentityContext(request: DetailedCreateWorkRequest): SourceIdentityInput | undefined {
+    if (!request.source) return undefined
+    const pageUrl = request.source.lastReadUrl ?? request.source.seriesUrl
+    if (!pageUrl) return undefined
+    let detectedChapter: SourceIdentityInput['detectedChapter']
+    if (request.chapter) {
+      try {
+        const normalized = normalizeChapter(request.chapter)
+        if (normalized.numericValue !== null) detectedChapter = {
+          value: normalized.label,
+          numericValue: normalized.numericValue,
+          confidence: 'high',
+          source: 'manual'
+        }
+      } catch { /* O schema/WorkService fará a validação de domínio. */ }
+    }
+    return {
+      pageUrl,
+      ...(request.source.seriesUrl && request.source.seriesUrl !== pageUrl
+        ? { canonicalUrl: request.source.seriesUrl }
+        : {}),
+      ...(detectedChapter ? { detectedChapter } : {}),
+      title: request.title,
+      domain: request.source.domain ?? null
+    }
   }
   private requireActiveInput(input: unknown): Work { const { workId } = parseDomainInput(workIdSchema, input); return this.requireActiveWork(workId) }
   private requireActiveWork(id: string): Work { const work = this.repositories.works.findById(id); if (!work) throw new DomainError('WORK_NOT_FOUND', 'Obra não encontrada.'); if (work.deletedAt) throw new DomainError('WORK_IN_TRASH', 'A obra está na Lixeira.'); return work }

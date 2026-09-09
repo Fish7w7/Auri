@@ -9,30 +9,37 @@ import {
 } from '@shared/schemas/domain'
 import type { Source } from '@shared/types/domain'
 import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
-import { isSourceUrlAncestor, sourceUrlAncestorCandidates, sourceUrlSpecificity } from '@shared/utils/source-url-ancestry'
+import type { SourceIdentityInput } from '@shared/utils/source-identity'
 import type { SourceRepository } from '../database/repositories/source-repository'
 import type { WorkRepository } from '../database/repositories/work-repository'
 import { generateId, parseDomainInput, utcNow, type Clock, type IdGenerator } from './service-utils'
+import type { SourceIdentityService } from './source-identity-service'
 
 export class SourceService {
   constructor(
     private readonly db: Database.Database,
     private readonly sources: SourceRepository,
     private readonly works: WorkRepository,
+    private readonly sourceIdentity: SourceIdentityService,
     private readonly clock: Clock = utcNow,
     private readonly idGenerator: IdGenerator = generateId
   ) {}
 
-  createSource(input: unknown): Source {
+  createSource(input: unknown, identityContext?: SourceIdentityInput): Source {
     const request = parseDomainInput(createSourceSchema, input) as CreateSourceRequest
     this.requireActiveWork(request.workId)
     if (request.status === 'archived' && request.isPreferred) {
       throw new DomainError('INVALID_STATUS', 'Uma fonte arquivada não pode ser preferida.')
     }
     const now = this.clock()
-    const seriesUrl = this.normalizeUrl(request.seriesUrl)
-    const lastReadUrl = this.normalizeUrl(request.lastReadUrl)
-    this.assertUrlAvailable(request.workId, seriesUrl, lastReadUrl)
+    const normalizedSeriesUrl = this.normalizeUrl(request.seriesUrl)
+    const normalizedLastReadUrl = this.normalizeUrl(request.lastReadUrl)
+    const preparedIdentity = identityContext ? this.sourceIdentity.resolve(identityContext) : null
+    const seriesUrl = preparedIdentity?.seriesUrl ?? normalizedSeriesUrl
+    const lastReadUrl = preparedIdentity && preparedIdentity.pageUrl !== preparedIdentity.seriesUrl
+      ? preparedIdentity.pageUrl
+      : normalizedLastReadUrl
+    this.assertUrlAvailable(request.workId, seriesUrl, lastReadUrl, undefined, identityContext)
     const domain = request.domain ?? this.deriveDomain(seriesUrl ?? lastReadUrl)
     if (!domain) throw new DomainError('INVALID_INPUT', 'Informe uma URL válida para identificar a fonte.')
     const source: Source = {
@@ -58,10 +65,13 @@ export class SourceService {
     return create.immediate()
   }
 
-  assertExternalDraftSourceAvailable(input: { seriesUrl?: string | null; lastReadUrl?: string | null }): void {
+  assertExternalDraftSourceAvailable(
+    input: { seriesUrl?: string | null; lastReadUrl?: string | null },
+    identityContext?: SourceIdentityInput
+  ): void {
     const seriesUrl = this.normalizeUrl(input.seriesUrl)
     const lastReadUrl = this.normalizeUrl(input.lastReadUrl)
-    this.assertUrlAvailable(null, seriesUrl, lastReadUrl)
+    this.assertUrlAvailable(null, seriesUrl, lastReadUrl, undefined, identityContext)
   }
 
   updateSource(input: unknown): Source {
@@ -177,23 +187,25 @@ export class SourceService {
     return normalized
   }
 
-  private assertUrlAvailable(workId: string | null, seriesUrl: string | null, lastReadUrl: string | null, ignoredSourceId?: string): void {
+  private assertUrlAvailable(
+    workId: string | null,
+    seriesUrl: string | null,
+    lastReadUrl: string | null,
+    ignoredSourceId?: string,
+    identityContext?: SourceIdentityInput
+  ): void {
     const incoming = [seriesUrl, lastReadUrl].filter((value): value is string => Boolean(value))
     if (!incoming.length) return
-    const exact = this.sources.findByStoredUrls(incoming).filter((source) => source.id !== ignoredSourceId)
-    const ancestorUrls = [...new Set(incoming.flatMap(sourceUrlAncestorCandidates))]
-    const ancestral = this.sources.findBySeriesUrls(ancestorUrls).filter((source) =>
-      source.id !== ignoredSourceId && source.seriesUrl !== null && incoming.some((url) => isSourceUrlAncestor(source.seriesUrl!, url)))
-    const candidates = exact.length ? exact : ancestral
-    const specificity = candidates.length ? Math.max(...candidates.map((source) => sourceUrlSpecificity(source.seriesUrl ?? source.lastReadUrl ?? ''))) : 0
-    const duplicate = candidates.find((source) => sourceUrlSpecificity(source.seriesUrl ?? source.lastReadUrl ?? '') === specificity)
+    const contexts = identityContext ? [identityContext] : incoming.map((pageUrl) => ({ pageUrl }))
+    const candidates = contexts.flatMap((context) => this.sourceIdentity.findMatches(context))
+      .filter((match) => match.source.id !== ignoredSourceId)
+    const duplicate = candidates.find((match) => match.confidence === 'exact') ?? candidates[0]
     if (duplicate) {
-      const work = this.works.findById(duplicate.workId)
-      throw new DomainError('DUPLICATE_SOURCE', 'Esta página parece pertencer a uma obra que já está na sua Biblioteca.', {
-        workId: duplicate.workId,
-        workTitle: work?.title ?? 'Obra existente',
-        sourceId: duplicate.id,
-        sameWork: duplicate.workId === workId
+      throw new DomainError('DUPLICATE_SOURCE', 'Esta fonte já pertence a uma obra da sua Biblioteca.', {
+        workId: duplicate.work.id,
+        workTitle: duplicate.work.title,
+        sourceId: duplicate.source.id,
+        sameWork: duplicate.work.id === workId
       })
     }
   }

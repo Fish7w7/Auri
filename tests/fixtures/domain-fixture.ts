@@ -18,6 +18,7 @@ import { WorkService } from '@main/services/work-service'
 import { WorkDetailsService } from '@main/services/work-details-service'
 import { BulkLibraryService } from '@main/services/bulk-library-service'
 import { TestLogger } from './test-logger'
+import { SourceIdentityService } from '@main/services/source-identity-service'
 
 export function createDomainFixture(databasePath = ':memory:') {
   const db = new Database(databasePath)
@@ -40,7 +41,9 @@ export function createDomainFixture(databasePath = ':memory:') {
     overrides: new MetadataOverrideRepository(db)
   }
 
+  const sourceIdentity = new SourceIdentityService(repositories.sources, repositories.works, repositories.history)
   const services = {
+    sourceIdentity,
     works: new WorkService(
       db,
       {
@@ -59,7 +62,7 @@ export function createDomainFixture(databasePath = ':memory:') {
       repositories.sources,
       clock
     ),
-    sources: new SourceService(db, repositories.sources, repositories.works, clock),
+    sources: new SourceService(db, repositories.sources, repositories.works, sourceIdentity, clock),
     library: new LibraryService(repositories.works),
     bulk: new BulkLibraryService(db, {
       works: repositories.works,

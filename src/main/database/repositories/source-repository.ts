@@ -75,6 +75,15 @@ export class SourceRepository {
       WHERE series_url IN (${placeholders}) ORDER BY length(series_url) DESC, id`).all(...urls) as SourceRow[])
   }
 
+  findByDomains(domains: readonly string[]): Source[] {
+    if (!domains.length) return []
+    const placeholders = domains.map(() => '?').join(', ')
+    return this.mapMany(this.db.prepare(`SELECT ${SOURCE_COLUMNS} FROM sources
+      WHERE normalized_domain IN (${placeholders}) ORDER BY id`).all(
+      ...domains.map((domain) => normalizeSearchText(domain))
+    ) as SourceRow[])
+  }
+
   update(source: Source): Source {
     const safeSource = this.enforceStatusInvariant(source)
     this.db

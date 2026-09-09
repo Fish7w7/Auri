@@ -15,7 +15,7 @@ function setup() {
   const desktop = { openWork: vi.fn(), openAddWork: vi.fn(), notifyWorkChanged: vi.fn() }
   let dispatcher!: ProtocolDispatcher
   dispatcher = new ProtocolDispatcher(createProtocolHandlers({
-    appVersion: '1.10.0', resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db)),
+    appVersion: '1.10.0', resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db), fixture.services.sourceIdentity),
     works: fixture.services.works, sources: fixture.services.sources, progress: fixture.services.progress,
     desktop: desktop as never
   }, () => dispatcher.capabilities), new TestLogger(), DESKTOP_PROTOCOL_FEATURES)

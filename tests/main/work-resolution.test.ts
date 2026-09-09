@@ -5,14 +5,14 @@ import { createDomainFixture, createMinimalWork } from '../fixtures/domain-fixtu
 
 const fixtures: Array<ReturnType<typeof createDomainFixture>> = []
 afterEach(() => { for (const fixture of fixtures.splice(0)) fixture.db.close() })
-function setup() { const fixture = createDomainFixture(); fixtures.push(fixture); return { fixture, resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db)) } }
+function setup() { const fixture = createDomainFixture(); fixtures.push(fixture); return { fixture, resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db), fixture.services.sourceIdentity) } }
 
 describe('WorkResolutionService', () => {
   it('prioriza Source URL/canonical exata sem alterar status ou lastUsedAt', () => {
     const { fixture, resolution } = setup()
     const work = createMinimalWork(fixture)
     const source = fixture.services.sources.createSource({ workId: work.id, name: 'Scan', seriesUrl: 'https://reader.example/series/nano', status: 'archived' })
-    expect(resolution.resolve({ url: 'https://other.example/chapter', canonicalUrl: 'https://reader.example/series/nano/' })).toMatchObject({ status: 'matched', work: { id: work.id }, source: { id: source.id, status: 'archived' }, match: { matchedBy: 'source_url', confidence: 'exact' } })
+    expect(resolution.resolve({ url: 'https://reader.example/series/nano/chapter', canonicalUrl: 'https://reader.example/series/nano/' })).toMatchObject({ status: 'matched', work: { id: work.id }, source: { id: source.id, status: 'archived' }, match: { matchedBy: 'source_url', confidence: 'exact' } })
     expect(fixture.repositories.sources.findById(source.id)).toMatchObject({ status: 'archived', lastUsedAt: null })
   })
 
@@ -35,6 +35,69 @@ describe('WorkResolutionService', () => {
       })
     }
     expect(fixture.repositories.sources.findById(source.id)).toMatchObject({ status: 'unavailable', lastUsedAt: null })
+  })
+
+  it('resolve capítulos 30, 37 e 134 para a mesma identidade no caso real', () => {
+    const { fixture, resolution } = setup()
+    const details = fixture.services.details.createDetailed({
+      title: 'Retorno de 10.000x - Capítulo 30 | ToonLivre',
+      mediaType: 'manhwa',
+      userStatus: 'reading',
+      chapter: '30',
+      source: { seriesUrl: 'https://toonlivre.net/retorno-de-10-000x-irma-senior-por-favor-comporte-se/30' }
+    })
+    const source = details.sources[0]
+    expect(source).toMatchObject({
+      seriesUrl: 'https://toonlivre.net/retorno-de-10-000x-irma-senior-por-favor-comporte-se',
+      lastReadUrl: 'https://toonlivre.net/retorno-de-10-000x-irma-senior-por-favor-comporte-se/30'
+    })
+    for (const value of [30, 37, 134]) {
+      expect(resolution.resolve({
+        url: `https://toonlivre.net/retorno-de-10-000x-irma-senior-por-favor-comporte-se/${value}`,
+        title: `Retorno de 10.000x - Capítulo ${value} | ToonLivre`,
+        detectedChapter: { value: String(value), numericValue: value, confidence: 'high', source: 'url' }
+      })).toMatchObject({
+        status: 'matched',
+        work: { id: details.work.id },
+        source: { id: source.id },
+        match: { matchedBy: 'source_url', confidence: value === 30 ? 'exact' : 'high' }
+      })
+    }
+  })
+
+  it('reconhece source legacy em /30 ao receber a página irmã /37', () => {
+    const { fixture, resolution } = setup()
+    const work = createMinimalWork(fixture, 'Obra - Capítulo 30', '30')
+    fixture.services.sources.createSource({ workId: work.id, seriesUrl: 'https://reader.example/slug/30' })
+    expect(resolution.resolve({
+      url: 'https://reader.example/slug/37',
+      detectedChapter: { value: '37', numericValue: 37, confidence: 'high', source: 'url' }
+    })).toMatchObject({ status: 'matched', work: { id: work.id }, match: { confidence: 'high' } })
+  })
+
+  it('não trata IDs numéricos nem caminhos de obras diferentes como páginas irmãs', () => {
+    const { fixture, resolution } = setup()
+    const idWork = createMinimalWork(fixture, 'Título por ID')
+    fixture.services.sources.createSource({ workId: idWork.id, seriesUrl: 'https://reader.example/title/12345' })
+    expect(resolution.resolve({ url: 'https://reader.example/title/67890' })).toEqual({ status: 'not_found' })
+
+    const workA = createMinimalWork(fixture, 'Obra A')
+    fixture.services.sources.createSource({ workId: workA.id, seriesUrl: 'https://reader.example/obra-a/30' })
+    expect(resolution.resolve({
+      url: 'https://reader.example/obra-b/30',
+      detectedChapter: { value: '30', numericValue: 30, confidence: 'high', source: 'url' }
+    })).toEqual({ status: 'not_found' })
+  })
+
+  it('não usa canonical contraditório como identidade da página', () => {
+    const { fixture, resolution } = setup()
+    const work = createMinimalWork(fixture, 'Outra obra')
+    fixture.services.sources.createSource({ workId: work.id, seriesUrl: 'https://reader.example/outra-obra' })
+    expect(resolution.resolve({
+      url: 'https://reader.example/obra-certa/37',
+      canonicalUrl: 'https://reader.example/outra-obra',
+      detectedChapter: { value: '37', numericValue: 37, confidence: 'high', source: 'url' }
+    })).toEqual({ status: 'not_found' })
   })
 
   it('exige boundary, mesmo origin e pathname útil para ancestralidade', () => {

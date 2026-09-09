@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '@shared/errors/domain-error'
 import { createDomainFixture, createMinimalWork } from '../fixtures/domain-fixture'
+import { WorkResolutionRepository } from '@main/database/repositories/work-resolution-repository'
+import { WorkResolutionService } from '@main/services/work-resolution-service'
 
 describe('WorkDetailsService', () => {
   it('cria cadastro manual completo e agrega todos os detalhes', () => {
@@ -54,6 +56,77 @@ describe('WorkDetailsService', () => {
     })
     expect(distinct.work.title).toBe('Outra obra do mesmo site')
     expect(fixture.services.library.getSummary().total).toBe(2)
+    fixture.db.close()
+  })
+
+  it('salva identidade estável da série e preserva a página do capítulo', () => {
+    const fixture = createDomainFixture()
+    const details = fixture.services.details.createDetailed({
+      title: 'Obra por capítulo', mediaType: 'manhwa', userStatus: 'reading', chapter: '37',
+      source: { seriesUrl: 'https://reader.example/slug/37' }
+    })
+    expect(details.sources[0]).toMatchObject({
+      seriesUrl: 'https://reader.example/slug',
+      lastReadUrl: 'https://reader.example/slug/37'
+    })
+    fixture.db.close()
+  })
+
+  it('revalida a identidade no save e não insere Work após resolve stale', () => {
+    const fixture = createDomainFixture()
+    const resolution = new WorkResolutionService(
+      new WorkResolutionRepository(fixture.db),
+      fixture.services.sourceIdentity
+    )
+    expect(resolution.resolve({
+      url: 'https://reader.example/slug/37',
+      detectedChapter: { value: '37', numericValue: 37, confidence: 'high', source: 'url' }
+    })).toEqual({ status: 'not_found' })
+
+    const existing = createMinimalWork(fixture, 'Obra existente', '30')
+    fixture.services.sources.createSource({ workId: existing.id, seriesUrl: 'https://reader.example/slug/30' })
+
+    expect(() => fixture.services.details.createDetailed({
+      title: 'Duplicata após resolve', mediaType: 'manhwa', userStatus: 'reading', chapter: '37',
+      source: { seriesUrl: 'https://reader.example/slug/37' }
+    })).toThrowError(expect.objectContaining({
+      code: 'DUPLICATE_SOURCE',
+      details: expect.objectContaining({ workId: existing.id })
+    }))
+    expect(fixture.services.library.getSummary().total).toBe(1)
+    fixture.db.close()
+  })
+
+  it('source.add bloqueia página irmã legacy, mas não confunde IDs numéricos', () => {
+    const fixture = createDomainFixture()
+    const work = createMinimalWork(fixture, 'Obra legacy', '30')
+    fixture.services.sources.createSource({ workId: work.id, seriesUrl: 'https://reader.example/slug/30' })
+    expect(() => fixture.services.sources.createSource({
+      workId: work.id,
+      seriesUrl: 'https://reader.example/slug/134'
+    })).toThrowError(expect.objectContaining({ code: 'DUPLICATE_SOURCE' }))
+
+    const ids = createMinimalWork(fixture, 'Obra por ID')
+    fixture.services.sources.createSource({ workId: ids.id, seriesUrl: 'https://reader.example/title/12345' })
+    expect(fixture.services.sources.createSource({
+      workId: ids.id,
+      seriesUrl: 'https://reader.example/title/67890'
+    })).toMatchObject({ seriesUrl: 'https://reader.example/title/67890' })
+    fixture.db.close()
+  })
+
+  it('permite títulos iguais quando as fontes são distintas e quick add sem source', () => {
+    const fixture = createDomainFixture()
+    fixture.services.details.createDetailed({
+      title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading',
+      source: { seriesUrl: 'https://reader.example/obra-a' }
+    })
+    fixture.services.details.createDetailed({
+      title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading',
+      source: { seriesUrl: 'https://reader.example/obra-b' }
+    })
+    fixture.services.works.createWork({ title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading' })
+    expect(fixture.services.library.getSummary().total).toBe(3)
     fixture.db.close()
   })
 

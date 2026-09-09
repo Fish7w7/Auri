@@ -1,27 +1,49 @@
 import type { PageContext, SourceSummary, WorkResolveResult, WorkSummary } from '@auri/protocol'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
-import { isSourceUrlAncestor, sourceUrlAncestorCandidates, sourceUrlSpecificity } from '@shared/utils/source-url-ancestry'
+import { sourceUrlSpecificity } from '@shared/utils/source-url-ancestry'
 import type { Source, Work } from '@shared/types/domain'
 import type { ResolutionCandidate, WorkResolutionRepository } from '../database/repositories/work-resolution-repository'
+import type { SourceIdentityService } from './source-identity-service'
 
 export class WorkResolutionService {
-  constructor(private readonly repository: WorkResolutionRepository) {}
+  constructor(
+    private readonly repository: WorkResolutionRepository,
+    private readonly sourceIdentity: SourceIdentityService
+  ) {}
 
   resolve(page: PageContext): WorkResolveResult {
-    const urls = [...new Set([page.url, page.canonicalUrl].map(normalizeSourceUrl).filter((value): value is string => value !== null))]
-    const exactSource = this.repository.findByExactUrls(urls)
-    if (exactSource.length) return this.result(exactSource)
-
-    const ancestorUrls = [...new Set(urls.flatMap(sourceUrlAncestorCandidates))]
-    const ancestors = this.repository.findByAncestralSourceUrls(ancestorUrls)
-      .filter((candidate) => candidate.source?.seriesUrl && urls.some((url) => isSourceUrlAncestor(candidate.source!.seriesUrl!, url)))
-    if (ancestors.length) {
-      const specificity = Math.max(...ancestors.map((candidate) => sourceUrlSpecificity(candidate.source!.seriesUrl!)))
-      return this.result(ancestors.filter((candidate) => sourceUrlSpecificity(candidate.source!.seriesUrl!) === specificity))
+    const identity = this.sourceIdentity.resolve({
+      pageUrl: page.url,
+      canonicalUrl: page.canonicalUrl,
+      detectedChapter: page.detectedChapter,
+      title: page.title,
+      domain: page.domain
+    })
+    const sourceMatches = this.sourceIdentity.findMatches({
+      pageUrl: page.url,
+      canonicalUrl: page.canonicalUrl,
+      detectedChapter: page.detectedChapter,
+      title: page.title,
+      domain: page.domain
+    })
+    if (sourceMatches.length) {
+      const strongest = sourceMatches.some((match) => match.confidence === 'exact')
+        ? sourceMatches.filter((match) => match.confidence === 'exact')
+        : sourceMatches
+      const specificity = Math.max(...strongest.map((match) => sourceUrlSpecificity(match.source.seriesUrl ?? match.source.lastReadUrl ?? '')))
+      return this.result(strongest
+        .filter((match) => sourceUrlSpecificity(match.source.seriesUrl ?? match.source.lastReadUrl ?? '') === specificity)
+        .map((match) => ({
+          work: match.work,
+          source: match.source,
+          matchedBy: 'source_url',
+          confidence: match.confidence
+        })))
     }
 
     const title = page.title ? normalizeSearchText(page.title) : ''
+    const urls = identity?.comparisonUrls ?? [page.url].map(normalizeSourceUrl).filter((value): value is string => value !== null)
     const domain = this.hostname(urls)
     if (domain && title) {
       const strong = this.repository.findByDomainAndTitle(normalizeSearchText(domain), title)
@@ -37,9 +59,9 @@ export class WorkResolutionService {
   }
 
   inferSource(workId: string, pageUrl: string): Source | null {
-    const url = normalizeSourceUrl(pageUrl)
-    if (!url) return null
-    const matches = this.repository.findSourcesForWorkByUrl(workId, [url])
+    const matches = this.sourceIdentity.findMatches({ pageUrl })
+      .filter((match) => match.work.id === workId)
+      .map((match) => match.source)
     return matches.length === 1 ? matches[0] : null
   }
 

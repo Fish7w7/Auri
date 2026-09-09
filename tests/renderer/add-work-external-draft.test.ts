@@ -3,8 +3,20 @@ import { createExternalDraftForm, duplicateSourceNotice } from '@renderer/compon
 
 describe('draft externo do AddWorkDialog', () => {
   it('sem coverUrl preserva o formulário anterior', () => {
-    const form = createExternalDraftForm({ pageUrl: 'https://site.example/chapter/4', canonicalUrl: 'https://site.example/series/a', title: 'Obra A', sourceName: 'Site', detectedChapter: { value: '4', numericValue: 4, confidence: 'high', source: 'url' } })
-    expect(form).toMatchObject({ title: 'Obra A', chapter: '4', sourceName: 'Site', sourceUrl: 'https://site.example/series/a', sourcePreferred: false, coverMode: 'none', coverUrl: '' })
+    const form = createExternalDraftForm({ pageUrl: 'https://site.example/series/a/4', canonicalUrl: 'https://site.example/series/a', title: 'Obra A', sourceName: 'Site', detectedChapter: { value: '4', numericValue: 4, confidence: 'high', source: 'url' } })
+    expect(form).toMatchObject({ title: 'Obra A', chapter: '4', sourceName: 'Site', sourceUrl: 'https://site.example/series/a', sourceLastUrl: 'https://site.example/series/a/4', sourcePreferred: false, coverMode: 'none', coverUrl: '' })
+  })
+
+  it('deriva a identidade da série quando canonical aponta para o capítulo', () => {
+    const form = createExternalDraftForm({
+      pageUrl: 'https://site.example/series/a/37',
+      canonicalUrl: 'https://site.example/series/a/37',
+      detectedChapter: { value: '37', numericValue: 37, confidence: 'high', source: 'url' }
+    })
+    expect(form).toMatchObject({
+      sourceUrl: 'https://site.example/series/a',
+      sourceLastUrl: 'https://site.example/series/a/37'
+    })
   })
 
   it('com coverUrl seleciona capa remota e preenche a URL', () => {

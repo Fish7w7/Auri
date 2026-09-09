@@ -11,6 +11,7 @@ import { EMPTY_WORK_FORM, WorkForm, splitNames, type WorkFormState } from './Wor
 import { useShortcutScope } from '../../app/keyboard-shortcuts'
 import { APP_BRAND } from '@shared/constants/app-branding'
 import { blocksAddWorkNavigation, runExclusiveAddWorkPersistence } from '../../lib/add-work-persistence'
+import { resolveSourceIdentity } from '@shared/utils/source-identity'
 
 type Mode = 'choose' | 'url' | 'urlPreview' | 'search' | 'review' | 'quick' | 'manual'
 type SearchState = 'idle' | 'loading' | 'ready' | 'error'
@@ -63,12 +64,20 @@ export function createManualWorkRequest(manual: WorkFormState): DetailedCreateWo
 }
 
 export function createExternalDraftForm(draft: DesktopAddWorkDraft): WorkFormState {
+  const identity = resolveSourceIdentity({
+    pageUrl: draft.pageUrl,
+    canonicalUrl: draft.canonicalUrl,
+    detectedChapter: draft.detectedChapter,
+    title: draft.title,
+    domain: new URL(draft.pageUrl).hostname
+  })
   return {
     ...EMPTY_WORK_FORM,
     title: draft.title ?? '',
     chapter: draft.detectedChapter?.value ?? '',
     sourceName: draft.sourceName ?? '',
-    sourceUrl: draft.canonicalUrl ?? draft.pageUrl,
+    sourceUrl: identity?.seriesUrl ?? draft.canonicalUrl ?? draft.pageUrl,
+    sourceLastUrl: identity && identity.pageUrl !== identity.seriesUrl ? identity.pageUrl : '',
     sourcePreferred: false,
     coverMode: draft.coverUrl ? 'remote' : 'none',
     coverUrl: draft.coverUrl ?? ''
