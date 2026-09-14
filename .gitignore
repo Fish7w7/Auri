@@ -34,6 +34,27 @@
 .env.*
 !.env.example
 
+# Local user data, credentials and private signing material
+*.auri-backup
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.reg
+*.dmp
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.local.json
+/backups/
+/exports/
+/secrets/
+/credentials/
+**/native-bridge/secret
+
 # Operating system
 .DS_Store
 Thumbs.db

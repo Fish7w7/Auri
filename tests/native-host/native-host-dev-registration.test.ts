@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BRAVE_DEV_REGISTRY_KEY,
   CHROME_DEV_REGISTRY_KEY,
   DEV_NATIVE_HOST_NAME,
   EDGE_DEV_REGISTRY_KEY,
@@ -19,6 +20,7 @@ import {
 
 const CHROME_ID = 'a'.repeat(32)
 const EDGE_ID = 'b'.repeat(32)
+const BRAVE_ID = 'c'.repeat(32)
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
@@ -42,15 +44,26 @@ describe('manifest e Registry do Native Host DEV', () => {
     expect(() => parseRegisterArguments(['--chrome-extension-id=*'])).toThrow(/inválido/)
   })
 
-  it('registra Chrome e Edge somente nas chaves HKCU com sufixo dev', () => {
+  it('registra Chrome, Edge e Brave somente nas chaves HKCU com sufixo dev', () => {
     const root = temporaryRoot(); const paths = createDevExecutable(root); const registry = memoryRegistry()
-    const result = registerDevelopmentHost({ projectRoot: root, chromeExtensionId: CHROME_ID, edgeExtensionId: EDGE_ID }, { registry })
+    const result = registerDevelopmentHost({ projectRoot: root, chromeExtensionId: CHROME_ID, edgeExtensionId: EDGE_ID, braveExtensionId: BRAVE_ID }, { registry })
     const manifest = JSON.parse(readFileSync(paths.manifestPath, 'utf8')) as { allowed_origins: string[] }
-    expect(result.browsers).toEqual(['Chrome', 'Edge'])
-    expect(manifest.allowed_origins).toEqual([`chrome-extension://${CHROME_ID}/`, `chrome-extension://${EDGE_ID}/`])
+    expect(result.browsers).toEqual(['Chrome', 'Edge', 'Brave'])
+    expect(manifest.allowed_origins).toEqual([`chrome-extension://${CHROME_ID}/`, `chrome-extension://${EDGE_ID}/`, `chrome-extension://${BRAVE_ID}/`])
     expect(registry.values.get(CHROME_DEV_REGISTRY_KEY)).toBe(paths.manifestPath)
     expect(registry.values.get(EDGE_DEV_REGISTRY_KEY)).toBe(paths.manifestPath)
+    expect(registry.values.get(BRAVE_DEV_REGISTRY_KEY)).toBe(paths.manifestPath)
     expect([...registry.values.keys()].every((key) => key.startsWith('HKCU\\') && key.endsWith(DEV_NATIVE_HOST_NAME))).toBe(true)
+  })
+
+  it('setup automatizado substitui origens antigas somente no manifest DEV', () => {
+    const root = temporaryRoot(); const paths = createDevExecutable(root); const registry = memoryRegistry()
+    mkdirSync(paths.directory, { recursive: true })
+    writeFileSync(paths.manifestPath, JSON.stringify(createDevHostManifest(paths.executablePath, [CHROME_ID])))
+    registerDevelopmentHost({ projectRoot: root, braveExtensionId: BRAVE_ID, replaceAllowedOrigins: true }, { registry })
+    const manifest = JSON.parse(readFileSync(paths.manifestPath, 'utf8')) as { allowed_origins: string[] }
+    expect(manifest.allowed_origins).toEqual([`chrome-extension://${BRAVE_ID}/`])
+    expect(registry.values.get(BRAVE_DEV_REGISTRY_KEY)).toBe(paths.manifestPath)
   })
 
   it('produz comandos controlados para consultar, registrar e remover Chrome/Edge', () => {
@@ -75,10 +88,12 @@ describe('manifest e Registry do Native Host DEV', () => {
     const root = temporaryRoot(); const paths = createDevExecutable(root); const registry = memoryRegistry()
     registry.values.set(CHROME_DEV_REGISTRY_KEY, paths.manifestPath)
     registry.values.set(EDGE_DEV_REGISTRY_KEY, 'C:\\outro-projeto\\manifest.json')
+    registry.values.set(BRAVE_DEV_REGISTRY_KEY, paths.manifestPath)
     const result = unregisterDevelopmentHost({ projectRoot: root }, { registry })
-    expect(result.removed).toEqual(['Chrome'])
+    expect(result.removed).toEqual(['Chrome', 'Brave'])
     expect(result.skipped).toEqual(['Edge'])
     expect(registry.values.has(CHROME_DEV_REGISTRY_KEY)).toBe(false)
+    expect(registry.values.has(BRAVE_DEV_REGISTRY_KEY)).toBe(false)
     expect(registry.values.get(EDGE_DEV_REGISTRY_KEY)).toBe('C:\\outro-projeto\\manifest.json')
   })
 

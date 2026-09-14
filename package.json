@@ -31,6 +31,7 @@
     "prepare:native-host:release": "node scripts/release/native-host-production.js --release",
     "native-host:register-dev": "node scripts/dev/native-host.js register",
     "native-host:unregister-dev": "node scripts/dev/native-host.js unregister",
+    "dev:extension:setup": "node scripts/dev/extension-setup.mjs",
     "build": "npm run typecheck && npm run test && npm run build:app",
     "dist": "npm run prepare:native-host:production && electron-builder --win nsis --x64 --publish never",
     "dist:dir": "npm run prepare:native-host:production && electron-builder --win --x64 --dir --publish never",

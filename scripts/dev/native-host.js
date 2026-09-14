@@ -7,6 +7,7 @@ export const DEV_NATIVE_HOST_NAME = 'app.auri.native_host.dev'
 export const DEV_NATIVE_HOST_DESCRIPTION = 'Auri Native Host Development'
 export const CHROME_DEV_REGISTRY_KEY = `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${DEV_NATIVE_HOST_NAME}`
 export const EDGE_DEV_REGISTRY_KEY = `HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\${DEV_NATIVE_HOST_NAME}`
+export const BRAVE_DEV_REGISTRY_KEY = `HKCU\\Software\\BraveSoftware\\Brave-Browser\\NativeMessagingHosts\\${DEV_NATIVE_HOST_NAME}`
 
 const EXTENSION_ID_PATTERN = /^[a-p]{32}$/
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -45,25 +46,29 @@ export function createDevHostManifest(executablePath, extensionIds) {
 export function parseRegisterArguments(argumentsList) {
   let chromeExtensionId
   let edgeExtensionId
+  let braveExtensionId
   for (const argument of argumentsList) {
     if (argument.startsWith('--chrome-extension-id=')) chromeExtensionId = validateExtensionId(argument.slice('--chrome-extension-id='.length))
     else if (argument.startsWith('--edge-extension-id=')) edgeExtensionId = validateExtensionId(argument.slice('--edge-extension-id='.length))
+    else if (argument.startsWith('--brave-extension-id=')) braveExtensionId = validateExtensionId(argument.slice('--brave-extension-id='.length))
     else throw new Error(`Argumento desconhecido: ${argument}.`)
   }
-  if (!chromeExtensionId && !edgeExtensionId) throw new Error('Informe --chrome-extension-id e/ou --edge-extension-id.')
-  return { chromeExtensionId, edgeExtensionId }
+  if (!chromeExtensionId && !edgeExtensionId && !braveExtensionId) throw new Error('Informe ao menos um ID de extensão para Chrome, Edge ou Brave.')
+  return { chromeExtensionId, edgeExtensionId, braveExtensionId }
 }
 
 export function parseUnregisterArguments(argumentsList) {
-  if (argumentsList.length === 0) return { chrome: true, edge: true }
+  if (argumentsList.length === 0) return { chrome: true, edge: true, brave: true }
   let chrome = false
   let edge = false
+  let brave = false
   for (const argument of argumentsList) {
     if (argument === '--chrome') chrome = true
     else if (argument === '--edge') edge = true
+    else if (argument === '--brave') brave = true
     else throw new Error(`Argumento desconhecido: ${argument}.`)
   }
-  return { chrome, edge }
+  return { chrome, edge, brave }
 }
 
 export function createRegistryAdapter(run = runRegExe) {
@@ -90,14 +95,16 @@ export function registerDevelopmentHost(options, dependencies = {}) {
   if (!existsSync(paths.executablePath)) throw new Error(`AuriNativeHostDev.exe não encontrado. Execute npm run build:native-host:dev primeiro.`)
   const registry = dependencies.registry ?? createRegistryAdapter()
   const previousOrigins = readExistingAllowedOrigins(paths.manifestPath, paths.executablePath)
-  const requestedIds = [options.chromeExtensionId, options.edgeExtensionId].filter(Boolean)
+  const requestedIds = [options.chromeExtensionId, options.edgeExtensionId, options.braveExtensionId].filter(Boolean)
   const requestedOrigins = requestedIds.map(extensionOrigin)
-  const extensionIds = [...new Set([...previousOrigins, ...requestedOrigins])].map(originToExtensionId)
+  const origins = options.replaceAllowedOrigins ? requestedOrigins : [...previousOrigins, ...requestedOrigins]
+  const extensionIds = [...new Set(origins)].map(originToExtensionId)
   const manifest = createDevHostManifest(paths.executablePath, extensionIds)
 
   const registrations = [
     ...(options.chromeExtensionId ? [{ browser: 'Chrome', key: CHROME_DEV_REGISTRY_KEY }] : []),
-    ...(options.edgeExtensionId ? [{ browser: 'Edge', key: EDGE_DEV_REGISTRY_KEY }] : [])
+    ...(options.edgeExtensionId ? [{ browser: 'Edge', key: EDGE_DEV_REGISTRY_KEY }] : []),
+    ...(options.braveExtensionId ? [{ browser: 'Brave', key: BRAVE_DEV_REGISTRY_KEY }] : [])
   ]
   for (const registration of registrations) {
     const current = registry.readDefault(registration.key)
@@ -115,10 +122,11 @@ export function registerDevelopmentHost(options, dependencies = {}) {
 export function unregisterDevelopmentHost(options = {}, dependencies = {}) {
   const paths = resolveDevIntegrationPaths(options.projectRoot)
   const registry = dependencies.registry ?? createRegistryAdapter()
-  const browsers = options.browsers ?? { chrome: true, edge: true }
+  const browsers = options.browsers ?? { chrome: true, edge: true, brave: true }
   const targets = [
     ...(browsers.chrome ? [{ browser: 'Chrome', key: CHROME_DEV_REGISTRY_KEY }] : []),
-    ...(browsers.edge ? [{ browser: 'Edge', key: EDGE_DEV_REGISTRY_KEY }] : [])
+    ...(browsers.edge ? [{ browser: 'Edge', key: EDGE_DEV_REGISTRY_KEY }] : []),
+    ...(browsers.brave ? [{ browser: 'Brave', key: BRAVE_DEV_REGISTRY_KEY }] : [])
   ]
   const removed = []
   const skipped = []

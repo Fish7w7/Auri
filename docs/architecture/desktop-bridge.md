@@ -76,15 +76,19 @@ Esta integração é exclusiva para desenvolvimento. Ela registra somente `app.a
 
 ### Preparação
 
-No repositório da Auri Extension, em PowerShell:
+O fluxo recomendado para Brave é executado na raiz do Auri Desktop:
 
 ```powershell
-npm run build:dev:native
+npm run dev:extension:setup
 ```
 
-Carregue a pasta `artifacts/dev-native/` desse repositório como extensão unpacked em `chrome://extensions/` ou `edge://extensions/` e copie o ID exibido. Chrome e Edge podem atribuir IDs diferentes.
+O comando executa o build `dev-native` no repositório irmão `Auri-Extension`, prepara uma cópia em `build/generated/browser-extension-dev/`, aplica a identidade DEV estável `lfneneebngmiikddoddnlcgobfjkodpm`, gera `AuriNativeHostDev.exe` e registra somente `app.auri.native_host.dev` para Brave em HKCU. O manifest contém apenas `chrome-extension://lfneneebngmiikddoddnlcgobfjkodpm/` em `allowed_origins`.
 
-Esse comando fixa `app.auri.native_host.dev` no bundle. O `npm run build` comum e o pacote Embedded oficial usam `app.auri.native_host`, de produção; definir apenas `VITE_AURI_TRANSPORT=native` não transforma um build de produção em DEV.
+Carregue `build/generated/browser-extension-dev/` em `brave://extensions/`. O nome exibido é **Auri Extension DEV**. O build original `artifacts/dev-native/` da Extension continua separado: ele serve apenas como entrada, e a identidade estável é aplicada somente à cópia preparada pelo Desktop.
+
+Esse fluxo fixa `app.auri.native_host.dev` no bundle. O `npm run build` comum, Store e Embedded usam `app.auri.native_host`, de produção; definir apenas `VITE_AURI_TRANSPORT=native` não transforma um build de produção em DEV.
+
+Para preparação manual ou suporte adicional a outros navegadores, gere o host DEV:
 
 No repositório Auri, gere somente o host DEV:
 
@@ -104,6 +108,12 @@ Para Edge:
 npm run native-host:register-dev -- --edge-extension-id=<ID_EDGE_DA_EXTENSAO>
 ```
 
+Para Brave:
+
+```powershell
+npm run native-host:register-dev -- --brave-extension-id=<ID_BRAVE_DA_EXTENSAO>
+```
+
 Para autorizar os dois IDs no mesmo manifest:
 
 ```powershell
@@ -112,7 +122,7 @@ npm run native-host:register-dev -- --chrome-extension-id=<ID_CHROME_DA_EXTENSAO
 
 Substitua os IDs de exemplo pelos IDs reais exibidos pelos navegadores. O manifest absoluto é regenerado em `artifacts/native-host/dev/app.auri.native_host.dev.json`; `allowed_origins` contém somente os IDs informados explicitamente.
 
-O script DEV atual oferece registro para Chrome e Edge. Isso é separado do instalador PROD, que registra o host para Chrome, Edge e Brave. A instalação manual do Embedded no Brave não registra o host DEV.
+O registrador DEV oferece Chrome, Edge e Brave, sempre sob o host com sufixo `.dev`. Isso é separado do instalador PROD. A instalação manual do Embedded no Brave não registra nem utiliza o host DEV.
 
 ### Teste manual
 
@@ -130,6 +140,7 @@ Os logs ficam em `%APPDATA%/Auri-Dev/logs/native-host.log`. Para diagnosticar `S
 ```powershell
 reg query "HKCU\Software\Google\Chrome\NativeMessagingHosts\app.auri.native_host.dev" /ve
 reg query "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\app.auri.native_host.dev" /ve
+reg query "HKCU\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\app.auri.native_host.dev" /ve
 ```
 
 Remova somente o registro DEV deste projeto com:
@@ -138,4 +149,4 @@ Remova somente o registro DEV deste projeto com:
 npm run native-host:unregister-dev
 ```
 
-Também é possível limitar a remoção com `-- --chrome` ou `-- --edge`. O comando não remove uma chave se ela tiver sido redirecionada para outro manifest.
+Também é possível limitar a remoção com `-- --chrome`, `-- --edge` ou `-- --brave`. O comando não remove uma chave se ela tiver sido redirecionada para outro manifest.

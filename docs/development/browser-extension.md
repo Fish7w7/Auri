@@ -17,6 +17,16 @@ O `predev` valida e prepara o Embedded antes de iniciar o aplicativo. Se o ZIP o
 
 A tela e a detecção podem ser conferidas em DEV, mas o Embedded oficial usa o Native Host **PROD**. Para testar a comunicação com o Desktop em `Auri-Dev`, use a [extensão e o host específicos de desenvolvimento](../architecture/desktop-bridge.md#native-messaging-dev). Não redirecione o pacote Embedded oficial para o host DEV.
 
+### Testar Auri Extension com Desktop DEV
+
+1. Na raiz do Desktop, execute `npm run dev:extension:setup` para buildar a Extension DEV, gerar o Native Host DEV e registrar `app.auri.native_host.dev` no Brave em HKCU.
+2. Inicie o Desktop com `npm run dev`; ele usa exclusivamente `%APPDATA%\Auri-Dev` e o pipe DEV.
+3. Em `brave://extensions/`, ative o modo do desenvolvedor, escolha **Carregar sem compactação** e selecione `Auri\build\generated\browser-extension-dev`.
+4. Confirme o nome **Auri Extension DEV**, o ID `lfneneebngmiikddoddnlcgobfjkodpm` e o log `%APPDATA%\Auri-Dev\logs\native-host.log`. Com o Desktop fechado, o popup deve permanecer desconectado e nunca iniciar o Auri instalado.
+5. Para remover somente os registros DEV deste projeto, execute `npm run native-host:unregister-dev`; use `-- --brave` para limitar a remoção ao Brave.
+
+As variantes **Embedded** e **Store** são PROD e continuam usando `app.auri.native_host`. A pasta `browser-extension-dev` é exclusiva de desenvolvimento, usa uma identidade pública própria e é recriada pelo comando de setup. `build/browser-extension-dev.public.json` contém somente a chave pública necessária para o ID estável; nenhuma chave privada ou secret local faz parte do repositório.
+
 ## Instalação pelo Desktop
 
 Abra **Configurações → Extensão do navegador**. Edge oferece o link oficial do Edge Add-ons. Chrome e Brave oferecem **Instalar no Chrome** e **Instalar no Brave** quando o navegador e os arquivos Embedded estão disponíveis.
