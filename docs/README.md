@@ -12,6 +12,7 @@ As fontes dessas informações são o [package.json](../package.json), a [config
 
 ## Arquitetura
 
+- [Processo principal](architecture/main-process.md): bootstrap, lifecycle, janela, tray, bridge, ambientes e shutdown.
 - [Desktop Bridge](architecture/desktop-bridge.md): Named Pipe autenticado, Native Host e fluxos PROD/DEV.
 
 ## Desenvolvimento
