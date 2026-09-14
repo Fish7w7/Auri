@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import { activateMainWindow } from '@main/windows/window-activation'
 import {
-  activateMainWindow,
   WindowTrayController,
   type ManagedMainWindow,
   type PreventableCloseEvent,

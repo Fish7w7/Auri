@@ -4,7 +4,7 @@ import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
 import {
   activateMainWindow,
   activateMainWindowFromExplicitUserAction
-} from '../windows/window-tray-controller'
+} from '../windows/window-activation'
 
 export interface DesktopCommandServiceOptions {
   focusApplication?: () => void

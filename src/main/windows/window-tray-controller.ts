@@ -1,29 +1,13 @@
+import { activateMainWindow, type ActivatableMainWindow } from './window-activation'
+
 export interface PreventableCloseEvent {
   preventDefault(): void
 }
 
-export interface ManagedMainWindow {
+export interface ManagedMainWindow extends ActivatableMainWindow {
   on(event: 'close', listener: (event: PreventableCloseEvent) => void): unknown
   on(event: 'query-session-end', listener: () => void): unknown
-  isDestroyed(): boolean
-  isMinimized(): boolean
-  isVisible(): boolean
-  restore(): void
-  show(): void
-  moveTop(): void
-  focus(): void
   hide(): void
-}
-
-export interface ForegroundCapableMainWindow extends ManagedMainWindow {
-  isFocused(): boolean
-  isAlwaysOnTop(): boolean
-  setAlwaysOnTop(flag: boolean): void
-}
-
-export interface ExplicitWindowActivationOptions {
-  focusApplication(): void
-  platform?: NodeJS.Platform
 }
 
 export interface TrayHandle {
@@ -41,43 +25,6 @@ export interface WindowTrayControllerOptions {
   onCloseToTrayChange(listener: (enabled: boolean) => void): () => void
   createTray(actions: TrayActions): TrayHandle
   quitApplication(): void
-}
-
-export function activateMainWindow(window: ManagedMainWindow): void {
-  if (window.isDestroyed()) return
-  if (window.isMinimized()) window.restore()
-  if (!window.isVisible()) window.show()
-  window.moveTop()
-  window.focus()
-}
-
-export function activateMainWindowFromExplicitUserAction(
-  window: ForegroundCapableMainWindow,
-  options: ExplicitWindowActivationOptions
-): void {
-  if (window.isDestroyed()) return
-  if (window.isMinimized()) window.restore()
-  if (!window.isVisible()) window.show()
-
-  try { options.focusApplication() } catch { /* Activation remains best-effort. */ }
-  window.moveTop()
-  window.focus()
-
-  if ((options.platform ?? process.platform) !== 'win32' || window.isFocused()) return
-
-  let previousAlwaysOnTop: boolean | undefined
-  try {
-    previousAlwaysOnTop = window.isAlwaysOnTop()
-    window.setAlwaysOnTop(true)
-    window.moveTop()
-    window.focus()
-  } catch {
-    // The command still reaches the renderer when Windows refuses activation.
-  } finally {
-    if (previousAlwaysOnTop !== undefined && !window.isDestroyed()) {
-      try { window.setAlwaysOnTop(previousAlwaysOnTop) } catch { /* Window may be closing. */ }
-    }
-  }
 }
 
 export class WindowTrayController {
