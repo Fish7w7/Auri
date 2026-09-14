@@ -27,6 +27,7 @@ let sequence = 0
 let libraryContext: LibraryNavigationContext | null = null
 let workNavigation: { workId: string; origin: WorkNavigationOrigin; libraryContextId?: number } | null = null
 let pendingLibraryContextId: number | null = null
+let activeLibrarySnapshot: LibraryNavigationSnapshot | null = null
 
 function cloneQuery(query: LibraryQuery): LibraryQuery {
   return {
@@ -93,8 +94,21 @@ export function clearNavigationIntent(): void {
   pendingLibraryContextId = null
 }
 
+export function setActiveLibraryNavigationSnapshot(snapshot: LibraryNavigationSnapshot): void {
+  activeLibrarySnapshot = { ...snapshot, query: cloneQuery(snapshot.query) }
+}
+
+export function getActiveLibraryNavigationSnapshot(): LibraryNavigationSnapshot | null {
+  return activeLibrarySnapshot ? { ...activeLibrarySnapshot, query: cloneQuery(activeLibrarySnapshot.query) } : null
+}
+
+export function clearActiveLibraryNavigationSnapshot(): void {
+  activeLibrarySnapshot = null
+}
+
 export function resetNavigationSession(): void {
   sequence = 0
   libraryContext = null
+  activeLibrarySnapshot = null
   clearNavigationIntent()
 }

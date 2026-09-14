@@ -12,7 +12,7 @@ export type AppRoute =
   | { page: 'home' }
   | { page: 'library'; status?: UserStatus; favorite?: boolean; sort?: LibrarySort }
   | { page: 'trash' }
-  | { page: 'settings' }
+  | { page: 'settings'; section?: 'updates' | 'browser-extension' }
   | { page: 'collections'; id?: string }
   | { page: 'work'; id: string }
 
@@ -25,7 +25,7 @@ export function parseRoute(hash = window.location.hash): AppRoute {
     return { page: 'library' }
   }
   if (path[0] === 'trash') return { page: 'trash' }
-  if (path[0] === 'settings') return { page: 'settings' }
+  if (path[0] === 'settings') return { page: 'settings', section: path[1] === 'updates' || path[1] === 'browser-extension' ? path[1] : undefined }
   if (path[0] === 'collections') return { page: 'collections', id: path[1] }
   if (path[0] === 'work' && path[1]) return { page: 'work', id: path[1] }
   return { page: 'home' }

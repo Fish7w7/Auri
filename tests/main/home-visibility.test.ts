@@ -21,7 +21,8 @@ describe('visibilidade individual na Home', () => {
     })
     const historyBefore = fixture.repositories.history.listByWork(work.id)
 
-    expect(Object.values(fixture.services.library.getHome()).flat()).not.toContainEqual(expect.objectContaining({ id: work.id }))
+    const hiddenHome = fixture.services.library.getHome({ recentWorkIds: [work.id] })
+    expect([...hiddenHome.continueReading, ...hiddenHome.recent, ...hiddenHome.favorites, ...hiddenHome.recentlyAdded]).not.toContainEqual(expect.objectContaining({ id: work.id }))
     expect(fixture.services.library.queryWorks({}).map((item) => item.id)).toContain(work.id)
     expect(fixture.services.library.queryWorks({ hiddenFromHome: true }).map((item) => item.id)).toEqual([work.id])
 
@@ -42,7 +43,8 @@ describe('visibilidade individual na Home', () => {
       title: `Obra ${userStatus}`, mediaType: 'manhwa', userStatus, hiddenFromHome: true
     }))
     expect(fixture.services.library.queryWorks({ hiddenFromHome: true })).toHaveLength(statuses.length)
-    expect(Object.values(fixture.services.library.getHome()).flat()).toHaveLength(0)
+    const home = fixture.services.library.getHome({ recentWorkIds: works.map((work) => work.id) })
+    expect([...home.continueReading, ...home.recent, ...home.favorites, ...home.recentlyAdded]).toHaveLength(0)
 
     fixture.services.bulk.setHomeVisibility({ workIds: works.map((work) => work.id), hiddenFromHome: false })
     expect(fixture.services.library.queryWorks({ hiddenFromHome: true })).toHaveLength(0)

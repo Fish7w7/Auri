@@ -26,12 +26,14 @@ function libraryContext(): AppContextValue {
     settings: {
       libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium',
       sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500,
-      backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null
+      backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null,
+      homePreferences: { sectionOrder: ['continueReading', 'recent', 'favorites', 'recentlyAdded'], enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false }, pinnedCollectionIds: [] }, recentWorkIds: []
     },
     summary: { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } },
     updateSettings: vi.fn(async (patch) => { context.settings = { ...context.settings, ...patch } }),
     refreshData: vi.fn(),
-    openAddWork: vi.fn()
+    openAddWork: vi.fn(),
+    openWorkFromQuickSearch: vi.fn()
   }
   return context
 }

@@ -26,8 +26,8 @@ export function resolveShortcut(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | '
   const command = event.ctrlKey || event.metaKey
   const key = event.key.toLocaleLowerCase('pt-BR')
   if (command && !event.altKey && key === 's') return 'save'
-  if (typing) return null
   if (command && !event.altKey && key === 'k') return 'quick-search'
+  if (typing) return null
   if (command && !event.altKey && key === 'n') return 'add-work'
   if (!command && !event.altKey && !event.shiftKey && event.key === '/') return 'context-search'
   if (!command && !event.altKey && event.key === 'Escape') return 'escape'
@@ -73,7 +73,8 @@ export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, 
       }
 
       if (intent === 'quick-search') {
-        if (document.querySelector('dialog[open]')) return
+        const openDialog = document.querySelector<HTMLDialogElement>('dialog[open]')
+        if (openDialog && !openDialog.querySelector('.quick-search')) return
         event.preventDefault()
         actions.current.onQuickSearch()
         return

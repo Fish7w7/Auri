@@ -29,7 +29,7 @@ describe('atalhos do renderer', () => {
   })
 
   it('não captura navegação enquanto o usuário digita', () => {
-    expect(resolveShortcut(key('k', { ctrlKey: true }), true)).toBeNull()
+    expect(resolveShortcut(key('k', { ctrlKey: true }), true)).toBe('quick-search')
     expect(resolveShortcut(key('n', { ctrlKey: true }), true)).toBeNull()
     expect(resolveShortcut(key('/'), true)).toBeNull()
   })

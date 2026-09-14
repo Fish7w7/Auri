@@ -171,6 +171,27 @@ describe('LibraryService — filtros, resumo e Home', () => {
     expect(results.map((work) => work.id)).toEqual(works.slice(0, 8).map((work) => work.id))
   })
 
+  it('ranqueia Busca Rápida por título e aplica boost de recentes apenas entre equivalentes', () => {
+    fixture = createDomainFixture()
+    const exact = create({ title: 'Nano Machine' })
+    const starts = create({ title: 'Nano Machine Retorna' })
+    const containsA = create({ title: 'A Lenda de Nano Machine' })
+    const containsB = create({ title: 'B Lenda de Nano Machine' })
+    const alias = create({ title: 'Máquina Celestial' })
+    fixture.services.details.createAlias({ workId: alias.id, name: 'Nano Machine Alternativo' })
+    const source = create({ title: 'Obra da Fonte' })
+    fixture.services.sources.createSource({ workId: source.id, name: 'Nano Machine Scan', seriesUrl: 'https://example.test/nano-machine' })
+
+    expect(fixture.services.library.searchWorks({ query: 'nano machine', recentWorkIds: [containsB.id, starts.id], limit: 8 }).map((work) => work.id)).toEqual([
+      exact.id,
+      starts.id,
+      containsB.id,
+      containsA.id,
+      alias.id,
+      source.id
+    ])
+  })
+
   it('ordena por prioridade do status pessoal e capítulo decrescente dentro do status', () => {
     fixture = createDomainFixture()
     const readingNever = create({ title: 'Lendo nunca', userStatus: 'reading' })
@@ -219,12 +240,12 @@ describe('LibraryService — filtros, resumo e Home', () => {
     }).map((work) => work.id)).toEqual([first.id, second.id].sort((left, right) => left.localeCompare(right)))
   })
 
-  it('classifica a Home por continuidade sem repetir obras entre seções', () => {
+  it('classifica a Home por continuidade, recentes, favoritos e criação', () => {
     fixture = createDomainFixture()
     const recent = create({ title: 'Recente', userStatus: 'reading', favorite: true, chapter: '2', notes: 'Nota geral', lastReadNote: 'Chegaram à seita do norte.' })
     const stale = create({ title: 'Antiga', userStatus: 'reading', chapter: '4' })
     const neverRead = create({ title: 'Nunca lida', userStatus: 'reading' })
-    const waiting = create({ title: 'Esperando', userStatus: 'waiting', chapter: '8' })
+    const favorite = create({ title: 'Favorita sem acesso', userStatus: 'waiting', favorite: true, chapter: '8' })
     const added = create({ title: 'Adicionada', userStatus: 'want_to_read' })
     const trash = create({ title: 'Oculta', userStatus: 'reading' })
     fixture.repositories.works.updateProgress(recent.id, recent.lastReadChapter, '2026-08-16T00:00:00.000Z', fixture.clock())
@@ -232,32 +253,30 @@ describe('LibraryService — filtros, resumo e Home', () => {
     fixture.services.works.moveToTrash({ workId: trash.id })
 
     const summary = fixture.services.library.getSummary()
-    expect(summary).toMatchObject({ total: 5, favorite: 1, byStatus: { reading: 3, waiting: 1, want_to_read: 1 } })
-    const home = fixture.services.library.getHome(new Date('2026-08-17T00:00:00.000Z'))
-    expect(home.continueReading.map((work) => work.id)).toEqual([recent.id, neverRead.id])
-    expect(home.staleReading.map((work) => work.id)).toEqual([stale.id])
-    expect(home.waiting.map((work) => work.id)).toEqual([waiting.id])
-    expect(home.recentlyAdded.map((work) => work.id)).toEqual([added.id])
+    expect(summary).toMatchObject({ total: 5, favorite: 2, byStatus: { reading: 3, waiting: 1, want_to_read: 1 } })
+    const home = fixture.services.library.getHome({ recentWorkIds: [stale.id, recent.id, 'inexistente'] })
+    expect(home.continueReading.map((work) => work.id)).toEqual([recent.id, stale.id, neverRead.id])
+    expect(home.recent.map((work) => work.id)).toEqual([stale.id, recent.id])
+    expect(home.favorites.map((work) => work.id)).toEqual([recent.id, favorite.id])
+    expect(home.recentlyAdded.map((work) => work.id)).toContain(added.id)
     expect(home.continueReading[0]).toMatchObject({ lastReadNote: 'Chegaram à seita do norte.', notes: 'Nota geral' })
-    expect(new Set(Object.values(home).flat().map((work) => work.id)).size).toBe(Object.values(home).flat().length)
-    expect(Object.values(home).flat().some((work) => work.id === trash.id)).toBe(false)
+    expect([...home.continueReading, ...home.recent, ...home.favorites, ...home.recentlyAdded].some((work) => work.id === trash.id)).toBe(false)
   })
 
   it('reflete mudanças de progresso e status na próxima leitura da Home', () => {
     fixture = createDomainFixture()
     const work = create({ title: 'Retomada', userStatus: 'reading', chapter: '10' })
     fixture.repositories.works.updateProgress(work.id, work.lastReadChapter, '2026-01-01T00:00:00.000Z', fixture.clock())
-    let home = fixture.services.library.getHome(new Date('2026-08-17T00:00:00.000Z'))
-    expect(home.staleReading.map((item) => item.id)).toEqual([work.id])
+    let home = fixture.services.library.getHome()
+    expect(home.continueReading.map((item) => item.id)).toEqual([work.id])
 
     fixture.services.progress.incrementProgress({ workId: work.id })
-    home = fixture.services.library.getHome(new Date('2026-08-17T23:59:59.000Z'))
+    home = fixture.services.library.getHome()
     expect(home.continueReading[0]).toMatchObject({ id: work.id, lastReadChapter: { label: '11', number: 11 } })
-    expect(home.staleReading).toEqual([])
 
     fixture.services.works.updateWork({ id: work.id, userStatus: 'waiting' })
-    home = fixture.services.library.getHome(new Date('2026-08-17T23:59:59.000Z'))
+    home = fixture.services.library.getHome()
     expect(home.continueReading).toEqual([])
-    expect(home.waiting.map((item) => item.id)).toEqual([work.id])
+    expect(home.recentlyAdded.map((item) => item.id)).toContain(work.id)
   })
 })

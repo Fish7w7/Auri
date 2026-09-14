@@ -4,10 +4,12 @@ import {
   acknowledgeLibraryNavigationContext,
   armLibraryContextReturn,
   finishWorkNavigation,
+  getActiveLibraryNavigationSnapshot,
   getWorkReturnTarget,
   peekLibraryNavigationContext,
   registerWorkNavigation,
-  resetNavigationSession
+  resetNavigationSession,
+  setActiveLibraryNavigationSnapshot
 } from '@renderer/app/navigation-session'
 import { clampLibraryScrollTop, restoreLibraryScroll } from '@renderer/components/library/VirtualLibrary'
 
@@ -69,6 +71,14 @@ describe('contexto de navegação da Biblioteca', () => {
     registerWorkNavigation('work-direct', 'direct')
     expect(getWorkReturnTarget('work-direct')).toEqual({ path: '/library', label: 'Biblioteca' })
     expect(getWorkReturnTarget('outro-work')).toEqual({ path: '/library', label: 'Biblioteca' })
+  })
+
+  it('expõe snapshot defensivo para o Ctrl+K preservar a Biblioteca atual', () => {
+    setActiveLibraryNavigationSnapshot({ path: '/library', search: 'nano', query: { favorite: true, sort: 'title_asc' }, scrollTop: 380 })
+    const snapshot = getActiveLibraryNavigationSnapshot()!
+    expect(snapshot).toEqual({ path: '/library', search: 'nano', query: { favorite: true, sort: 'title_asc' }, scrollTop: 380 })
+    snapshot.query.favorite = false
+    expect(getActiveLibraryNavigationSnapshot()?.query.favorite).toBe(true)
   })
 })
 

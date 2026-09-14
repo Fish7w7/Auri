@@ -222,4 +222,13 @@ export const libraryQuerySchema = z.object({
 })
 
 export const listWorksSchema = libraryQuerySchema.optional()
-export const searchLibrarySchema = libraryQuerySchema.omit({ search: true }).extend({ query: z.string() })
+export const searchLibrarySchema = libraryQuerySchema.omit({ search: true }).extend({
+  query: z.string(),
+  recentWorkIds: z.array(z.string().min(1).max(128)).max(20).default([])
+})
+
+export const homeRequestSchema = z.object({
+  recentWorkIds: z.array(z.string().min(1).max(128)).max(20).default([]),
+  pinnedCollectionIds: z.array(z.string().min(1).max(128)).max(3).default([]),
+  includeHiddenRecent: z.boolean().default(false)
+}).default({ recentWorkIds: [], pinnedCollectionIds: [], includeHiddenRecent: false })

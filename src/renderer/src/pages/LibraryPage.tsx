@@ -19,7 +19,7 @@ import { useToast } from '../components/ui/Toast'
 import { formatFilteredWorkCount, formatWorkCount, getLibraryEmptyStateKind } from '../lib/library-results'
 import { subscribeToDataChanges } from '../app/data-changes'
 import { runLatestLibraryRequest } from '../lib/latest-library-request'
-import { acknowledgeLibraryNavigationContext, peekLibraryNavigationContext } from '../app/navigation-session'
+import { acknowledgeLibraryNavigationContext, clearActiveLibraryNavigationSnapshot, peekLibraryNavigationContext, setActiveLibraryNavigationSnapshot } from '../app/navigation-session'
 import { closeLibraryFilters, focusLibraryTarget, type LibraryFocusIntent } from '../lib/library-focus'
 
 const FILTER_PANEL_ID = 'library-filter-panel'
@@ -76,6 +76,10 @@ export function LibraryPage({ initialStatus, initialFavorite, initialSort, colle
     previousSelectionContext.current = selectionContext
   }, [selectionContext])
   useEffect(() => { if (!selection.active) selectionAnchor.current = null }, [selection.active])
+  useEffect(() => {
+    setActiveLibraryNavigationSnapshot({ path: currentNavigationPath(), search, query, scrollTop: scrollPosition.current })
+  }, [query, search])
+  useEffect(() => () => clearActiveLibraryNavigationSnapshot(), [])
   useLayoutEffect(() => {
     const intent = pendingFocus.current
     if (!intent || (intent === 'selection') !== selection.active) return
@@ -132,7 +136,10 @@ export function LibraryPage({ initialStatus, initialFavorite, initialSort, colle
     })
   }, [query, search])
   const actions = useWorkActions(refresh, openWork)
-  const recordScrollPosition = useCallback((scrollTop: number) => { scrollPosition.current = scrollTop }, [])
+  const recordScrollPosition = useCallback((scrollTop: number) => {
+    scrollPosition.current = scrollTop
+    setActiveLibraryNavigationSnapshot({ path: currentNavigationPath(), search, query, scrollTop })
+  }, [query, search])
   const cancelScrollRestoration = () => { scrollRestoration.current = undefined }
   const removeFromCollection = async (work: Work) => {
     if (!collection) return

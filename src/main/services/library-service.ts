@@ -1,18 +1,20 @@
 import type {
   HomeData,
+  HomeRequest,
   LibraryQuery,
   LibrarySummary,
   ListWorksRequest,
   SearchLibraryRequest
 } from '@shared/contracts'
-import { libraryQuerySchema, listWorksSchema, searchLibrarySchema } from '@shared/schemas/domain'
+import { homeRequestSchema, libraryQuerySchema, listWorksSchema, searchLibrarySchema } from '@shared/schemas/domain'
 import type { Work } from '@shared/types/domain'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import type { WorkRepository } from '../database/repositories/work-repository'
+import type { CollectionRepository } from '../database/repositories/collection-repository'
 import { parseDomainInput } from './service-utils'
 
 export class LibraryService {
-  constructor(private readonly works: WorkRepository) {}
+  constructor(private readonly works: WorkRepository, private readonly collections?: CollectionRepository) {}
 
   listWorks(input?: unknown): Work[] {
     const request = parseDomainInput(listWorksSchema, input) as ListWorksRequest
@@ -21,12 +23,9 @@ export class LibraryService {
 
   searchWorks(input: unknown): Work[] {
     const request = parseDomainInput(searchLibrarySchema, input) as SearchLibraryRequest
-    return this.works.queryActive(
-      this.normalizeQuery({
-        ...request,
-        search: request.query
-      })
-    )
+    const normalizedQuery = normalizeSearchText(request.query)
+    const { query: _query, recentWorkIds, ...filters } = request
+    return this.works.searchActive(normalizedQuery, recentWorkIds, this.normalizeQuery({ ...filters, search: normalizedQuery }))
   }
 
   queryWorks(input?: unknown): Work[] {
@@ -38,14 +37,19 @@ export class LibraryService {
     return this.works.getSummary()
   }
 
-  getHome(now = new Date()): HomeData {
-    const staleBefore = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    const limit = 6
+  getHome(input?: unknown): HomeData {
+    const request = parseDomainInput(homeRequestSchema, input ?? {}) as HomeRequest
+    const limit = 8
+    const pinnedCollections = request.pinnedCollectionIds.flatMap((id) => {
+      const collection = this.collections?.findById(id)
+      return collection ? [{ collection, works: this.works.queryActive({ collectionIds: [id], hiddenFromHome: false, limit }) }] : []
+    })
     return {
-      continueReading: this.works.listHomeReading(staleBefore, false, limit),
-      staleReading: this.works.listHomeReading(staleBefore, true, limit),
-      waiting: this.works.listHomeWaiting(limit),
-      recentlyAdded: this.works.listHomeRecentlyAdded(limit)
+      continueReading: this.works.listHomeContinueReading(limit),
+      recent: this.works.listHomeRecent(request.recentWorkIds, limit, request.includeHiddenRecent),
+      favorites: this.works.listHomeFavorites(request.recentWorkIds, limit),
+      recentlyAdded: this.works.listHomeRecentlyAdded(limit),
+      pinnedCollections
     }
   }
 

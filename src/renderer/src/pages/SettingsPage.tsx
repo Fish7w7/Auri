@@ -66,9 +66,9 @@ export function cardPreviewCount(size: 'small' | 'medium' | 'large'): number {
   return ({ small: 5, medium: 4, large: 3 })[size]
 }
 
-export function SettingsPage() {
+export function SettingsPage({ initialSection }: { initialSection?: SettingsSection }) {
   const { settings, updateSettings, refreshData } = useAppContext()
-  const [section, setSection] = useState<SettingsSection>('appearance')
+  const [section, setSection] = useState<SettingsSection>(initialSection ?? 'appearance')
   const [system, setSystem] = useState<SystemStatus | null>(null)
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null)
   const [diagnosticError, setDiagnosticError] = useState(false)
@@ -307,7 +307,7 @@ export function SettingsPage() {
         {section === 'shortcuts' && <>
           <SettingsHeading title="Atalhos" description="Consulte os comandos de teclado disponíveis no Auri." />
           <SettingsGroup title="Atalhos disponíveis">
-            <dl className="shortcut-list"><Shortcut keys={['Ctrl', 'K']} description="Abrir a busca rápida da Biblioteca" /><Shortcut keys={['Ctrl', 'N']} description="Adicionar uma nova obra" /><Shortcut keys={['/']} description="Focar a pesquisa da página atual" /><Shortcut keys={['Ctrl', 'S']} description="Salvar alterações ou formulário em edição" /><Shortcut keys={['Esc']} description="Fechar o elemento atual ou sair da seleção" /></dl>
+            <dl className="shortcut-list"><Shortcut keys={['Ctrl', 'K']} description="Abrir a busca rápida global" /><Shortcut keys={['Ctrl', 'N']} description="Adicionar uma nova obra" /><Shortcut keys={['/']} description="Focar a pesquisa da página atual" /><Shortcut keys={['Ctrl', 'S']} description="Salvar alterações ou formulário em edição" /><Shortcut keys={['Esc']} description="Fechar o elemento atual ou sair da seleção" /></dl>
           </SettingsGroup>
         </>}
 

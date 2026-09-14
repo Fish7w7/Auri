@@ -160,7 +160,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     )
     const externalNavigation = new ExternalNavigationService()
     const resolution = new WorkResolutionService(new WorkResolutionRepository(database.db), sourceIdentity)
-    const library = new LibraryService(worksRepository)
+    const library = new LibraryService(worksRepository, collectionsRepository)
     const transfer = new TransferService(database.db, {
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,

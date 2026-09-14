@@ -147,7 +147,7 @@ export class WorkRepository {
     )
   }
 
-  queryActive(query: LibraryQuery = {}): Work[] {
+  queryActive(query: LibraryQuery = {}, ranking?: { normalizedQuery: string; recentWorkIds: readonly string[] }): Work[] {
     const clauses = ['w.deleted_at IS NULL']
     const values: Array<string | number> = []
     const terms = [...new Set(query.search?.trim().split(/\s+/).filter(Boolean) ?? [])]
@@ -208,6 +208,7 @@ export class WorkRepository {
       values.push(...query.collectionIds)
     }
 
+    const orderBy = ranking ? this.getSearchOrderBy(ranking, values) : this.getOrderBy(query.sort, 'w.')
     const limitClause = query.limit === undefined ? '' : 'LIMIT ?'
     if (query.limit !== undefined) values.push(query.limit)
     return this.findMany(
@@ -215,49 +216,52 @@ export class WorkRepository {
         SELECT DISTINCT ${this.prefixedColumns()}
         FROM works w
         WHERE ${clauses.join(' AND ')}
-        ORDER BY ${this.getOrderBy(query.sort, 'w.')}
+        ORDER BY ${orderBy}
         ${limitClause}
       `,
       ...values
     )
   }
 
-  listHomeReading(staleBefore: string, stale: boolean, limit: number): Work[] {
-    const dateClause = stale
-      ? 'last_read_at IS NOT NULL AND last_read_at <= ?'
-      : '(last_read_at IS NULL OR last_read_at > ?)'
-    const orderBy = stale
-      ? 'last_read_at ASC'
-      : 'last_read_at IS NULL ASC, last_read_at DESC, created_at DESC'
+  listHomeContinueReading(limit: number): Work[] {
     return this.findMany(
       `SELECT ${WORK_COLUMNS} FROM works
-       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status = 'reading' AND ${dateClause}
-       ORDER BY ${orderBy} LIMIT ?`,
-      staleBefore,
+       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status = 'reading'
+       ORDER BY last_read_at IS NULL ASC, last_read_at DESC, created_at DESC, normalized_title ASC, id ASC LIMIT ?`,
       limit
     )
   }
 
-  listHomeWaiting(limit: number): Work[] {
-    return this.findMany(
-      `SELECT ${WORK_COLUMNS} FROM works
-       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status = 'waiting'
-       ORDER BY last_read_at IS NULL ASC, last_read_at ASC, created_at DESC LIMIT ?`,
-      limit
-    )
+  listHomeRecent(ids: readonly string[], limit: number, includeHidden = false): Work[] {
+    if (!ids.length) return []
+    const selected = ids.slice(0, limit)
+    const order = selected.map(() => '?').join(', ')
+    return this.findMany(`SELECT ${WORK_COLUMNS} FROM works
+      WHERE deleted_at IS NULL ${includeHidden ? '' : 'AND hidden_from_home = 0'} AND id IN (${order})
+      ORDER BY CASE id ${selected.map((_, index) => `WHEN ? THEN ${index}`).join(' ')} ELSE ${selected.length} END`, ...selected, ...selected)
+  }
+
+  listHomeFavorites(recentIds: readonly string[], limit: number): Work[] {
+    const recent = recentIds.slice(0, 20)
+    const order = recent.length
+      ? `CASE id ${recent.map((_, index) => `WHEN ? THEN ${index}`).join(' ')} ELSE ${recent.length} END, normalized_title ASC, id ASC`
+      : 'normalized_title ASC, id ASC'
+    return this.findMany(`SELECT ${WORK_COLUMNS} FROM works
+      WHERE deleted_at IS NULL AND hidden_from_home = 0 AND favorite = 1
+      ORDER BY ${order} LIMIT ?`, ...recent, limit)
   }
 
   listHomeRecentlyAdded(limit: number): Work[] {
     return this.findMany(
       `SELECT ${WORK_COLUMNS} FROM works
-       WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status NOT IN ('reading', 'waiting')
-       ORDER BY created_at DESC LIMIT ?`,
+       WHERE deleted_at IS NULL AND hidden_from_home = 0
+       ORDER BY created_at DESC, normalized_title ASC, id ASC LIMIT ?`,
       limit
     )
   }
 
-  searchActive(normalizedQuery: string, query: LibraryQuery = {}): Work[] {
-    return this.queryActive({ ...query, search: normalizedQuery })
+  searchActive(normalizedQuery: string, recentWorkIds: readonly string[], query: LibraryQuery = {}): Work[] {
+    return this.queryActive({ ...query, search: normalizedQuery }, { normalizedQuery, recentWorkIds })
   }
 
   getSummary(): LibrarySummary {
@@ -325,6 +329,23 @@ export class WorkRepository {
       default:
         return `${prefix}last_read_at IS NULL ASC, ${prefix}last_read_at DESC, ${fallback}`
     }
+  }
+
+  private getSearchOrderBy(ranking: { normalizedQuery: string; recentWorkIds: readonly string[] }, values: Array<string | number>): string {
+    const escaped = this.escapeLike(ranking.normalizedQuery)
+    values.push(ranking.normalizedQuery, `${escaped}%`, `%${escaped}%`, `%${escaped}%`)
+    const recent = [...new Set(ranking.recentWorkIds)].slice(0, 20)
+    const recentOrder = recent.length
+      ? `CASE w.id ${recent.map((_, index) => `WHEN ? THEN ${index}`).join(' ')} ELSE ${recent.length} END, `
+      : ''
+    values.push(...recent)
+    return `CASE
+      WHEN w.normalized_title = ? THEN 1
+      WHEN w.normalized_title LIKE ? ESCAPE '\\' THEN 2
+      WHEN w.normalized_title LIKE ? ESCAPE '\\' THEN 3
+      WHEN EXISTS (SELECT 1 FROM aliases a WHERE a.work_id = w.id AND a.normalized_name LIKE ? ESCAPE '\\') THEN 4
+      ELSE 5
+    END, ${recentOrder}w.normalized_title ASC, w.id ASC`
   }
 
   private escapeLike(value: string): string {

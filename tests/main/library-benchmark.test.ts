@@ -30,12 +30,12 @@ describe('LibraryService com 1.000 obras temporárias', () => {
 
   it('monta a Home com consultas limitadas', () => {
     const started = performance.now()
-    const home = fixture.services.library.getHome(new Date('2026-08-18T00:00:00.000Z'))
+    const home = fixture.services.library.getHome()
     const duration = performance.now() - started
-    expect(home.continueReading.length).toBeLessThanOrEqual(6)
-    expect(home.staleReading.length).toBeLessThanOrEqual(6)
-    expect(home.waiting.length).toBeLessThanOrEqual(6)
-    expect(home.recentlyAdded.length).toBeLessThanOrEqual(6)
+    expect(home.continueReading.length).toBeLessThanOrEqual(8)
+    expect(home.recent.length).toBeLessThanOrEqual(8)
+    expect(home.favorites.length).toBeLessThanOrEqual(8)
+    expect(home.recentlyAdded.length).toBeLessThanOrEqual(8)
     expect(duration).toBeLessThan(2000)
   })
 })

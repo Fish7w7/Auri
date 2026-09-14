@@ -20,14 +20,20 @@ describe('formatação da interface', () => {
     expect(MEDIA_TYPE_LABELS.light_novel).toBe('Light Novel')
   })
 
-  it('oculta seções vazias da Home', () => {
+  it('mantém estados vazios das seções habilitadas e respeita a ordem', () => {
     const sections = getVisibleHomeSections({
       continueReading: [],
-      staleReading: [],
-      waiting: [{ id: 'work' } as never],
-      recentlyAdded: []
+      recent: [{ id: 'work' } as never],
+      favorites: [],
+      recentlyAdded: [],
+      pinnedCollections: []
+    }, {
+      sectionOrder: ['favorites', 'continueReading', 'recent', 'recentlyAdded'],
+      enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false },
+      pinnedCollectionIds: []
     })
-    expect(sections.map((section) => section.key)).toEqual(['waiting'])
+    expect(sections.map((section) => section.key)).toEqual(['favorites', 'continueReading', 'recent'])
+    expect(sections[0].emptyTitle).toBe('Nenhuma obra favorita para mostrar.')
   })
 
   it('mostra ausência de conexão local sem expor erro técnico', () => {

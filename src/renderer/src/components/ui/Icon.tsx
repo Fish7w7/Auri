@@ -20,8 +20,11 @@ export type IconName =
   | 'grid'
   | 'list'
   | 'filter'
+  | 'edit'
   | 'chevron-left'
   | 'chevron-right'
+  | 'chevron-up'
+  | 'chevron-down'
   | 'more'
   | 'rotate'
   | 'alert'
@@ -46,8 +49,11 @@ const paths: Record<IconName, React.ReactNode> = {
   grid: <><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,
   list: <><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></>,
   filter: <path d="M3 5h18l-7 8v6l-4 2v-8z"/>,
+  edit: <><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4M4 20h16"/></>,
   'chevron-left': <path d="m15 18-6-6 6-6"/>,
   'chevron-right': <path d="m9 18 6-6-6-6"/>,
+  'chevron-up': <path d="m18 15-6-6-6 6"/>,
+  'chevron-down': <path d="m6 9 6 6 6-6"/>,
   more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
   rotate: <><path d="M4 11a8 8 0 0 1 14-5l2 2"/><path d="M20 3v5h-5M20 13a8 8 0 0 1-14 5l-2-2M4 21v-5h5"/></>,
   alert: <><path d="M12 3 2.5 20h19z"/><path d="M12 9v5m0 3v.1"/></>

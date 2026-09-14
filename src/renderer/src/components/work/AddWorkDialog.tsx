@@ -5,6 +5,7 @@ import { useDebouncedValue } from '../../hooks/use-debounced-value'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../../lib/format'
 import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
+import { Icon, type IconName } from '../ui/Icon'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 import { EMPTY_WORK_FORM, WorkForm, splitNames, type WorkFormState } from './WorkForm'
@@ -14,6 +15,15 @@ import { blocksAddWorkNavigation, runExclusiveAddWorkPersistence } from '../../l
 import { resolveSourceIdentity } from '@shared/utils/source-identity'
 
 type Mode = 'choose' | 'url' | 'urlPreview' | 'search' | 'review' | 'quick' | 'manual'
+export type AddWorkChooserMode = Extract<Mode, 'url' | 'search' | 'quick' | 'manual'>
+export type AddWorkChoice = { mode: AddWorkChooserMode; title: string; description: string; icon: IconName; recommended?: boolean }
+
+export const ADD_WORK_CHOICES: readonly AddWorkChoice[] = [
+  { mode: 'url', title: 'Adicionar por URL', description: 'Cole a página da obra e deixe o Auri identificar as informações.', icon: 'link', recommended: true },
+  { mode: 'search', title: 'Buscar metadados', description: 'Pesquise no AniList e revise os dados antes de importar.', icon: 'search' },
+  { mode: 'quick', title: 'Adicionar rapidamente', description: 'Informe apenas o essencial e continue depois.', icon: 'clock' },
+  { mode: 'manual', title: 'Adicionar manualmente', description: 'Tenha controle sobre todos os dados da obra.', icon: 'edit' }
+]
 type SearchState = 'idle' | 'loading' | 'ready' | 'error'
 type ImportForm = { title: string; mediaType: MediaType; userStatus: UserStatus; chapter: string; sourceName: string; sourceUrl: string; lastReadNote: string; allowProbable: boolean }
 type UrlDraft = { title: string; sourceName: string; sourceUrl: string; description: string; coverUrl: string }
@@ -92,6 +102,36 @@ export function duplicateSourceNotice(error: unknown): { workId: string; workTit
     workId: shape.details.workId,
     workTitle: typeof shape.details.workTitle === 'string' ? shape.details.workTitle : 'Obra existente'
   }
+}
+
+function AddWorkChoiceContent({ choice, showArrow = false }: { choice: AddWorkChoice; showArrow?: boolean }) {
+  return <>
+    <span className="add-mode-card__icon"><Icon name={choice.icon} /></span>
+    <span className="add-mode-card__copy">
+      <span className="add-mode-card__title"><strong>{choice.title}</strong>{choice.recommended && <span className="add-mode-card__badge">Recomendado</span>}</span>
+      <span>{choice.description}</span>
+    </span>
+    {showArrow && <Icon name="chevron-right" className="add-mode-card__arrow" />}
+  </>
+}
+
+export function AddWorkChooser({ onSelect, onCancel }: { onSelect(mode: AddWorkChooserMode): void; onCancel(): void }) {
+  const primary = ADD_WORK_CHOICES[0]
+  const secondary = ADD_WORK_CHOICES.slice(1, 3)
+  const manual = ADD_WORK_CHOICES[3]
+  return <div className="add-mode-chooser">
+    <button type="button" className="add-mode-card add-mode-card--primary" data-dialog-initial-focus data-add-work-mode={primary.mode} onClick={() => onSelect(primary.mode)}>
+      <AddWorkChoiceContent choice={primary} showArrow />
+    </button>
+    <div className="add-mode-chooser__label">Outras formas</div>
+    <div className="add-mode-chooser__secondary">
+      {secondary.map((choice) => <button type="button" className="add-mode-card add-mode-card--secondary" data-add-work-mode={choice.mode} key={choice.mode} onClick={() => onSelect(choice.mode)}><AddWorkChoiceContent choice={choice} /></button>)}
+    </div>
+    <button type="button" className="add-mode-card add-mode-card--manual" data-add-work-mode={manual.mode} onClick={() => onSelect(manual.mode)}>
+      <AddWorkChoiceContent choice={manual} showArrow />
+    </button>
+    <div className="add-mode-chooser__actions"><Button onClick={onCancel}>Cancelar</Button></div>
+  </div>
 }
 
 export function AddWorkDialog({ open, draft, onClose, onCreated }: { open: boolean; draft?: DesktopAddWorkDraft | null; onClose(): void; onCreated(): void }) {
@@ -325,7 +365,7 @@ export function AddWorkDialog({ open, draft, onClose, onCreated }: { open: boole
 
   const noResults = mode === 'search' && searchState === 'ready' && results.length === 0
   const retryTitle = () => { setQuery(''); setResults([]); setSearchState('idle'); window.setTimeout(() => searchInputRef.current?.focus(), 0) }
-  const footer = mode === 'choose' ? <Button onClick={close}>Cancelar</Button>
+  const footer = mode === 'choose' ? undefined
     : mode === 'url' ? <><Button disabled={interactionBlocked} onClick={() => changeStep(() => { urlRequestId.current += 1; setBusy(false); setMode('choose') })}>Voltar</Button><Button variant="primary" disabled={busy || !urlInput.trim()} onClick={() => void analyzeUrl()}>{busy ? 'Analisando…' : 'Analisar URL'}</Button></>
       : mode === 'urlPreview' ? <Button disabled={interactionBlocked} onClick={() => changeStep(() => { urlRequestId.current += 1; setBusy(false); setMode('url') })}>Voltar</Button>
         : mode === 'search' ? <><Button disabled={interactionBlocked} onClick={() => changeStep(() => setMode(urlDraft ? 'urlPreview' : 'choose'))}>Voltar</Button>{!noResults && <Button disabled={interactionBlocked} onClick={() => changeStep(() => { if (urlDraft) void continueUrlManually(); else setMode('manual') })}>Adicionar manualmente</Button>}</>
@@ -333,8 +373,8 @@ export function AddWorkDialog({ open, draft, onClose, onCreated }: { open: boole
             : <><Button disabled={interactionBlocked} onClick={() => changeStep(() => setMode(mode === 'manual' && urlDraft ? 'urlPreview' : 'choose'))}>Voltar</Button><Button variant="primary" disabled={busy || (mode === 'quick' ? !quick.title.trim() : !isManualWorkValid(manual))} onClick={() => void (mode === 'quick' ? submitQuick() : submitManual())}>{isPersisting ? 'Adicionando…' : mode === 'quick' ? 'Adicionar' : 'Adicionar obra'}</Button></>
 
   return <>
-    <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : mode === 'manual' ? 'Adicionar obra manualmente' : `Adicionar ao ${APP_BRAND.name}`} description={mode === 'choose' ? 'Escolha quanto deseja informar agora. Você poderá editar tudo depois.' : undefined} busy={interactionBlocked} onClose={requestClose} footer={footer}>
-      {mode === 'choose' && <div className="add-mode-grid"><button onClick={() => setMode('url')}><strong>Adicionar por URL</strong><span>Cole a página da obra para detectar título, site, descrição e capa.</span></button><button onClick={() => setMode('search')}><strong>Buscar metadados</strong><span>Pesquise no AniList e revise tudo antes de importar.</span></button><button onClick={() => setMode('quick')}><strong>Adicionar rapidamente</strong><span>Título, progresso e status. Leva poucos segundos.</span></button><button onClick={() => setMode('manual')}><strong>Adicionar manualmente</strong><span>Identificação, organização, fonte, notas e capa.</span></button></div>}
+    <Dialog open={open} title={mode === 'url' || mode === 'urlPreview' ? 'Adicionar por URL' : mode === 'search' ? 'Buscar metadados' : mode === 'review' ? 'Revisar antes de importar' : mode === 'manual' ? 'Adicionar obra manualmente' : `Adicionar ao ${APP_BRAND.name}`} description={mode === 'choose' ? 'Escolha como deseja adicionar uma obra.' : undefined} busy={interactionBlocked} onClose={requestClose} footer={footer}>
+      {mode === 'choose' && <AddWorkChooser onSelect={setMode} onCancel={close} />}
       {mode === 'url' && <form className="url-analyze-form" onSubmit={(event) => { event.preventDefault(); void analyzeUrl() }}><label className="field"><span>URL da página da obra</span><input type="url" autoFocus value={urlInput} onChange={(event) => { urlRequestId.current += 1; setBusy(false); setUrlInput(event.target.value); setUrlError('') }} placeholder="https://…" /></label><p className="metadata-hint">O {APP_BRAND.name} acessa somente páginas públicas HTTP/HTTPS e não adiciona nada sem sua confirmação.</p>{urlError && <div className="metadata-error" role="alert"><p>{urlError}</p><Button onClick={() => void analyzeUrl()}>Tentar novamente</Button></div>}</form>}
       {mode === 'urlPreview' && urlAnalysis && urlDraft && <UrlMetadataPreview analysis={urlAnalysis} draft={urlDraft} setDraft={(next) => { setUrlDraft(next); if (urlAnalysis.duplicate?.kind === 'work') setUrlAnalysis({ ...urlAnalysis, duplicate: null }) }} busy={busy} persisting={interactionBlocked} onAniList={() => void searchUrlOnAniList()} onManual={() => void continueUrlManually()} onAddSource={(workId) => void addUrlAsSource(workId)} onOpen={(workId) => { if (persistenceLock.current) return; close(); navigate(`/work/${workId}`) }} onCancel={requestClose} />}
       {mode === 'search' && <div className="metadata-search"><label className="field"><span>Título da obra</span><input ref={searchInputRef} autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite pelo menos 3 caracteres" /></label><p className="metadata-search-tip"><strong>Não encontrou?</strong> O AniList pode não reconhecer o título em português usado pelo site onde você lê. Tente pesquisar pelo título em inglês, romanizado ou no idioma original.</p>{searchState === 'idle' && <p className="metadata-hint">Os resultados aparecem após uma pequena pausa na digitação.</p>}{searchState === 'loading' && <div className="metadata-skeleton" role="status"><i /><i /><i /></div>}{searchState === 'error' && <div className="metadata-error" role="alert"><p>{searchError}</p><Button onClick={() => { setSearchState('idle'); setQuery(`${query} `) }}>Tentar novamente</Button></div>}{noResults && <NoMetadataResults onRetry={retryTitle} onManual={() => urlDraft ? void continueUrlManually() : setMode('manual')} />}{searchState === 'ready' && results.length > 0 && <div className="metadata-results">{results.map((result) => <button key={`${result.provider}:${result.externalId}`} disabled={busy} onClick={() => void selectResult(result)}><span className="metadata-result__cover">{result.title.charAt(0)}</span><span><strong>{result.title}</strong><small>{[result.originalTitle, result.startDate?.slice(0, 4), result.mediaType ? MEDIA_TYPE_LABELS[result.mediaType] : null].filter(Boolean).join(' · ')}</small></span><b aria-hidden="true">›</b></button>)}</div>}</div>}

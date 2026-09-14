@@ -45,4 +45,19 @@ describe('SettingsService', () => {
 
     unsubscribe()
   })
+
+  it('normaliza HomePreferences e Recentes sem migration de banco', () => {
+    directory = mkdtempSync(join(tmpdir(), 'auri-settings-home-'))
+    const path = join(directory, 'settings.json')
+    writeFileSync(path, JSON.stringify({
+      libraryView: 'grid',
+      homePreferences: { sectionOrder: ['favorites', 'desconhecida'], enabledSections: { favorites: false }, pinnedCollectionIds: ['one', 'one'] },
+      recentWorkIds: Array.from({ length: 25 }, (_, index) => `work-${index}`)
+    }), 'utf8')
+    const settings = new SettingsService(path, new TestLogger()).getSettings()
+    expect(settings.homePreferences.sectionOrder).toEqual(['favorites', 'continueReading', 'recent', 'recentlyAdded', 'one'])
+    expect(settings.homePreferences.enabledSections).toEqual({ continueReading: true, recent: true, favorites: false, recentlyAdded: false })
+    expect(settings.homePreferences.pinnedCollectionIds).toEqual(['one'])
+    expect(settings.recentWorkIds).toHaveLength(20)
+  })
 })

@@ -7,6 +7,7 @@ export interface AppContextValue {
   updateSettings(patch: UpdateSettingsRequest): Promise<void>
   refreshData(): void
   openAddWork(): void
+  openWorkFromQuickSearch(workId: string): void
 }
 
 export const AppContext = createContext<AppContextValue | null>(null)
@@ -16,4 +17,3 @@ export function useAppContext(): AppContextValue {
   if (!context) throw new Error('useAppContext precisa estar dentro de AppContext.')
   return context
 }
-

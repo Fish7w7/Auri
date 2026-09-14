@@ -30,6 +30,7 @@ import type {
   listWorksSchema,
   numericProgressActionSchema,
   searchLibrarySchema,
+  homeRequestSchema,
   libraryQuerySchema,
   sourceIdSchema,
   updateProgressSchema,
@@ -63,6 +64,7 @@ export type NumericProgressActionRequest = z.infer<typeof numericProgressActionS
 export type HistoryIdRequest = z.infer<typeof historyIdSchema>
 export type ListWorksRequest = z.infer<typeof listWorksSchema>
 export type SearchLibraryRequest = z.infer<typeof searchLibrarySchema>
+export type HomeRequest = z.infer<typeof homeRequestSchema>
 export type LibraryQuery = z.infer<typeof libraryQuerySchema>
 export type CreateAliasRequest = z.infer<typeof createAliasSchema>
 export type UpdateAliasRequest = z.infer<typeof updateAliasSchema>
@@ -114,9 +116,10 @@ export interface LibrarySummary {
 
 export interface HomeData {
   continueReading: Work[]
-  staleReading: Work[]
-  waiting: Work[]
+  recent: Work[]
+  favorites: Work[]
   recentlyAdded: Work[]
+  pinnedCollections: Array<{ collection: Collection; works: Work[] }>
 }
 
 export interface ProgressState {
@@ -229,6 +232,6 @@ export interface DomainApi {
     search(request: SearchLibraryRequest): Promise<Work[]>
     query(request?: LibraryQuery): Promise<Work[]>
     summary(): Promise<LibrarySummary>
-    home(): Promise<HomeData>
+    home(request?: HomeRequest): Promise<HomeData>
   }
 }

@@ -19,8 +19,11 @@ import { StartupIntro } from '../components/shell/StartupIntro'
 import { navigate } from './navigation'
 import { INITIAL_ADD_WORK_DIALOG_STATE, reduceAddWorkDialogState } from './add-work-dialog-state'
 import { dispatchDataChanged } from './data-changes'
+import { recordRecentWork } from '@shared/home-preferences'
+import { getActiveLibraryNavigationSnapshot } from './navigation-session'
+import { navigateToWork } from './navigation'
 
-const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null }
+const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null, homePreferences: { sectionOrder: ['continueReading', 'recent', 'favorites', 'recentlyAdded'], enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false }, pinnedCollectionIds: [] }, recentWorkIds: [] }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
 
 export function App() {
@@ -63,17 +66,34 @@ function AppShell() {
     settingsUpdateQueue.current = operation.catch(() => undefined)
     await operation
   }, [])
-  const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => dispatchAddDialog({ type: 'open-manual' }) }), [refreshData, settings, summary, updateSettings])
+  useEffect(() => {
+    if (route.page !== 'work') return
+    const next = recordRecentWork(settings.recentWorkIds, route.id)
+    if (next.length === settings.recentWorkIds.length && next.every((id, index) => id === settings.recentWorkIds[index])) return
+    void updateSettings({ recentWorkIds: next })
+  }, [route, settings.recentWorkIds, updateSettings])
+  const openWorkFromQuickSearch = useCallback((workId: string) => {
+    if (route.page === 'home') navigateToWork(workId, 'home')
+    else if (route.page === 'library' || route.page === 'collections') {
+      const snapshot = getActiveLibraryNavigationSnapshot()
+      if (snapshot) navigateToWork(workId, 'library', snapshot)
+      else navigateToWork(workId, 'direct')
+    } else navigateToWork(workId, 'direct')
+  }, [route])
+  const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => dispatchAddDialog({ type: 'open-manual' }), openWorkFromQuickSearch }), [openWorkFromQuickSearch, refreshData, settings, summary, updateSettings])
 
   if (!ready) return <div className="app-loading"><BrandMark large /><span>Preparando sua biblioteca…</span></div>
 
-  return <AppContext.Provider value={context}><KeyboardShortcutsProvider onQuickSearch={() => setQuickSearchOpen(true)} onAddWork={() => dispatchAddDialog({ type: 'open-manual' })} canAddWork={route.page !== 'settings'}><div className="app-shell">
+  return <AppContext.Provider value={context}><KeyboardShortcutsProvider onQuickSearch={() => {
+    if (quickSearchOpen) document.querySelector<HTMLInputElement>('.quick-search input')?.focus()
+    else setQuickSearchOpen(true)
+  }} onAddWork={() => dispatchAddDialog({ type: 'open-manual' })} canAddWork={route.page !== 'settings'}><div className="app-shell">
       <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />
       <main className="app-content" id="main-content">
         {route.page === 'home' && <HomePage />}
         {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}:${route.sort ?? 'default'}`} initialStatus={route.status} initialFavorite={route.favorite} initialSort={route.sort} />}
         {route.page === 'trash' && <TrashPage />}
-        {route.page === 'settings' && <SettingsPage />}
+        {route.page === 'settings' && <SettingsPage key={route.section ?? 'appearance'} initialSection={route.section} />}
         {route.page === 'collections' && <CollectionsPage collectionId={route.id} />}
         {route.page === 'work' && <WorkPage id={route.id} />}
       </main>
