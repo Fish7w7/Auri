@@ -41,6 +41,13 @@ describe('handlers do Desktop Bridge', () => {
     await expect(dispatcher.dispatch(createRequest('missing', 'work.open', { workId: crypto.randomUUID() }))).resolves.toMatchObject({ ok: false, error: { code: 'WORK_NOT_FOUND' } })
   })
 
+  it('work.resolve consulta silenciosamente sem solicitar ativação da janela', async () => {
+    const { desktop, dispatcher } = setup()
+    await expect(dispatcher.dispatch(createRequest('resolve', 'work.resolve', { url: 'https://example.com/obra' }))).resolves.toMatchObject({ ok: true })
+    expect(desktop.openWork).not.toHaveBeenCalled()
+    expect(desktop.openAddWork).not.toHaveBeenCalled()
+  })
+
   it('desktop.openAddWork sem coverUrl preserva o draft anterior', async () => {
     const { fixture, desktop, dispatcher } = setup()
     const draft = { pageUrl: 'https://example.com/obra', title: 'Obra externa' }
@@ -84,6 +91,8 @@ describe('handlers do Desktop Bridge', () => {
     }))).resolves.toMatchObject({ ok: true, result: { updated: true } })
     expect(fixture.services.progress.getProgress({ workId: work.id }).chapter?.label).toBe('44')
     expect(desktop.notifyWorkChanged).toHaveBeenCalledWith({ workId: work.id, kind: 'progress' })
+    expect(desktop.openWork).not.toHaveBeenCalled()
+    expect(desktop.openAddWork).not.toHaveBeenCalled()
   })
 
   it('progress.update associa Source explícita/URL e recusa regressão ou salto sem alterar', async () => {

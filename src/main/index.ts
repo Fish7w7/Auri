@@ -5,7 +5,7 @@ import { createAppContext, type AppContext } from './app/create-app-context'
 import { registerIpcHandlers } from './ipc/register-ipc-handlers'
 import { createMainWindow } from './windows/create-main-window'
 import { createApplicationTray } from './windows/create-application-tray'
-import { restoreMainWindow, WindowTrayController } from './windows/window-tray-controller'
+import { activateMainWindow, WindowTrayController } from './windows/window-tray-controller'
 import type { MetadataProvider } from './services/metadata/types'
 import type { CoverDownloadClient } from './services/covers/types'
 import type { MetadataWork } from '@shared/contracts'
@@ -92,7 +92,7 @@ if (!singleInstanceLock) {
     if (!shouldRestoreWindowForSecondInstance(commandLine)) return
     const window = BrowserWindow.getAllWindows()[0]
     if (!window) return
-    restoreMainWindow(window)
+    activateMainWindow(window)
   })
 
   app.whenReady().then(async () => {
@@ -224,7 +224,10 @@ if (!singleInstanceLock) {
       })
       windowTrayController = manageMainWindow(mainWindow, context)
       if (!isSmokeTest && !isScreenshotTest && !isSettingsScrollTest && !isBackupSmokeTest && !isReleaseDataSmokeTest) {
-        const desktop = new DesktopCommandService(() => BrowserWindow.getAllWindows()[0] ?? null)
+        const desktop = new DesktopCommandService(
+          () => BrowserWindow.getAllWindows()[0] ?? null,
+          { focusApplication: () => app.focus() }
+        )
         let dispatcher!: ProtocolDispatcher
         const handlers = createProtocolHandlers({
           appVersion: app.getVersion(), resolution: context.services.resolution,

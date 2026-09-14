@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  restoreMainWindow,
+  activateMainWindow,
   WindowTrayController,
   type ManagedMainWindow,
   type PreventableCloseEvent,
@@ -17,6 +17,8 @@ class FakeWindow implements ManagedMainWindow {
   shown = 0
   restored = 0
   focused = 0
+  movedTop = 0
+  calls: string[] = []
 
   on(event: 'close', listener: (event: PreventableCloseEvent) => void): void
   on(event: 'query-session-end', listener: () => void): void
@@ -34,9 +36,11 @@ class FakeWindow implements ManagedMainWindow {
   emitSessionEnd(): void { for (const listener of this.sessionEndListeners) listener() }
   isDestroyed(): boolean { return this.destroyed }
   isMinimized(): boolean { return this.minimized }
-  restore(): void { this.minimized = false; this.restored += 1 }
-  show(): void { this.visible = true; this.shown += 1 }
-  focus(): void { this.focused += 1 }
+  isVisible(): boolean { return this.visible }
+  restore(): void { this.calls.push('restore'); this.minimized = false; this.restored += 1 }
+  show(): void { this.calls.push('show'); this.visible = true; this.shown += 1 }
+  moveTop(): void { this.calls.push('moveTop'); this.movedTop += 1 }
+  focus(): void { this.calls.push('focus'); this.focused += 1 }
   hide(): void { this.visible = false; this.hidden += 1 }
 }
 
@@ -86,7 +90,7 @@ describe('WindowTrayController', () => {
     expect(fixture.window.emitClose()).toBe(false)
   })
 
-  it('restaura, mostra e foca a mesma janela pelo clique ou ação Abrir', () => {
+  it('restaura, mostra, move ao topo e foca a mesma janela pelo tray', () => {
     const fixture = createFixture(true)
     fixture.window.visible = false
     fixture.window.minimized = true
@@ -95,8 +99,10 @@ describe('WindowTrayController', () => {
 
     expect(fixture.window.shown).toBe(1)
     expect(fixture.window.restored).toBe(1)
+    expect(fixture.window.movedTop).toBe(1)
     expect(fixture.window.focused).toBe(1)
     expect(fixture.window.visible).toBe(true)
+    expect(fixture.window.calls).toEqual(['restore', 'show', 'moveTop', 'focus'])
   })
 
   it('Sair encerra de verdade e não converte o close posterior em hide', () => {
@@ -126,10 +132,22 @@ describe('WindowTrayController', () => {
     window.visible = false
     window.minimized = true
 
-    restoreMainWindow(window)
+    activateMainWindow(window)
 
     expect(window.visible).toBe(true)
     expect(window.restored).toBe(1)
+    expect(window.movedTop).toBe(1)
     expect(window.focused).toBe(1)
+    expect(window.calls).toEqual(['restore', 'show', 'moveTop', 'focus'])
+  })
+
+  it('não restaura nem mostra novamente uma janela já visível', () => {
+    const window = new FakeWindow()
+
+    activateMainWindow(window)
+
+    expect(window.restored).toBe(0)
+    expect(window.shown).toBe(0)
+    expect(window.calls).toEqual(['moveTop', 'focus'])
   })
 })
