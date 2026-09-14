@@ -1,4 +1,4 @@
-# Extensão do navegador — Desktop 1.12.0
+# Extensão do navegador — Desktop 1.13.0
 
 ## Desenvolvimento local
 
@@ -108,7 +108,7 @@ A UI informa detecção de navegador e disponibilidade do Embedded, sem alegar e
 4. Fazer typecheck, build app e Native Host, gerar dist local e inspecionar os bytes extraídos do Setup contra o ZIP oficial.
 5. Validar manualmente atualização no mesmo installDir. O navegador pode exigir **Recarregar**; não automatizar essa ação.
 
-Desktop 1.12.0 mantém schema 3, suporte 1–3, @auri/protocol 0.1.3 e protocolVersion 1, sem migrations nem capabilities novas.
+Desktop 1.13.0 mantém schema 3, suporte 1–3, @auri/protocol 0.1.3 e protocolVersion 1, sem migrations nem capabilities novas.
 
 ## Auditoria local do Setup
 

@@ -6,7 +6,7 @@ O [package.json](../../package.json) define a versão do Auri. Os comandos `npm 
 
 Use Windows x64, Node.js 22.12 ou mais recente e as dependências do lockfile. Disponibilize o ZIP e a metadata oficiais da Extension Embedded nos caminhos definidos em [browser-extension.config.json](../../build/browser-extension.config.json). Consulte [desenvolvimento local](browser-extension.md#desenvolvimento-local) para o layout dos repositórios e a preparação inicial.
 
-A preparação valida os hashes dos inputs, a chave pública, o ID Embedded, a versão, os arquivos, as permissões, os locales e o host PROD. A 1.12.0 usa Embedded 0.2.0 com ID `agefiaohfielfgadiagemnflekbboblp`.
+A preparação valida os hashes dos inputs, a chave pública, o ID Embedded, a versão, os arquivos, as permissões, os locales e o host PROD. A 1.13.0 usa Embedded 0.2.0 com ID `agefiaohfielfgadiagemnflekbboblp`.
 
 ## Native Host de produção
 
@@ -42,14 +42,14 @@ Não execute dois empacotamentos ao mesmo tempo no mesmo checkout; eles comparti
 
 ## Conferência do artefato
 
-Na 1.12.0, mantenha o conjunto correspondente ao mesmo Setup:
+Na 1.13.0, mantenha o conjunto correspondente ao mesmo Setup:
 
 | Arquivo em `release/` | Conferência |
 | --- | --- |
-| `Auri-Setup-1.12.0-x64.exe` | Versão, tamanho exato, SHA-256, SHA-512 Base64 e hexadecimal. |
-| `Auri-Setup-1.12.0-x64.exe.blockmap` | Tamanho e checksums dos blocos do Setup correspondente. |
-| `latest.yml` | Versão 1.12.0, nome do Setup, tamanho e SHA-512 iguais aos bytes atuais. |
-| `auri-compatibility.json` | Versão 1.12.0, `minSchema: 1` e `maxSchema: 3`. |
+| `Auri-Setup-1.13.0-x64.exe` | Versão, tamanho exato, SHA-256, SHA-512 Base64 e hexadecimal. |
+| `Auri-Setup-1.13.0-x64.exe.blockmap` | Tamanho e checksums dos blocos do Setup correspondente. |
+| `latest.yml` | Versão 1.13.0, nome do Setup, tamanho e SHA-512 iguais aos bytes atuais. |
+| `auri-compatibility.json` | Versão 1.13.0, `minSchema: 1` e `maxSchema: 3`. |
 
 Para auditar sem executar o instalador:
 
@@ -57,11 +57,11 @@ Para auditar sem executar o instalador:
 node scripts/release/verify-local-artifacts.mjs '<caminho-do-7za.exe>'
 ```
 
-O verificador extrai o Setup como dados em `artifacts/release-audit/1.12.0/`. Confere os dez arquivos Embedded contra o ZIP oficial, versão 0.2.0, chave/ID, locales en e pt_BR, Native Host PROD, bundles do ASAR contra `out/`, cabeçalho NSIS, as duas origins, registros previstos, updater e blockmap. A comparação do ASAR exige que `out/` ainda corresponda ao build empacotado.
+O verificador extrai o Setup como dados em `artifacts/release-audit/1.13.0/`. Confere os dez arquivos Embedded contra o ZIP oficial, versão 0.2.0, chave/ID, locales en e pt_BR, Native Host PROD, bundles do ASAR contra `out/`, cabeçalho NSIS, as duas origins, registros previstos, updater e blockmap. A comparação do ASAR exige que `out/` ainda corresponda ao build empacotado.
 
 O processo gera `report.json`, `extraction.txt`, `nsis-header.bin` e `extracted/`; apenas extrair esses dados não instala o aplicativo nem altera Registry ou AppData. A assinatura deve ser conferida separadamente com `Get-AuthenticodeSignature` para Setup, Auri e Native Host. Sem certificado configurado, o esperado é `NotSigned`.
 
-Calcule os hashes a partir do Setup que será entregue. Qualquer novo dist invalida hashes e relatórios do instalador anterior, mesmo que a versão permaneça 1.12.0. Não reutilize números de uma conversa ou de uma auditoria anterior sem conferir o arquivo atual.
+Calcule os hashes a partir do Setup que será entregue. Qualquer novo dist invalida hashes e relatórios do instalador anterior, mesmo que a versão permaneça 1.13.0. Não reutilize números de uma conversa ou de uma auditoria anterior sem conferir o arquivo atual.
 
 ## Outputs e limpeza
 

@@ -14,7 +14,9 @@ Ele foi pensado para quem acompanha obras em diferentes sites e quer manter tít
 
 - organizar obras como **Lendo**, **Quero ler**, **Pausado**, **Esperando**, **Finalizado** ou **Abandonado**;
 - atualizar o capítulo atual, desfazer uma alteração e consultar o histórico de progresso;
-- retomar leituras recentes diretamente pela Home;
+- personalizar a Home, reorganizar seções e fixar até três coleções importantes;
+- retomar leituras e reencontrar obras abertas recentemente;
+- abrir a busca rápida global com `Ctrl+K` para encontrar obras, ações e áreas do aplicativo;
 - pesquisar por título, nome alternativo, autor, criador ou fonte, além de combinar filtros e ordenações;
 - usar favoritos, tags e coleções para organizar a biblioteca;
 - cadastrar várias fontes para uma obra e escolher uma como preferida;
@@ -33,7 +35,7 @@ A **Auri Extension** conecta páginas de leitura ao Auri Desktop por comunicaç�
 
 **Auri Extension:** [ver no GitHub](https://github.com/Fish7w7/Auri-Extension)
 
-A extensão é opcional. No **Microsoft Edge**, use a distribuição oficial no [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/auri/alnngjgmhiebpnjefjmhbhmhfpgoibnh). Para **Google Chrome e Brave**, o Auri Desktop 1.12 inclui a Auri Extension 0.2.0 e oferece instalação manual guiada em **Configurações → Extensão do navegador**. O Desktop continua funcionando sem a extensão; a integração não depende de conta ou nuvem.
+A extensão é opcional. No **Microsoft Edge**, use a distribuição oficial no [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/auri/alnngjgmhiebpnjefjmhbhmhfpgoibnh). Para **Google Chrome e Brave**, o Auri Desktop 1.13 inclui a Auri Extension 0.2.0 e oferece instalação manual guiada em **Configurações → Extensão do navegador**. O Desktop continua funcionando sem a extensão; a integração não depende de conta ou nuvem.
 
 Quando a página corresponde a uma obra ou fonte cadastrada, a extensão apresenta as informações da biblioteca e as ações disponíveis. Para conteúdo ainda não cadastrado, ela inicia o fluxo no Desktop para que você revise os dados antes de salvar.
 
