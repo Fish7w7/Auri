@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { OverflowButton, type OverflowButtonSize, type OverflowButtonVariant } from './OverflowButton'
 
 type MenuPlacement = 'top' | 'bottom'
 
@@ -37,7 +38,7 @@ export function chooseMenuPlacement(anchorTop: number, anchorBottom: number, men
 
 const menuCoordinator = new KeyboardMenuCoordinator()
 
-export function KeyboardMenu({ className, label, children }: { className: string; label: string; children: ReactNode }) {
+export function KeyboardMenu({ className, label, children, triggerSize = 'regular', triggerVariant = 'default', disabled = false }: { className: string; label: string; children: ReactNode; triggerSize?: OverflowButtonSize; triggerVariant?: OverflowButtonVariant; disabled?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -146,7 +147,7 @@ export function KeyboardMenu({ className, label, children }: { className: string
 
   return <>
     <div ref={rootRef} className={className} data-keyboard-menu data-open={open || undefined} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onKeyDown={handleKeyDown}>
-      <button ref={triggerRef} id={triggerId} className="keyboard-menu__trigger" type="button" aria-label={label} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => open ? closeMenu() : openMenu()}>•••</button>
+      <OverflowButton ref={triggerRef} id={triggerId} className="keyboard-menu__trigger" label={label} size={triggerSize} variant={triggerVariant} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => open ? closeMenu() : openMenu()} />
     </div>
     {open && portalTarget && createPortal(
       <div

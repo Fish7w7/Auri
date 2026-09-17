@@ -91,7 +91,8 @@ describe('ações rápidas dos cards da Biblioteca', () => {
   it('mantém o menu da Home no popover compartilhado', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/src/styles/global.css'), 'utf8')
     expect(css).toContain('.keyboard-menu__popover {')
-    expect(css).toContain('.home-work-menu > .keyboard-menu__trigger')
+    expect(css).toContain('.overflow-button {')
+    expect(css).toContain('.overflow-button[aria-expanded="true"]')
     expect(css).not.toContain('.work-overflow.home-work-menu > div')
   })
 

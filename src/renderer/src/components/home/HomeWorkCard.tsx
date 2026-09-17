@@ -29,7 +29,7 @@ export function HomeWorkCard({ work, showLastReadNote, onOpen, onContinue, onInc
     <div className="home-work-card__actions">
       <Button variant="primary" onClick={() => onContinue(work)}>Continuar</Button>
       {numericProgress && <Button onClick={() => onIncrement(work)}>+1</Button>}
-      <KeyboardMenu className="work-overflow home-work-menu" label={`Mais ações de ${work.title}`}><button onClick={() => onHide(work)}>Ocultar da Home</button></KeyboardMenu>
+      <KeyboardMenu className="work-overflow home-work-menu" label={`Mais ações de ${work.title}`} triggerSize="compact"><button onClick={() => onHide(work)}>Ocultar da Home</button></KeyboardMenu>
     </div>
   </article>
 }
