@@ -443,7 +443,7 @@ export function formatBytes(bytes: number): string {
 }
 
 export function backupTypeLabel(type: BackupState['backups'][number]['type']): string {
-  return ({ manual: 'Backup manual', auto: 'Backup automático', before_restore: 'Antes da restauração', before_import: 'Antes da importação', before_migration: 'Antes da migração' })[type]
+  return ({ manual: 'Backup manual', auto: 'Backup automático', before_restore: 'Antes da restauração', before_import: 'Antes da importação', before_migration: 'Antes da migração', before_merge: 'Antes da mesclagem' })[type]
 }
 
 function backupTypeDescription(type: BackupState['backups'][number]['type']): string | null {
@@ -452,7 +452,8 @@ function backupTypeDescription(type: BackupState['backups'][number]['type']): st
     auto: null,
     before_restore: 'Criado automaticamente para proteger sua biblioteca antes de uma restauração.',
     before_import: 'Criado automaticamente antes de importar dados para a biblioteca.',
-    before_migration: 'Criado automaticamente antes de atualizar a estrutura dos dados.'
+    before_migration: 'Criado automaticamente antes de atualizar a estrutura dos dados.',
+    before_merge: 'Criado automaticamente antes de mesclar duas obras.'
   })[type]
 }
 
