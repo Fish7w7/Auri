@@ -41,3 +41,13 @@ export function closeLibraryFilters(
   setOpen(false)
   schedule(() => trigger?.focus())
 }
+
+export function dismissLibraryFiltersOnOutsidePointer<T>(
+  anchor: { contains(target: T): boolean } | null,
+  target: T | null,
+  setOpen: (open: false) => void
+): boolean {
+  if (!anchor || target === null || anchor.contains(target)) return false
+  setOpen(false)
+  return true
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { handleFilterPanelKeyDown } from '@renderer/components/library/FilterPanel'
-import { closeLibraryFilters, focusLibraryTarget } from '@renderer/lib/library-focus'
+import { closeLibraryFilters, dismissLibraryFiltersOnOutsidePointer, focusLibraryTarget } from '@renderer/lib/library-focus'
 
 function focusRoot(entries: Record<string, { focus(): void } | undefined>) {
   return {
@@ -68,5 +68,18 @@ describe('fechamento dos filtros', () => {
     const onClose = vi.fn()
     expect(handleFilterPanelKeyDown(event, onClose)).toBe(false)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('fecha ao apontar fora sem fechar para interações no botão ou painel', () => {
+    const inside = { id: 'inside' }
+    const outside = { id: 'outside' }
+    const setOpen = vi.fn()
+    const anchor = { contains: (target: { id: string }) => target === inside }
+
+    expect(dismissLibraryFiltersOnOutsidePointer(anchor, inside, setOpen)).toBe(false)
+    expect(setOpen).not.toHaveBeenCalled()
+
+    expect(dismissLibraryFiltersOnOutsidePointer(anchor, outside, setOpen)).toBe(true)
+    expect(setOpen).toHaveBeenCalledExactlyOnceWith(false)
   })
 })
