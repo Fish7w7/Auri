@@ -7,7 +7,7 @@ import { adjacentSettingsSection } from '@renderer/pages/SettingsPage'
 import type { BrowserExtensionApi } from '@shared/contracts'
 
 function props(): BrowserExtensionViewProps {
-  return { status: { embeddedVersion: '0.2.0', embeddedAvailable: true, browsers: [
+  return { status: { embeddedVersion: '0.3.0', embeddedAvailable: true, browsers: [
     { browser: 'edge', displayName: 'Microsoft Edge', installed: true, availableAction: 'store' },
     { browser: 'chrome', displayName: 'Google Chrome', installed: true, availableAction: 'manual' },
     { browser: 'brave', displayName: 'Brave', installed: true, availableAction: 'manual' }
@@ -18,7 +18,7 @@ describe('Configurações → Extensão do navegador', () => {
   it('mostra três cards, versão discreta, loja Edge e ações específicas', () => {
     const html = render(props())
     expect(html.match(/class="browser-extension-card"/g)).toHaveLength(3)
-    for (const text of ['Auri Extension', '0.2.0 incluída', 'Abrir no Edge Add-ons', 'Instalar no Chrome', 'Instalar no Brave', 'Atualizar detecção']) expect(html).toContain(text)
+    for (const text of ['Auri Extension', '0.3.0 incluída', 'Abrir no Edge Add-ons', 'Instalar no Chrome', 'Instalar no Brave', 'Atualizar detecção']) expect(html).toContain(text)
     expect(html.match(/>Detectado</g)).toHaveLength(3)
     for (const text of ['Extensão instalada', 'Tentar novamente', 'Recarregar', 'Página de extensões aberta']) expect(html).not.toContain(text)
     expect(html).toContain('<aside')

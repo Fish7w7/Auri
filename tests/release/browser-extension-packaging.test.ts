@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { loadProductionExtensionConfiguration, createProductionInstallerInclude, createProductionHostManifest } from '../../scripts/release/native-host-production.js'
 
 const expected = ['chrome-extension://alnngjgmhiebpnjefjmhbhmhfpgoibnh/', 'chrome-extension://agefiaohfielfgadiagemnflekbboblp/']
-describe('release oficial 1.13.0', () => {
+describe('configuração de empacotamento 1.14.0', () => {
   it('configuração PROD gera exatamente Edge + Embedded, sem IDs de loja Chrome/Brave', () => {
     const configuration = loadProductionExtensionConfiguration({})
     expect(configuration.allowedOrigins).toEqual(expected)
@@ -23,11 +23,15 @@ describe('release oficial 1.13.0', () => {
   ])('falha fechado com configuração não oficial %j', (env) => {
     expect(() => loadProductionExtensionConfiguration(env)).toThrow()
   })
-  it('versiona sem alterar schema ou Protocol e empacota arquivos gerados em path estável', () => {
+  it('versiona mantendo schema e ProtocolVersion e empacota arquivos gerados em path estável', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
     const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'))
-    expect([pkg.version, lock.version, lock.packages[''].version]).toEqual(['1.13.0', '1.13.0', '1.13.0'])
-    expect(pkg.dependencies['@auri/protocol']).toBe('github:Fish7w7/Auri-Protocol#v0.1.3')
+    expect([pkg.version, lock.version, lock.packages[''].version]).toEqual(['1.14.0', '1.14.0', '1.14.0'])
+    expect(pkg.dependencies['@auri/protocol']).toBe('github:Fish7w7/Auri-Protocol#v0.2.0')
+    expect(lock.packages['node_modules/@auri/protocol']).toMatchObject({
+      version: '0.2.0',
+      resolved: 'git+ssh://git@github.com/Fish7w7/Auri-Protocol.git#d49202778bd1eedb8a24e944982a432c6c7c6d6b'
+    })
     expect(pkg.build.extraResources).toContainEqual({ from: 'build/generated/browser-extension', to: 'browser-extension' })
     expect(pkg.build.beforePack).toBe('scripts/release/before-pack.cjs')
     expect(readFileSync('scripts/release/before-pack.cjs', 'utf8')).toContain('await prepareEmbedded()')

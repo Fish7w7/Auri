@@ -16,7 +16,7 @@ describe('input Embedded oficial validado independentemente da metadata', () => 
   it('confere hashes, identidade, locales e inventário do ZIP real', () => {
     expect(sha256(zip)).toBe(config.sha256)
     expect(sha256(metadata)).toBe(config.metadataSha256)
-    expect(official.metadata).toMatchObject({ version: '0.2.0', extensionId: 'agefiaohfielfgadiagemnflekbboblp', filesCount: 10 })
+    expect(official.metadata).toMatchObject({ version: '0.3.0', extensionId: 'agefiaohfielfgadiagemnflekbboblp', filesCount: 10 })
     expect(manifest).toMatchObject({ manifest_version: 3, default_locale: 'en', permissions: ['activeTab', 'scripting', 'nativeMessaging'] })
     expect(official.files.has('_locales/pt_BR/messages.json')).toBe(true)
   })
@@ -27,7 +27,7 @@ describe('input Embedded oficial validado independentemente da metadata', () => 
     await expect(validateEmbeddedInput(zip, Buffer.concat([metadata, Buffer.from(' ')]))).rejects.toThrow('SHA-256 da metadata')
   })
   it.each([
-    { manifest_version: 2 }, { version: '0.3.0' }, { key: undefined }, { key: 'invalid' },
+    { manifest_version: 2 }, { version: '9.9.9' }, { key: undefined }, { key: 'invalid' },
     { default_locale: 'pt_BR' }, { permissions: ['activeTab', 'scripting'] },
     { permissions: [...manifest.permissions, 'tabs'] }, { permissions: [...manifest.permissions, 'activeTab'] },
     { host_permissions: ['<all_urls>'] }, { optional_permissions: ['tabs'] }

@@ -45,7 +45,7 @@ for (const forbidden of ['app.auri.native_host.dev', 'Auri-Dev', 'AuriNativeHost
 const asar = join(extracted, 'resources/app.asar')
 const shippedPackage = JSON.parse(extractFile(asar, 'package.json').toString())
 assert.equal(shippedPackage.version, pkg.version)
-assert.equal(shippedPackage.dependencies['@auri/protocol'], 'github:Fish7w7/Auri-Protocol#v0.1.3')
+assert.equal(shippedPackage.dependencies['@auri/protocol'], 'github:Fish7w7/Auri-Protocol#v0.2.0')
 for (const [name, bytes] of readTree(join(root, 'out'))) {
   assert(extractFile(asar, join('out', name)).equals(bytes), `Packaged app differs: ${name}`)
 }

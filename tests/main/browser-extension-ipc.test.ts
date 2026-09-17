@@ -11,7 +11,8 @@ vi.mock('electron', () => ({ ipcMain: { handle: (name: string, handler: (...args
 
 describe('IPC real registra somente operações específicas', () => {
   it('rejeita browser arbitrário no Main e não aceita caminho/URL do Renderer', async () => {
-    expect(readFileSync('src/main/index.ts', 'utf8')).toContain('browserExtension: context.services.browserExtension')
+    expect(readFileSync('src/main/app/create-app-context.ts', 'utf8')).toContain('browserExtension: createBrowserExtensionService(app)')
+    expect(readFileSync('src/main/application/bootstrap.ts', 'utf8')).toContain('this.context.services')
     const openPath = vi.fn(async () => '')
     const openExternal = vi.fn(async () => {})
     const isRunning = vi.fn(async () => true)
@@ -33,7 +34,7 @@ describe('IPC real registra somente operações específicas', () => {
     expect(openPath).toHaveBeenCalledWith(resolve('build/generated/browser-extension'))
     await invoke(channels.openEdgeStore, { url: 'https://evil.example' })
     expect(openExternal).toHaveBeenCalledWith('https://microsoftedge.microsoft.com/addons/detail/auri/alnngjgmhiebpnjefjmhbhmhfpgoibnh')
-    expect(await invoke(channels.getStatus)).toMatchObject({ ok: true, data: { embeddedVersion: '0.2.0' } })
+    expect(await invoke(channels.getStatus)).toMatchObject({ ok: true, data: { embeddedVersion: '0.3.0' } })
     unregister()
     for (const channel of Object.values(channels)) expect(handlers.has(channel)).toBe(false)
   })
