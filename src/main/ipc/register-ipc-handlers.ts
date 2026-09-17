@@ -20,6 +20,7 @@ import type { TransferService } from '../services/transfer-service'
 import type { UpdateService } from '../services/update-service'
 import type { UrlMetadataService } from '../services/url-metadata/url-metadata-service'
 import type { BulkLibraryService } from '../services/bulk-library-service'
+import type { WorkMergeService } from '../services/work-merge-service'
 
 export interface IpcServices {
   browserExtension: BrowserExtensionService
@@ -39,6 +40,7 @@ export interface IpcServices {
   transfer: TransferService
   updates: UpdateService
   bulk: BulkLibraryService
+  workMerge: WorkMergeService
 }
 
 export interface IpcHandlerOptions {
@@ -103,6 +105,8 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.works.listTrash, () => services.works.listTrash()],
     [IPC_CHANNELS.works.restore, (request) => services.works.restoreWork(request)],
     [IPC_CHANNELS.works.deletePermanently, (request) => services.works.deletePermanently(request)],
+    [IPC_CHANNELS.works.previewMerge, (request) => services.workMerge.previewMerge(request)],
+    [IPC_CHANNELS.works.merge, (request) => services.workMerge.merge(request)],
     [IPC_CHANNELS.progress.get, (request) => services.progress.getProgress(request)],
     [IPC_CHANNELS.progress.update, (request) => services.progress.updateProgress(request)],
     [IPC_CHANNELS.progress.increment, (request) => services.progress.incrementProgress(request)],

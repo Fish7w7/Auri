@@ -1,5 +1,6 @@
 import type { UrlPageMetadata } from '@shared/contracts'
 import { normalizeSearchText } from '@shared/utils/normalize-search-text'
+import { preferredHumanPageTitle } from '@shared/utils/normalize-work-title'
 import { isBlockedDestination, parseAllowedHttpUrl } from './url-safety'
 
 type JsonObject = Record<string, unknown>
@@ -90,6 +91,7 @@ export function extractPageMetadata(html: string, requestedUrl: string, finalUrl
       resolvePublicResourceUrl(firstText(meta.get('twitter:image'), meta.get('twitter:image:src')), finalUrl)
     )
   }
+  title = preferredHumanPageTitle({ title, siteName, domain: parsedFinal.hostname })
   const canonicalUrl = firstUrl(canonicalSuspicious ? null : canonical, ogUrlSuspicious ? null : ogUrl)
 
   return {

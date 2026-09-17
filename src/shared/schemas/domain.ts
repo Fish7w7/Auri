@@ -79,6 +79,18 @@ export const updateWorkSchema = createWorkSchema
   .refine((value) => Object.keys(value).some((key) => key !== 'id'), 'Nenhum campo para atualizar.')
 
 export const workIdSchema = z.object({ workId: z.string().uuid() })
+export const workMergeConflictFieldSchema = z.enum([
+  'progress', 'userStatus', 'notes', 'lastReadNote', 'cover', 'mediaType',
+  'publicationStatus', 'description', 'countryCode', 'startDate', 'endDate', 'rating'
+])
+export const workMergePreviewSchema = z.object({
+  primaryWorkId: z.string().uuid(),
+  secondaryWorkId: z.string().uuid()
+}).refine((value) => value.primaryWorkId !== value.secondaryWorkId, 'Escolha duas obras diferentes.')
+export const workMergeExecuteSchema = workMergePreviewSchema.extend({
+  fieldChoices: z.partialRecord(workMergeConflictFieldSchema, z.string().uuid()).default({}),
+  preferredSourceId: z.string().uuid().nullable().optional()
+})
 export const historyIdSchema = z.object({ historyId: z.string().uuid() })
 
 export const createSourceSchema = z.object({

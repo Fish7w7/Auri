@@ -68,6 +68,12 @@ export function mapDomainError(error: unknown): string {
       return 'Este identificador externo já pertence a outra obra.'
     case 'DUPLICATE_SOURCE':
       return 'Esta fonte já está cadastrada para uma obra.'
+    case 'DUPLICATE_WORK':
+      return 'Esta obra já está na Biblioteca.'
+    case 'INVALID_WORK_MERGE':
+      return 'Não foi possível mesclar estas obras.'
+    case 'WORK_MERGE_CONFLICT':
+      return 'A prévia mudou ou ainda existe um conflito a resolver.'
     case 'METADATA_PROVIDER_UNAVAILABLE':
       return 'A pesquisa de metadados não está disponível agora.'
     case 'METADATA_TIMEOUT':

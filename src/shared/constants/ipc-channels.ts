@@ -44,7 +44,9 @@ export const IPC_CHANNELS = {
     trash: 'auri:works:trash',
     listTrash: 'auri:works:list-trash',
     restore: 'auri:works:restore',
-    deletePermanently: 'auri:works:delete-permanently'
+    deletePermanently: 'auri:works:delete-permanently',
+    previewMerge: 'auri:works:merge-preview',
+    merge: 'auri:works:merge-execute'
   },
   progress: {
     get: 'auri:progress:get',

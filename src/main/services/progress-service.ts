@@ -20,6 +20,7 @@ import type {
   Work
 } from '@shared/types/domain'
 import { normalizeChapterInput } from '@shared/utils/normalize-chapter'
+import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
 import type { HistoryRepository } from '../database/repositories/history-repository'
 import type { SourceRepository } from '../database/repositories/source-repository'
 import type { WorkRepository } from '../database/repositories/work-repository'
@@ -48,6 +49,18 @@ export class ProgressService {
   }
 
   updateProgress(input: unknown): ProgressUpdateResult {
+    return this.updateProgressWithLinkedPage(input, null)
+  }
+
+  updateProgressFromLinkedPage(input: unknown, sourceLastReadUrl: string | null): ProgressUpdateResult {
+    const normalizedLastReadUrl = sourceLastReadUrl ? normalizeSourceUrl(sourceLastReadUrl) : null
+    if (sourceLastReadUrl && !normalizedLastReadUrl) {
+      throw new DomainError('INVALID_INPUT', 'A URL de leitura precisa usar HTTP ou HTTPS.')
+    }
+    return this.updateProgressWithLinkedPage(input, normalizedLastReadUrl)
+  }
+
+  private updateProgressWithLinkedPage(input: unknown, sourceLastReadUrl: string | null): ProgressUpdateResult {
     const request = parseDomainInput(updateProgressSchema, input) as UpdateProgressRequest
     const work = this.requireActiveWork(request.workId)
     const chapter = this.normalizeChapter(request.chapterLabel)
@@ -74,7 +87,8 @@ export class ProgressService {
       source,
       note: request.note ?? null,
       occurredAt: request.occurredAt ?? this.clock(),
-      eventType: request.eventType ?? 'progress_update'
+      eventType: request.eventType ?? 'progress_update',
+      sourceLastReadUrl
     })
   }
 
@@ -181,6 +195,7 @@ export class ProgressService {
     note: string | null
     occurredAt: string
     eventType: 'initial_progress' | 'progress_update' | 'correction'
+    sourceLastReadUrl?: string | null
   }): ProgressUpdateResult {
     const createdAt = this.clock()
     const event: ReadingHistory = {
@@ -200,7 +215,14 @@ export class ProgressService {
 
     const update = this.db.transaction(() => {
       this.works.updateProgress(input.work.id, input.chapter, input.occurredAt, createdAt)
-      if (input.source) this.sources.touchLastUsed(input.source.id, input.occurredAt)
+      if (input.source && input.sourceLastReadUrl) {
+        this.sources.update({
+          ...input.source,
+          lastReadUrl: input.sourceLastReadUrl,
+          lastUsedAt: input.occurredAt,
+          updatedAt: input.occurredAt
+        })
+      } else if (input.source) this.sources.touchLastUsed(input.source.id, input.occurredAt)
       this.history.create(event)
       return this.resultFor(input.work.id, event)
     })

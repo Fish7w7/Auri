@@ -19,6 +19,11 @@ import { WorkDetailsService } from '@main/services/work-details-service'
 import { BulkLibraryService } from '@main/services/bulk-library-service'
 import { TestLogger } from './test-logger'
 import { SourceIdentityService } from '@main/services/source-identity-service'
+import { WorkContextService } from '@main/services/work-context-service'
+import { WorkEquivalenceService } from '@main/services/work-equivalence-service'
+import { WorkResolutionRepository } from '@main/database/repositories/work-resolution-repository'
+import { WorkMergeService } from '@main/services/work-merge-service'
+import { appSettingsSchema } from '@shared/schemas/settings'
 
 export function createDomainFixture(databasePath = ':memory:') {
   const db = new Database(databasePath)
@@ -42,8 +47,21 @@ export function createDomainFixture(databasePath = ':memory:') {
   }
 
   const sourceIdentity = new SourceIdentityService(repositories.sources, repositories.works, repositories.history)
+  const workContext = new WorkContextService(repositories.works, repositories.sources, sourceIdentity)
+  const workEquivalence = new WorkEquivalenceService(new WorkResolutionRepository(db))
+  let settingsState = appSettingsSchema.parse({})
+  const settings = {
+    getSettings: () => settingsState,
+    updateSettings: (input: { recentWorkIds: string[] }) => {
+      settingsState = appSettingsSchema.parse({ ...settingsState, ...input })
+      return settingsState
+    }
+  }
   const services = {
     sourceIdentity,
+    workContext,
+    workEquivalence,
+    settings,
     works: new WorkService(
       db,
       {
@@ -53,6 +71,7 @@ export function createDomainFixture(databasePath = ':memory:') {
         history: repositories.history,
         overrides: repositories.overrides
       },
+      workEquivalence,
       clock
     ),
     progress: new ProgressService(
@@ -69,7 +88,8 @@ export function createDomainFixture(databasePath = ':memory:') {
       tags: repositories.tags,
       collections: repositories.collections
     }, clock),
-    details: undefined as unknown as WorkDetailsService
+    details: undefined as unknown as WorkDetailsService,
+    workMerge: undefined as unknown as WorkMergeService
   }
 
   services.details = new WorkDetailsService(db, {
@@ -77,6 +97,11 @@ export function createDomainFixture(databasePath = ':memory:') {
     genres: repositories.genres, tags: repositories.tags, collections: repositories.collections,
     sources: repositories.sources, overrides: repositories.overrides, externalRefs: repositories.externalRefs
   }, services.works, services.sources, services.progress, clock)
+  services.workMerge = new WorkMergeService(db, {
+    works: repositories.works,
+    sources: repositories.sources,
+    overrides: repositories.overrides
+  }, sourceIdentity, settings, undefined, clock)
 
   return { db, clock, repositories, services }
 }

@@ -33,6 +33,10 @@ describe('draft externo do AddWorkDialog', () => {
       code: 'DUPLICATE_SOURCE',
       details: { workId: 'work-id', workTitle: 'A Transmissão do Super-Humano' }
     } })).toEqual({ workId: 'work-id', workTitle: 'A Transmissão do Super-Humano' })
+    expect(duplicateSourceNotice({ error: {
+      code: 'DUPLICATE_WORK',
+      details: { workId: 'equivalent-id', workTitle: 'Nano Machine' }
+    } })).toEqual({ workId: 'equivalent-id', workTitle: 'Nano Machine' })
     expect(duplicateSourceNotice({ error: { code: 'INVALID_INPUT' } })).toBeNull()
   })
 })

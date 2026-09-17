@@ -76,7 +76,8 @@ describe('WorkDetailsService', () => {
     const fixture = createDomainFixture()
     const resolution = new WorkResolutionService(
       new WorkResolutionRepository(fixture.db),
-      fixture.services.sourceIdentity
+      fixture.services.sourceIdentity,
+      fixture.services.workEquivalence
     )
     expect(resolution.resolve({
       url: 'https://reader.example/slug/37',
@@ -127,6 +128,50 @@ describe('WorkDetailsService', () => {
     })
     fixture.services.works.createWork({ title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading' })
     expect(fixture.services.library.getSummary().total).toBe(3)
+    fixture.db.close()
+  })
+
+  it('impede nova Work com equivalência forte e permite ambiguous ou none', () => {
+    const fixture = createDomainFixture()
+    const existing = fixture.services.works.createWork({
+      title: 'O Retorno do Cão de Caça dos Baskerville', mediaType: 'manhwa', userStatus: 'reading',
+      externalRefs: [{ provider: 'anilist', externalId: '999' }]
+    })
+
+    expect(() => fixture.services.details.createDetailed({
+      title: 'A Vingança do Cão de Caça dos Baskerville', mediaType: 'manhwa', userStatus: 'reading',
+      externalRefs: [{ provider: 'anilist', externalId: '999' }],
+      source: { seriesUrl: 'https://nexusmangas.com/vinganca' }
+    })).toThrowError(expect.objectContaining({
+      code: 'DUPLICATE_EXTERNAL_REF', details: expect.objectContaining({ workId: existing.id })
+    }))
+
+    fixture.services.details.createDetailed({
+      title: 'Retorno do Cão de Caça', mediaType: 'manhwa', userStatus: 'reading',
+      source: { seriesUrl: 'https://reader.example/titulo-parecido' }
+    })
+    fixture.services.details.createDetailed({
+      title: 'Obra sem qualquer relação', mediaType: 'manga', userStatus: 'want_to_read'
+    })
+    expect(fixture.services.library.getSummary().total).toBe(3)
+    fixture.db.close()
+  })
+
+  it('revalida equivalência forte dentro da transação de criação', () => {
+    const fixture = createDomainFixture()
+    expect(fixture.services.workEquivalence.evaluateCreation({
+      title: 'Título Nexus', aliases: [{ name: 'Título original' }]
+    })).toEqual({ status: 'none' })
+
+    const existing = createMinimalWork(fixture, 'Título original')
+    expect(() => fixture.services.details.createDetailed({
+      title: 'Título Nexus', mediaType: 'manhwa', userStatus: 'reading',
+      aliases: [{ name: 'Título original' }],
+      source: { seriesUrl: 'https://nexusmangas.com/titulo-nexus' }
+    })).toThrowError(expect.objectContaining({
+      code: 'DUPLICATE_WORK', details: expect.objectContaining({ workId: existing.id })
+    }))
+    expect(fixture.services.library.getSummary().total).toBe(1)
     fixture.db.close()
   })
 

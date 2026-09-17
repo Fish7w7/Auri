@@ -1,4 +1,4 @@
-export type BackupType = 'manual' | 'auto' | 'before_restore' | 'before_import' | 'before_migration'
+export type BackupType = 'manual' | 'auto' | 'before_restore' | 'before_import' | 'before_migration' | 'before_merge'
 
 export interface BackupManifest {
   format: 'auri-backup' | 'lumi-backup'

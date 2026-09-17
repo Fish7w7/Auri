@@ -15,7 +15,8 @@ function setup() {
   const desktop = { openWork: vi.fn(), openAddWork: vi.fn(), notifyWorkChanged: vi.fn() }
   let dispatcher!: ProtocolDispatcher
   dispatcher = new ProtocolDispatcher(createProtocolHandlers({
-    appVersion: '1.10.0', resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db), fixture.services.sourceIdentity),
+    appVersion: '1.10.0', resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db), fixture.services.sourceIdentity, fixture.services.workEquivalence),
+    workContext: fixture.services.workContext,
     works: fixture.services.works, sources: fixture.services.sources, progress: fixture.services.progress,
     desktop: desktop as never
   }, () => dispatcher.capabilities), new TestLogger(), DESKTOP_PROTOCOL_FEATURES)
@@ -23,14 +24,14 @@ function setup() {
 }
 
 describe('handlers do Desktop Bridge', () => {
-  it('system.hello anuncia suporte a coverUrl no Protocol 1', async () => {
+  it('system.hello anuncia work.context e coverUrl no Protocol 1', async () => {
     const { dispatcher } = setup()
     await expect(dispatcher.dispatch(createRequest('hello', 'system.hello', {
       client: { kind: 'native-host', name: 'auri-native-host', version: '1.10.0' },
       supportedProtocolVersions: [1]
     }))).resolves.toMatchObject({
       ok: true,
-      result: { protocolVersion: 1, capabilities: expect.arrayContaining(['desktop.openAddWork', 'desktop.openAddWork.coverUrl']) }
+      result: { protocolVersion: 1, capabilities: expect.arrayContaining(['work.context', 'desktop.openAddWork', 'desktop.openAddWork.coverUrl']) }
     })
   })
 
@@ -46,6 +47,34 @@ describe('handlers do Desktop Bridge', () => {
     await expect(dispatcher.dispatch(createRequest('resolve', 'work.resolve', { url: 'https://example.com/obra' }))).resolves.toMatchObject({ ok: true })
     expect(desktop.openWork).not.toHaveBeenCalled()
     expect(desktop.openAddWork).not.toHaveBeenCalled()
+  })
+
+  it('work.context retorna o contrato 0.2.0 sem escrever nem ativar a janela', async () => {
+    const { fixture, desktop, dispatcher } = setup()
+    const work = createMinimalWork(fixture, 'Obra contextual', '14')
+    const source = fixture.services.sources.createSource({
+      workId: work.id,
+      seriesUrl: 'https://reader.example/obra-contextual',
+      lastReadUrl: 'https://reader.example/obra-contextual/14'
+    })
+    const before = fixture.repositories.works.findById(work.id)
+
+    await expect(dispatcher.dispatch(createRequest('context', 'work.context', {
+      workId: work.id,
+      page: { url: 'https://reader.example/obra-contextual' }
+    }))).resolves.toMatchObject({
+      ok: true,
+      result: {
+        work: { id: work.id, progress: { value: '14', numericValue: 14 } },
+        page: { detectedChapter: null, relation: 'series_page' },
+        source: { state: 'linked', matchedSourceId: source.id },
+        continueTarget: { url: 'https://reader.example/obra-contextual/14' }
+      }
+    })
+    expect(fixture.repositories.works.findById(work.id)).toEqual(before)
+    expect(desktop.openWork).not.toHaveBeenCalled()
+    expect(desktop.openAddWork).not.toHaveBeenCalled()
+    expect(desktop.notifyWorkChanged).not.toHaveBeenCalled()
   })
 
   it('desktop.openAddWork sem coverUrl preserva o draft anterior', async () => {
@@ -107,5 +136,51 @@ describe('handlers do Desktop Bridge', () => {
     expect(desktop.notifyWorkChanged).toHaveBeenCalledTimes(2)
     expect(desktop.notifyWorkChanged).toHaveBeenNthCalledWith(1, { workId: work.id, kind: 'progress' })
     expect(desktop.notifyWorkChanged).toHaveBeenNthCalledWith(2, { workId: work.id, kind: 'progress' })
+  })
+
+  it('progress.update persiste a URL real somente para a Source vinculada', async () => {
+    const { fixture, dispatcher } = setup()
+    const work = createMinimalWork(fixture, 'Obra', '14')
+    const source = fixture.services.sources.createSource({
+      workId: work.id,
+      seriesUrl: 'https://reader.example/obra-contextual'
+    })
+
+    await expect(dispatcher.dispatch(createRequest('linked-page', 'progress.update', {
+      workId: work.id,
+      chapter: { value: '16', numericValue: 16 },
+      sourceId: source.id,
+      pageUrl: 'https://reader.example/obra-contextual/16'
+    }))).resolves.toMatchObject({ ok: true })
+    expect(fixture.repositories.sources.findById(source.id)?.lastReadUrl).toBe('https://reader.example/obra-contextual/16')
+
+    const other = createMinimalWork(fixture, 'Outra obra', '1')
+    fixture.services.sources.createSource({
+      workId: other.id,
+      seriesUrl: 'https://other.example/outra-obra'
+    })
+    await expect(dispatcher.dispatch(createRequest('wrong-page', 'progress.update', {
+      workId: work.id,
+      chapter: { value: '17', numericValue: 17 },
+      sourceId: source.id,
+      pageUrl: 'https://other.example/outra-obra/17'
+    }))).resolves.toMatchObject({ ok: true })
+    expect(fixture.repositories.sources.findById(source.id)?.lastReadUrl).toBe('https://reader.example/obra-contextual/16')
+
+    await expect(dispatcher.dispatch(createRequest('series-page', 'progress.update', {
+      workId: work.id,
+      chapter: { value: '18', numericValue: 18 },
+      sourceId: source.id,
+      pageUrl: 'https://reader.example/obra-contextual'
+    }))).resolves.toMatchObject({ ok: true })
+    expect(fixture.repositories.sources.findById(source.id)?.lastReadUrl).toBe('https://reader.example/obra-contextual/16')
+
+    await expect(dispatcher.dispatch(createRequest('inconsistent-chapter', 'progress.update', {
+      workId: work.id,
+      chapter: { value: '19', numericValue: 20 },
+      sourceId: source.id,
+      pageUrl: 'https://reader.example/obra-contextual/20'
+    }))).resolves.toMatchObject({ ok: true })
+    expect(fixture.repositories.sources.findById(source.id)?.lastReadUrl).toBe('https://reader.example/obra-contextual/16')
   })
 })

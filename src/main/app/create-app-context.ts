@@ -49,6 +49,9 @@ import { createApplicationUpdateService } from '../services/application-update-s
 import { WorkResolutionRepository } from '../database/repositories/work-resolution-repository'
 import { WorkResolutionService } from '../services/work-resolution-service'
 import { SourceIdentityService } from '../services/source-identity-service'
+import { WorkContextService } from '../services/work-context-service'
+import { WorkEquivalenceService } from '../services/work-equivalence-service'
+import { WorkMergeService } from '../services/work-merge-service'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -72,6 +75,8 @@ export interface AppContext {
     transfer: TransferService
     bulk: BulkLibraryService
     resolution: WorkResolutionService
+    workContext: WorkContextService
+    workMerge: WorkMergeService
   }
   dispose(): void
 }
@@ -118,6 +123,8 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     const tagsRepository = new TagRepository(database.db)
     const collectionsRepository = new CollectionRepository(database.db)
     const overridesRepository = new MetadataOverrideRepository(database.db)
+    const workResolutionRepository = new WorkResolutionRepository(database.db)
+    const workEquivalence = new WorkEquivalenceService(workResolutionRepository)
 
     const works = new WorkService(database.db, {
       works: worksRepository,
@@ -125,7 +132,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       externalRefs: externalRefsRepository,
       history: historyRepository,
       overrides: overridesRepository
-    })
+    }, workEquivalence)
     const progress = new ProgressService(
       database.db,
       worksRepository,
@@ -159,7 +166,13 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       logger
     )
     const externalNavigation = new ExternalNavigationService()
-    const resolution = new WorkResolutionService(new WorkResolutionRepository(database.db), sourceIdentity)
+    const resolution = new WorkResolutionService(workResolutionRepository, sourceIdentity, workEquivalence)
+    const workContext = new WorkContextService(worksRepository, sourcesRepository, sourceIdentity)
+    const workMerge = new WorkMergeService(database.db, {
+      works: worksRepository,
+      sources: sourcesRepository,
+      overrides: overridesRepository
+    }, sourceIdentity, settings, backups)
     const library = new LibraryService(worksRepository, collectionsRepository)
     const transfer = new TransferService(database.db, {
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
@@ -171,7 +184,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
     return {
       database,
       logger,
-      services: { browserExtension: createBrowserExtensionService(app), system, updates, works, progress, sources, library, settings, details, bulk, resolution, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
+      services: { browserExtension: createBrowserExtensionService(app), system, updates, works, progress, sources, library, settings, details, bulk, resolution, workContext, workMerge, assets, covers, metadata, urlMetadata, externalNavigation, backups, transfer },
       dispose() {
         updates.dispose()
         database.close()

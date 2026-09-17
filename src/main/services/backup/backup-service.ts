@@ -183,7 +183,7 @@ export class BackupService {
     if (statSync(manifestPath).size > MAX_MANIFEST_BYTES) throw new DomainError('BACKUP_INVALID', 'Manifesto de backup inválido.')
     if (statSync(checksumsPath).size > MAX_CHECKSUMS_BYTES) throw new DomainError('BACKUP_INVALID', 'Lista de checksums inválida.')
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Partial<BackupManifest>
-    if (!['auri-backup', 'lumi-backup'].includes(String(manifest.format)) || manifest.formatVersion !== 1 || typeof manifest.appVersion !== 'string' || !manifest.createdAt || !manifest.type || !['manual', 'auto', 'before_restore', 'before_import', 'before_migration'].includes(manifest.type) || !Number.isInteger(manifest.schemaVersion) || !Number.isInteger(manifest.workCount)) {
+    if (!['auri-backup', 'lumi-backup'].includes(String(manifest.format)) || manifest.formatVersion !== 1 || typeof manifest.appVersion !== 'string' || !manifest.createdAt || !manifest.type || !['manual', 'auto', 'before_restore', 'before_import', 'before_migration', 'before_merge'].includes(manifest.type) || !Number.isInteger(manifest.schemaVersion) || !Number.isInteger(manifest.workCount)) {
       throw new DomainError('BACKUP_INVALID', 'Manifesto de backup inválido.')
     }
     if ((manifest.schemaVersion as number) > this.schemaVersion) {
@@ -308,8 +308,8 @@ export class BackupService {
     if (!existsSync(directory)) return []
     const records: BackupRecord[] = []
     for (const fileName of readdirSync(directory).filter((name) => name.endsWith(CURRENT_BACKUP_EXTENSION) || name.endsWith(LEGACY_BACKUP_EXTENSION))) {
-      const match = /^auri-(manual|auto|before_restore|before_import|before_migration)-(.+)\.auri-backup$/.exec(fileName)
-        ?? /^lumi-(manual|auto|before_restore|before_import|before_migration)-(.+)\.lumi-backup$/.exec(fileName)
+      const match = /^auri-(manual|auto|before_restore|before_import|before_migration|before_merge)-(.+)\.auri-backup$/.exec(fileName)
+        ?? /^lumi-(manual|auto|before_restore|before_import|before_migration|before_merge)-(.+)\.lumi-backup$/.exec(fileName)
       if (!match) continue
       const path = join(directory, fileName)
       const stats = statSync(path)

@@ -1,15 +1,17 @@
 import type { PageContext, SourceSummary, WorkResolveResult, WorkSummary } from '@auri/protocol'
-import { normalizeSearchText } from '@shared/utils/normalize-search-text'
 import { normalizeSourceUrl } from '@shared/utils/normalize-source-url'
 import { sourceUrlSpecificity } from '@shared/utils/source-url-ancestry'
+import { comparablePageTitles } from '@shared/utils/normalize-work-title'
 import type { Source, Work } from '@shared/types/domain'
 import type { ResolutionCandidate, WorkResolutionRepository } from '../database/repositories/work-resolution-repository'
 import type { SourceIdentityService } from './source-identity-service'
+import type { WorkEquivalenceService } from './work-equivalence-service'
 
 export class WorkResolutionService {
   constructor(
     private readonly repository: WorkResolutionRepository,
-    private readonly sourceIdentity: SourceIdentityService
+    private readonly sourceIdentity: SourceIdentityService,
+    private readonly workEquivalence: WorkEquivalenceService
   ) {}
 
   resolve(page: PageContext): WorkResolveResult {
@@ -42,19 +44,28 @@ export class WorkResolutionService {
         })))
     }
 
-    const title = page.title ? normalizeSearchText(page.title) : ''
     const urls = identity?.comparisonUrls ?? [page.url].map(normalizeSourceUrl).filter((value): value is string => value !== null)
     const domain = this.hostname(urls)
-    if (domain && title) {
-      const strong = this.repository.findByDomainAndTitle(normalizeSearchText(domain), title)
-      if (strong.length) return this.result(strong.map((candidate) => ({ ...candidate, matchedBy: 'source_domain', confidence: 'high' })))
+    const titles = comparablePageTitles({ title: page.title, siteName: page.siteName, domain: page.domain ?? domain })
+    const equivalent = this.workEquivalence.evaluatePage(titles)
+    if (equivalent.status === 'high-confidence') {
+      const candidate = equivalent.candidate
+      const sameDomainSource = domain
+        ? this.repository.findSourceForWorkByDomain(candidate.work.id, domain.toLocaleLowerCase('en-US'))
+        : null
+      return this.result([{
+        work: candidate.work,
+        source: sameDomainSource,
+        matchedBy: sameDomainSource ? 'source_domain' : candidate.matchedBy,
+        confidence: sameDomainSource ? 'high' : candidate.confidence
+      }])
     }
-    if (title) {
-      const exactTitle = this.repository.findByExactTitle(title)
-      if (exactTitle.length) return this.result(exactTitle)
-      const possible = this.repository.findPossibleTitles(title)
-      if (possible.length) return this.result(possible)
-    }
+    if (equivalent.status === 'ambiguous') return this.result(equivalent.candidates.map((candidate) => ({
+      work: candidate.work,
+      source: null,
+      matchedBy: candidate.matchedBy,
+      confidence: candidate.confidence
+    })))
     return { status: 'not_found' }
   }
 

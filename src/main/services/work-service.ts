@@ -10,6 +10,7 @@ import type { ExternalRefRepository } from '../database/repositories/external-re
 import type { HistoryRepository } from '../database/repositories/history-repository'
 import type { MetadataOverrideRepository } from '../database/repositories/metadata-override-repository'
 import type { WorkRepository } from '../database/repositories/work-repository'
+import type { WorkEquivalenceService, WorkCreationEquivalenceInput } from './work-equivalence-service'
 import {
   generateId,
   parseDomainInput,
@@ -31,6 +32,7 @@ export class WorkService {
   constructor(
     private readonly db: Database.Database,
     private readonly repositories: WorkServiceRepositories,
+    private readonly workEquivalence: WorkEquivalenceService,
     private readonly clock: Clock = utcNow,
     private readonly idGenerator: IdGenerator = generateId
   ) {}
@@ -74,6 +76,12 @@ export class WorkService {
     }
 
     const create = this.db.transaction(() => {
+      this.assertNoEquivalentWork({
+        title: request.title,
+        aliases: request.aliases,
+        externalRefs: request.externalRefs,
+        coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null
+      })
       this.repositories.works.create(work)
 
       if (initialChapter) {
@@ -99,6 +107,20 @@ export class WorkService {
     })
 
     return create.immediate()
+  }
+
+  assertNoEquivalentWork(input: WorkCreationEquivalenceInput): void {
+    const result = this.workEquivalence.evaluateCreation(input)
+    if (result.status !== 'high-confidence') return
+    const { work, signals } = result.candidate
+    const externalIdMatch = signals.includes('external_id')
+    throw new DomainError(externalIdMatch ? 'DUPLICATE_EXTERNAL_REF' : 'DUPLICATE_WORK', externalIdMatch
+      ? 'Este identificador externo já pertence a outra obra.'
+      : 'Esta obra já existe na sua Biblioteca.', {
+      workId: work.id,
+      workTitle: work.title,
+      matchedBy: signals.join(',')
+    })
   }
 
   getWork(input: unknown): Work {

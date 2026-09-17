@@ -11,6 +11,7 @@ import { AlternativeSourceDialog } from '../components/work/AlternativeSourceDia
 import { WorkCover } from '../components/work/WorkCover'
 import { WorkEditorDialog } from '../components/work/WorkEditorDialog'
 import { MetadataRefreshDialog } from '../components/work/MetadataRefreshDialog'
+import { WorkMergeDialog } from '../components/work/WorkMergeDialog'
 import { Button, IconButton } from '../components/ui/Button'
 import { ConfirmDialog, Dialog } from '../components/ui/Dialog'
 import { KeyboardMenu } from '../components/ui/KeyboardMenu'
@@ -40,6 +41,7 @@ export function WorkPage({ id }: { id: string }) {
   const [deleteSource, setDeleteSource] = useState<Source | null>(null)
   const [alternativeSources, setAlternativeSources] = useState<Source[]>([])
   const [trashOpen, setTrashOpen] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const { refreshData } = useAppContext()
   const { showToast } = useToast()
   const returnTarget = getWorkReturnTarget(id)
@@ -126,7 +128,7 @@ export function WorkPage({ id }: { id: string }) {
   }
 
   return <div className="page work-page">
-    <div className="work-page__topbar"><Button variant="ghost" icon="chevron-left" onClick={() => navigateFromWork(id)}>{returnTarget.label}</Button><KeyboardMenu className="work-overflow" label="Mais ações"><button onClick={() => setDialog('edit')}>Editar obra</button>{syncedReference && <button onClick={() => setDialog('metadata')}>Atualizar metadados</button>}<button onClick={() => { setEditingSource(null); setDialog('source') }}>Gerenciar fontes</button><button onClick={() => setDialog('cover')}>Alterar capa</button><button onClick={() => void updateHomeVisibility()}>{work.hiddenFromHome ? 'Mostrar na Home' : 'Ocultar da Home'}</button><button className="is-danger" onClick={() => setTrashOpen(true)}>Mover para Lixeira</button></KeyboardMenu></div>
+    <div className="work-page__topbar"><Button variant="ghost" icon="chevron-left" onClick={() => navigateFromWork(id)}>{returnTarget.label}</Button><KeyboardMenu className="work-overflow" label="Mais ações"><button onClick={() => setDialog('edit')}>Editar obra</button>{syncedReference && <button onClick={() => setDialog('metadata')}>Atualizar metadados</button>}<button onClick={() => { setEditingSource(null); setDialog('source') }}>Gerenciar fontes</button><button onClick={() => setDialog('cover')}>Alterar capa</button><button onClick={() => void updateHomeVisibility()}>{work.hiddenFromHome ? 'Mostrar na Home' : 'Ocultar da Home'}</button><button onClick={() => setMergeOpen(true)}>Mesclar com outra obra</button><button className="is-danger" onClick={() => setTrashOpen(true)}>Mover para Lixeira</button></KeyboardMenu></div>
 
     <header className="work-hero"><WorkCover work={work} /><div className="work-hero__content"><div className="work-title-line"><div><span className="page-kicker">{MEDIA_TYPE_LABELS[work.mediaType]}</span><h1>{work.title}</h1>{originalAlias && <p className="work-original-title">{originalAlias.name}</p>}</div><IconButton icon="star" className={work.favorite ? 'is-favorite' : ''} label={work.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'} onClick={() => void updateFavorite()} /></div><div className="work-meta-line"><span>{MEDIA_TYPE_LABELS[work.mediaType]}</span>{work.startDate && <span>{work.startDate.slice(0, 4)}</span>}{work.publicationStatus && <span>{PUBLICATION_LABELS[work.publicationStatus]}</span>}{syncedReference && <span title={syncedReference.lastSyncedAt ?? undefined}>AniList</span>}</div><label className="status-select"><span>Status pessoal</span><Select label="Status pessoal" value={work.userStatus} onChange={(value) => void updateStatus(value as UserStatus)} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></label></div></header>
 
@@ -153,6 +155,7 @@ export function WorkPage({ id }: { id: string }) {
     {dialog === 'source' && <SourceDialog open work={work} source={editingSource} onClose={() => { setDialog(null); setEditingSource(null) }} onSaved={reload} />}
     {dialog === 'cover' && <CoverDialog open work={work} onClose={() => setDialog(null)} onSaved={reload} />}
     {dialog === 'metadata' && <MetadataRefreshDialog open workId={work.id} onClose={() => setDialog(null)} onSaved={reload} />}
+    <WorkMergeDialog open={mergeOpen} currentWork={work} onClose={() => setMergeOpen(false)} onMerged={(primaryWorkId) => { setMergeOpen(false); refreshData(); showToast({ kind: 'success', message: 'Obras mescladas.' }); if (primaryWorkId === id) { void loadDetails(); void loadHistory() } else navigate(`/work/${primaryWorkId}`) }} />
     {relation && <RelationDialog open kind={relation} work={work} onClose={() => setRelation(null)} onSaved={reload} />}
     <AlternativeSourceDialog open={alternativeSources.length > 0} sources={alternativeSources} onClose={() => setAlternativeSources([])} onOpen={openSource} />
     <Dialog open={collectionsOpen} title="Gerenciar coleções" description="Marque as coleções às quais esta obra pertence." onClose={() => setCollectionsOpen(false)} footer={<><Button onClick={() => { setCollectionsOpen(false); setRelation('collection') }}>Criar coleção</Button><Button variant="primary" onClick={() => setCollectionsOpen(false)}>Concluir</Button></>}><div className="collection-checklist">{details.allCollections.map((collection) => { const checked = details.collections.some((item) => item.id === collection.id); return <label key={collection.id}><input type="checkbox" checked={checked} onChange={(event) => void updateCollection(collection.id, event.target.checked)} /><span>{collection.name}</span></label> })}{details.allCollections.length === 0 && <p className="inline-empty">Nenhuma coleção criada.</p>}</div></Dialog>

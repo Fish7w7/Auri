@@ -70,6 +70,34 @@ export class WorkResolutionRepository {
     return this.map(rows, 'possible')
   }
 
+  findWorksByExternalRef(provider: string, externalId: string): Work[] {
+    const rows = this.db.prepare(`SELECT DISTINCT w.id AS work_id
+      FROM works w JOIN external_refs er ON er.work_id = w.id
+      WHERE w.deleted_at IS NULL AND LOWER(er.provider) = LOWER(?) AND er.external_id = ?
+      ORDER BY w.id`).all(provider, externalId) as Array<{ work_id: string }>
+    return this.mapWorks(rows)
+  }
+
+  findWorksByCreator(normalizedName: string): Work[] {
+    const rows = this.db.prepare(`SELECT DISTINCT w.id AS work_id
+      FROM works w JOIN work_creators wc ON wc.work_id = w.id
+      WHERE w.deleted_at IS NULL AND wc.normalized_name = ?
+      ORDER BY w.id`).all(normalizedName) as Array<{ work_id: string }>
+    return this.mapWorks(rows)
+  }
+
+  findWorksByCoverUrl(coverUrl: string): Work[] {
+    const rows = this.db.prepare(`SELECT w.id AS work_id
+      FROM works w
+      WHERE w.deleted_at IS NULL AND w.cover_type = 'remote' AND w.cover_source_url = ?
+      ORDER BY w.id`).all(coverUrl) as Array<{ work_id: string }>
+    return this.mapWorks(rows)
+  }
+
+  findSourceForWorkByDomain(workId: string, normalizedDomain: string): Source | null {
+    return this.sources.listByWork(workId).find((source) => source.domain.toLocaleLowerCase('en-US') === normalizedDomain) ?? null
+  }
+
   findSourcesForWorkByUrl(workId: string, urls: readonly string[]): Source[] {
     if (!urls.length) return []
     return this.sources.listByWork(workId).filter((source) =>
@@ -85,6 +113,13 @@ export class WorkResolutionRepository {
       const work = this.works.findActiveById(row.work_id)
       if (!work) return []
       return [{ work, source: row.source_id ? this.sources.findById(row.source_id) : null, matchedBy: row.matched_by, confidence }]
+    })
+  }
+
+  private mapWorks(rows: Array<{ work_id: string }>): Work[] {
+    return rows.flatMap((row) => {
+      const work = this.works.findActiveById(row.work_id)
+      return work ? [work] : []
     })
   }
 }

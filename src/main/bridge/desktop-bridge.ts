@@ -18,6 +18,7 @@ export async function startDesktopBridge(options: DesktopBridgeOptions): Promise
   const handlers = createProtocolHandlers({
     appVersion: options.appVersion,
     resolution: options.context.services.resolution,
+    workContext: options.context.services.workContext,
     works: options.context.services.works,
     sources: options.context.services.sources,
     progress: options.context.services.progress,

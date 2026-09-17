@@ -107,6 +107,17 @@ describe('análise segura de páginas por URL', () => {
 })
 
 describe('extração genérica de metadata HTML', () => {
+  it('remove sufixo SEO reconhecido preservando capitalização e acentuação', () => {
+    const result = extractPageMetadata(`
+      <html><head>
+        <meta property="og:site_name" content="MangáD">
+        <meta property="og:title" content="O Retorno do Cão de Caça dos Baskerville - Ler Online Grátis | MangáD...">
+      </head></html>
+    `, 'https://mangad.example/obra/retorno', 'https://mangad.example/obra/retorno')
+
+    expect(result.title).toBe('O Retorno do Cão de Caça dos Baskerville')
+  })
+
   it('descarta metadata global quando uma URL específica colapsa para a homepage', () => {
     const result = extractPageMetadata(`
       <html><head>

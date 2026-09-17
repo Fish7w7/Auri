@@ -36,7 +36,10 @@ import type {
   updateProgressSchema,
   updateSourceSchema,
   updateWorkSchema,
-  workIdSchema
+  workIdSchema,
+  workMergeConflictFieldSchema,
+  workMergePreviewSchema,
+  workMergeExecuteSchema
 } from '@shared/schemas/domain'
 import type {
   ChapterProgress,
@@ -90,6 +93,39 @@ export type BulkHomeVisibilityRequest = z.infer<typeof bulkHomeVisibilitySchema>
 export type BulkTagRequest = z.infer<typeof bulkTagSchema>
 export type BulkCollectionRequest = z.infer<typeof bulkCollectionSchema>
 export type BulkTrashRequest = z.infer<typeof bulkTrashSchema>
+export type WorkMergeConflictField = z.infer<typeof workMergeConflictFieldSchema>
+export type WorkMergePreviewRequest = z.infer<typeof workMergePreviewSchema>
+export type WorkMergeExecuteRequest = z.infer<typeof workMergeExecuteSchema>
+
+export interface WorkMergeConflict {
+  field: WorkMergeConflictField
+  label: string
+  primaryValue: string
+  secondaryValue: string
+  defaultWorkId: string
+}
+
+export interface WorkMergeBlocker {
+  code: 'EXTERNAL_ID_CONFLICT' | 'SOURCE_IDENTITY_AMBIGUOUS'
+  message: string
+}
+
+export interface WorkMergePreview {
+  primary: Work
+  secondary: Work
+  totals: Record<'sources' | 'aliases' | 'externalRefs' | 'creators' | 'genres' | 'tags' | 'collections' | 'history', number>
+  aliasesToAdd: string[]
+  automaticActions: string[]
+  conflicts: WorkMergeConflict[]
+  blockers: WorkMergeBlocker[]
+  preferredSourceOptions: Array<{ id: string; name: string; workId: string }>
+  defaultPreferredSourceId: string | null
+}
+
+export interface WorkMergeResult {
+  work: Work
+  removedWorkId: string
+}
 
 export interface BulkOperationResult {
   affectedIds: string[]
@@ -166,6 +202,8 @@ export interface DomainApi {
     listTrash(): Promise<Work[]>
     restore(request: WorkIdRequest): Promise<Work>
     deletePermanently(request: WorkIdRequest): Promise<void>
+    previewMerge(request: WorkMergePreviewRequest): Promise<WorkMergePreview>
+    merge(request: WorkMergeExecuteRequest): Promise<WorkMergeResult>
   }
   progress: {
     get(request: WorkIdRequest): Promise<ProgressState>

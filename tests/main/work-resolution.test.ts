@@ -5,7 +5,7 @@ import { createDomainFixture, createMinimalWork } from '../fixtures/domain-fixtu
 
 const fixtures: Array<ReturnType<typeof createDomainFixture>> = []
 afterEach(() => { for (const fixture of fixtures.splice(0)) fixture.db.close() })
-function setup() { const fixture = createDomainFixture(); fixtures.push(fixture); return { fixture, resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db), fixture.services.sourceIdentity) } }
+function setup() { const fixture = createDomainFixture(); fixtures.push(fixture); return { fixture, resolution: new WorkResolutionService(new WorkResolutionRepository(fixture.db), fixture.services.sourceIdentity, fixture.services.workEquivalence) } }
 
 describe('WorkResolutionService', () => {
   it('prioriza Source URL/canonical exata sem alterar status ou lastUsedAt', () => {
@@ -154,5 +154,62 @@ describe('WorkResolutionService', () => {
     createMinimalWork(fixture, 'A Lenda do Norte: Retorno')
     expect(resolution.resolve({ url: 'https://example.com', title: 'Lenda do Norte' })).toMatchObject({ status: 'ambiguous', candidates: expect.arrayContaining([expect.objectContaining({ match: { confidence: 'possible', matchedBy: 'title' } })]) })
     expect(resolution.resolve({ url: 'https://example.com', title: 'Obra inexistente' })).toEqual({ status: 'not_found' })
+  })
+
+  it('não confunde títulos semelhantes entre ToonLivre e Nexus sem sinal forte', () => {
+    const { fixture, resolution } = setup()
+    const work = createMinimalWork(fixture, 'O Retorno do Cão de Caça dos Baskerville', '180')
+    fixture.services.sources.createSource({
+      workId: work.id,
+      name: 'ToonLivre',
+      seriesUrl: 'https://toonlivre.net/o-retorno-do-cao-de-caca-dos-baskerville'
+    })
+
+    expect(resolution.resolve({
+      url: 'https://nexusmangas.com/a-vinganca-do-cao-de-caca-dos-baskerville/179',
+      title: 'A Vingança do Cão de Caça dos Baskerville | NexusMangás',
+      siteName: 'NexusMangás'
+    })).toEqual({ status: 'not_found' })
+  })
+
+  it('resolve outra source por alias exato, remove sufixos técnicos e deixa vínculo explícito', () => {
+    const { fixture, resolution } = setup()
+    const work = createMinimalWork(fixture, 'O Retorno do Cão de Caça dos Baskerville', '180')
+    fixture.services.sources.createSource({
+      workId: work.id,
+      name: 'ToonLivre',
+      seriesUrl: 'https://toonlivre.net/o-retorno-do-cao-de-caca-dos-baskerville'
+    })
+    fixture.services.details.createAlias({
+      workId: work.id,
+      name: 'A Vingança do Cão de Caça dos Baskerville'
+    })
+    const page = {
+      url: 'https://nexusmangas.com/a-vinganca-do-cao-de-caca-dos-baskerville/179',
+      title: 'A Vingança do Cão de Caça dos Baskerville - Capítulo 179 | NexusMangás',
+      siteName: 'NexusMangás',
+      detectedChapter: { value: '179', numericValue: 179, confidence: 'high' as const, source: 'url' as const }
+    }
+
+    expect(resolution.resolve(page)).toMatchObject({
+      status: 'matched', work: { id: work.id }, match: { matchedBy: 'alias', confidence: 'high' }
+    })
+    expect(fixture.services.workContext.getContext({ workId: work.id, page }).source).toEqual({ state: 'unlinked' })
+    expect(fixture.repositories.sources.listByWork(work.id)).toHaveLength(1)
+
+    const source = fixture.services.sources.createSource({
+      workId: work.id,
+      name: 'NexusMangás',
+      seriesUrl: page.url
+    }, {
+      pageUrl: page.url,
+      detectedChapter: page.detectedChapter,
+      title: page.title,
+      domain: 'nexusmangas.com'
+    })
+    expect(fixture.services.workContext.getContext({ workId: work.id, page }).source).toMatchObject({
+      state: 'linked', matchedSourceId: source.id
+    })
+    expect(fixture.repositories.sources.listByWork(work.id)).toHaveLength(2)
   })
 })

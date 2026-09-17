@@ -37,7 +37,9 @@ export const domainApi: Omit<AuriApi, 'system' | 'settings' | 'desktopCommands' 
     trash: (request) => invoke(IPC_CHANNELS.works.trash, request),
     listTrash: () => invoke(IPC_CHANNELS.works.listTrash),
     restore: (request) => invoke(IPC_CHANNELS.works.restore, request),
-    deletePermanently: (request) => invoke(IPC_CHANNELS.works.deletePermanently, request)
+    deletePermanently: (request) => invoke(IPC_CHANNELS.works.deletePermanently, request),
+    previewMerge: (request) => invoke(IPC_CHANNELS.works.previewMerge, request),
+    merge: (request) => invoke(IPC_CHANNELS.works.merge, request)
   },
   progress: {
     get: (request) => invoke(IPC_CHANNELS.progress.get, request),

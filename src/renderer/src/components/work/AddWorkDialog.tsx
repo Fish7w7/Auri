@@ -97,7 +97,7 @@ export function createExternalDraftForm(draft: DesktopAddWorkDraft): WorkFormSta
 export function duplicateSourceNotice(error: unknown): { workId: string; workTitle: string } | null {
   if (!error || typeof error !== 'object' || !('error' in error)) return null
   const shape = (error as { error?: { code?: string; details?: Record<string, unknown> } }).error
-  if (shape?.code !== 'DUPLICATE_SOURCE' || typeof shape.details?.workId !== 'string') return null
+  if (!['DUPLICATE_SOURCE', 'DUPLICATE_WORK', 'DUPLICATE_EXTERNAL_REF'].includes(shape?.code ?? '') || typeof shape?.details?.workId !== 'string') return null
   return {
     workId: shape.details.workId,
     workTitle: typeof shape.details.workTitle === 'string' ? shape.details.workTitle : 'Obra existente'

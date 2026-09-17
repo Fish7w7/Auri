@@ -64,6 +64,13 @@ export class WorkDetailsService {
     const sourceIdentityContext = this.createSourceIdentityContext(request)
     const operation = this.db.transaction(() => {
       if (request.source) this.sourcesService.assertExternalDraftSourceAvailable(request.source, sourceIdentityContext)
+      this.worksService.assertNoEquivalentWork({
+        title: request.title,
+        aliases: request.aliases,
+        externalRefs: request.externalRefs,
+        creators: request.creators,
+        coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null
+      })
       const hasExplicitSourceProgress = request.source !== undefined && request.chapter !== null && request.chapter !== undefined
       const work = this.worksService.createWork(hasExplicitSourceProgress ? { ...request, chapter: null } : request)
       for (const creator of request.creators ?? []) this.createCreatorRecord(work.id, creator)
