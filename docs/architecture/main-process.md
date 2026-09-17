@@ -30,6 +30,12 @@ O processo principal do Auri usa um entrypoint mínimo. `src/main/index.ts` conf
 
 A segunda instância nunca cria outra janela. Argumentos de inicialização silenciosa do Native Bridge não ativam a interface; uma abertura comum restaura a janela existente. O fluxo interativo `desktop.openAddWork` continua usando a ativação reforçada do Windows, enquanto notificações silenciosas não solicitam foco.
 
+## Mesclagem local de obras
+
+`WorkMergeService` implementa a ação explícita de mesclar duas obras sem envolver Protocol, Extension ou Desktop Bridge. A preview é somente leitura e separa uniões automáticas, escolhas do usuário e bloqueadores, como IDs externos contraditórios do mesmo provedor.
+
+Na execução, a obra Primary conserva ID, título e preferências próprias; relações da Secondary são transferidas ou deduplicadas. O plano é recalculado em uma transação SQLite `IMMEDIATE`, a Secondary é removida permanentemente somente depois das verificações finais e qualquer falha causa rollback. Antes da transação, `BackupService.runProtected` exige um backup `before_merge`; falha no backup impede a operação. `recentWorkIds`, único setting persistido que referencia Work, é normalizado para a Primary e restaurado por compensação se o commit falhar.
+
 ## Limites preservados
 
 O bootstrap não altera contratos de IPC, Protocol, Native Host, schema ou formatos persistidos. O Desktop Bridge mantém framing, autenticação e capabilities nos módulos existentes. Updater e backup continuam serviços do `AppContext`; o bootstrap apenas dispara as tarefas que já pertenciam ao startup.

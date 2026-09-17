@@ -6,6 +6,20 @@ Cada frame possui um prefixo unsigned de 4 bytes little-endian seguido por JSON 
 
 Depois do handshake, a conexão aceita múltiplos `ProtocolRequest` v1. O pipe não é uma API pública para terceiros; ele é o transporte local usado pelo Auri Native Host. Node não oferece uma ACL Windows explícita e portátil para Named Pipes, portanto a integração combina endpoint por usuário/perfil com secret e HMAC.
 
+## Contexto de leitura
+
+O Desktop 1.14 usa `@auri/protocol` 0.2.0 e anuncia `work.context` somente quando o handler está registrado. O método recebe uma obra previamente identificada por `work.resolve` e consulta progresso, relação com o capítulo da página, vínculo da source e uma URL persistida para continuar. A consulta é read-only: não altera progresso, histórico, source, datas ou recentes.
+
+`continueTarget` existe apenas quando uma source possui `last_read_url` HTTP(S) real. O Desktop nunca monta uma URL concatenando `series_url` e capítulo. `linked`, `unlinked` e `ambiguous` reutilizam a mesma source identity usada por `work.resolve`; canonical conflitante e evidência insuficiente permanecem ambíguos.
+
+Source Identity e Work Equivalence têm responsabilidades separadas. `SourceIdentityService` decide se uma URL pertence a uma source já cadastrada, inclusive a relação entre páginas raiz e capítulos irmãos. Somente quando essa etapa não encontra vínculo, `WorkEquivalenceService` procura uma Work equivalente usando os dados já persistidos.
+
+No `work.resolve`, título primário ou alias com igualdade exata após normalização segura podem identificar a Work; sufixos técnicos de capítulo e do site são removidos somente quando reconhecíveis. Similaridade parcial de título serve apenas para produzir candidatos ambíguos e nunca é prova para resolver, bloquear cadastro ou adicionar uma source. O fluxo cross-source não cria vínculo automaticamente: a Work reconhecida chega a `work.context` como `source.state = unlinked`, e somente uma ação explícita `source.add` cadastra a nova fonte.
+
+Durante a criação, IDs externos iguais e aliases exatos são sinais fortes. Título primário igual, creator e cover são apenas corroboradores; creator ou cover isolados e fuzzy title nunca impedem cadastro. A verificação é repetida dentro da transação `IMMEDIATE`, junto das proteções de duplicidade de source. O schema permanece 3 e nenhum fingerprint adicional é persistido.
+
+O `PROTOCOL_VERSION` continua 1. A mudança é aditiva, portanto a Extension 0.2 continua usando os métodos anteriores e ignora a capability nova. O Native Host apenas transporta a nova mensagem pelo framing e autenticação existentes.
+
 ## Native Host
 
 `AuriNativeHost.exe` é um executável Windows standalone gerado por `npm run build:native-host` com Node SEA. Ele implementa somente o transporte entre o Native Messaging do navegador e o Named Pipe autenticado do Desktop: não acessa banco, repositórios nem serviços da aplicação.
@@ -22,7 +36,7 @@ O host apenas lê `native-bridge/secret`; a criação e a posse do secret contin
 
 O instalador inclui `AuriNativeHost.exe` em `<installDir>\resources\native-host`. Depois de extrair os arquivos, o NSIS cria `app.auri.native_host.json` no mesmo diretório com o caminho absoluto do executável e registra `app.auri.native_host` em HKCU para Chrome, Edge e Brave. Updates substituem o executável, regeneram o manifest e reescrevem os três registros para o caminho atual.
 
-Na 1.12.0, `build/native-host/production.config.json` ativa a configuração oficial Embedded. Os IDs vêm de `build/browser-extension.config.json`: Edge `alnngjgmhiebpnjefjmhbhmhfpgoibnh` e Embedded `agefiaohfielfgadiagemnflekbboblp`. O manifest autoriza exatamente:
+Na 1.14.0, `build/native-host/production.config.json` ativa a configuração oficial Embedded. Os IDs vêm de `build/browser-extension.config.json`: Edge `alnngjgmhiebpnjefjmhbhmhfpgoibnh` e Embedded `agefiaohfielfgadiagemnflekbboblp`. O manifest autoriza exatamente:
 
 ```json
 [

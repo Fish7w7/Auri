@@ -1,8 +1,8 @@
-# Extensão do navegador — Desktop 1.13.0
+# Extensão do navegador - Desktop 1.14.0
 
 ## Desenvolvimento local
 
-Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.2.0 e sua metadata ficam em `Auri-Extension/release/`.
+Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.3.0 e sua metadata ficam em `Auri-Extension/release/`.
 
 Com os inputs disponíveis, na raiz do Desktop:
 
@@ -45,7 +45,7 @@ Se uma ação falhar, o guia permanece disponível e o toast identifica a etapa.
 
 ## Entrada e build reproduzível
 
-`build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.2.0 é `../Auri-Extension/release/auri-extension-0.2.0-embedded.zip`, com metadata no `.json` de mesmo nome.
+`build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.3.0 é `../Auri-Extension/release/auri-extension-0.3.0-embedded.zip`, com metadata no `.json` de mesmo nome.
 
 - ZIP SHA-256: `35a8ad1e0c662285ba3c1e9259d9e852c3b52cdc66e9454458f1b42fddeddade`.
 - Metadata SHA-256: `82e7562af7a640111e66ecfab60d83ea2de19b14bebdd19eece070517764faec`.
@@ -108,7 +108,7 @@ A UI informa detecção de navegador e disponibilidade do Embedded, sem alegar e
 4. Fazer typecheck, build app e Native Host, gerar dist local e inspecionar os bytes extraídos do Setup contra o ZIP oficial.
 5. Validar manualmente atualização no mesmo installDir. O navegador pode exigir **Recarregar**; não automatizar essa ação.
 
-Desktop 1.13.0 mantém schema 3, suporte 1–3, @auri/protocol 0.1.3 e protocolVersion 1, sem migrations nem capabilities novas.
+Desktop 1.14.0 mantém schema 3, suporte 1–3 e protocolVersion 1. A dependência `@auri/protocol` 0.2.0 acrescenta `work.context` de forma aditiva; a Extension Embedded 0.3.0 usa esse contrato e os hosts DEV/PROD permanecem os mesmos.
 
 ## Auditoria local do Setup
 

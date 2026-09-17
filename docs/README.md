@@ -1,6 +1,6 @@
 # Documentação do Auri
 
-Este índice reúne os guias mantidos no repositório. A versão atual do Desktop é **1.13.0**, com **Auri Extension Embedded 0.2.0**, schema **3** e compatibilidade com schemas **1–3**.
+Este índice reúne os guias mantidos no repositório. A versão em desenvolvimento do Desktop é **1.14.0**, com **Auri Extension Embedded 0.3.0**, schema **3** e compatibilidade com schemas **1–3**.
 
 As fontes dessas informações são o [package.json](../package.json), a [configuração Embedded](../build/browser-extension.config.json) e a [compatibilidade de schema](../schema-compatibility.json).
 
@@ -23,6 +23,7 @@ As fontes dessas informações são o [package.json](../package.json), a [config
 
 ## Releases
 
+- [Auri 1.14.0](releases/1.14.0.md): integração com navegador 2.0, contexto de leitura, reconhecimento entre fontes e mesclagem de obras.
 - [Auri 1.13.0](releases/1.13.0.md): Home personalizável, coleções fixadas, Recentes e busca rápida global.
 - [Auri 1.12.0](releases/1.12.0.md): extensão incluída, instalação guiada e uso da instância existente do navegador.
 - [Releases no GitHub](https://github.com/Fish7w7/Auri/releases): consulte os arquivos e as notas disponibilizados em cada release.
