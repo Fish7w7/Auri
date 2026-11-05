@@ -10,6 +10,7 @@ import { MainWindowController } from '../windows/main-window-controller'
 import type { MainProcessEnvironment } from './environment'
 import { startApplicationBackgroundTasks } from './background-tasks'
 import { showStartupRecovery } from './startup-recovery'
+import { assertE2EUserData } from '../app/e2e-user-data'
 
 type SmokeRuntime = typeof import('../smoke/smoke-runtime')
 
@@ -28,6 +29,7 @@ export class MainProcessRuntime {
 
   async start(): Promise<void> {
     try {
+      if (this.environment.e2eUserDataPath) assertE2EUserData(this.app, this.environment.e2eUserDataPath)
       this.smoke = this.environment.isAutomatedRuntime ? await import('../smoke/smoke-runtime') : null
       this.context = await createAppContext(
         this.app,
@@ -67,6 +69,12 @@ export class MainProcessRuntime {
 
       this.smoke?.registerSmokeRunners(mainWindow, this.environment)
     } catch (error) {
+      if (this.environment.e2eUserDataPath) {
+        this.dispose()
+        console.error('[auri:e2e] Inicialização interrompida; sem fallback ou recuperação automática.', error)
+        this.app.exit(1)
+        throw error
+      }
       await showStartupRecovery(error)
     }
   }

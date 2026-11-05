@@ -17,9 +17,11 @@ const dependencies = vi.hoisted(() => ({
     create: vi.fn(), getWindow: vi.fn(), activateExisting: vi.fn(),
     createIfMissing: vi.fn(), beginQuit: vi.fn(), dispose: vi.fn()
   },
-  showStartupRecovery: vi.fn()
+  showStartupRecovery: vi.fn(),
+  assertE2EUserData: vi.fn()
 }))
 
+vi.mock('@main/app/e2e-user-data', () => ({ assertE2EUserData: dependencies.assertE2EUserData }))
 vi.mock('@main/app/create-app-context', () => ({ createAppContext: vi.fn(async () => dependencies.context) }))
 vi.mock('@main/ipc/register-ipc-handlers', () => ({ registerIpcHandlers: vi.fn(() => dependencies.unregisterIpc) }))
 vi.mock('@main/bridge/desktop-bridge', () => ({ startDesktopBridge: vi.fn(async () => dependencies.bridge) }))
@@ -57,6 +59,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   dependencies.windowController.create.mockReturnValue(dependencies.window)
   dependencies.windowController.getWindow.mockReturnValue(dependencies.window)
+  dependencies.assertE2EUserData.mockReset()
 })
 
 describe('runtime do processo principal', () => {
@@ -70,6 +73,22 @@ describe('runtime do processo principal', () => {
     expect(registerIpcHandlers).toHaveBeenCalledOnce()
     expect(dependencies.windowController.create).toHaveBeenCalledOnce()
     expect(startDesktopBridge).toHaveBeenCalledOnce()
+  })
+
+  it('valida o perfil E2E antes dos serviços e não usa recovery se a guarda falha', async () => {
+    const app = createApp()
+    const failure = new Error('perfil E2E mudou')
+    dependencies.assertE2EUserData.mockImplementation(() => { throw failure })
+    const runtime = new MainProcessRuntime(app as never, { ...environment, e2eUserDataPath: 'perfil-sintetico' })
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await expect(runtime.start()).rejects.toThrow(failure)
+      expect(createAppContext).not.toHaveBeenCalled()
+      expect(registerIpcHandlers).not.toHaveBeenCalled()
+      expect(startDesktopBridge).not.toHaveBeenCalled()
+      expect(dependencies.showStartupRecovery).not.toHaveBeenCalled()
+      expect(app.exit).toHaveBeenCalledWith(1)
+    } finally { stderr.mockRestore() }
   })
 
   it('preserva a intenção da segunda instância e limpa recursos uma vez', async () => {
@@ -97,6 +116,7 @@ function createApp() {
     getPath: () => 'C:\\Auri',
     isPackaged: false,
     focus: vi.fn(),
-    quit: vi.fn()
+    quit: vi.fn(),
+    exit: vi.fn()
   }
 }

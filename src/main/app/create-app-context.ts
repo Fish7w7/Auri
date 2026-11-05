@@ -52,6 +52,7 @@ import { SourceIdentityService } from '../services/source-identity-service'
 import { WorkContextService } from '../services/work-context-service'
 import { WorkEquivalenceService } from '../services/work-equivalence-service'
 import { WorkMergeService } from '../services/work-merge-service'
+import { assertE2EUserData } from './e2e-user-data'
 
 export interface AppContext {
   readonly database: DatabaseConnection
@@ -90,6 +91,8 @@ export interface CreateAppContextOptions {
 }
 
 export async function createAppContext(app: App, options: CreateAppContextOptions = {}): Promise<AppContext> {
+  const e2eUserDataPath = assertE2EUserData(app)
+  if (e2eUserDataPath) console.info(`[auri:e2e] userData confirmado antes dos serviços: ${e2eUserDataPath}`)
   const paths = resolveDataPaths(app.getPath('userData'))
   const logger = new JsonLogger(join(paths.logs, CURRENT_LOG_FILE_NAME), !app.isPackaged)
   assertDatabaseSchemaSupported(paths.database, SUPPORTED_SCHEMA_VERSION)

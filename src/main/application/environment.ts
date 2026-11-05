@@ -4,6 +4,7 @@ import { APP_BRAND } from '@shared/constants/app-branding'
 import { APP_USER_MODEL_ID } from '../app/app-identity'
 import { isNativeBridgeStartup } from '../app/native-bridge-startup'
 import { separateDevelopmentUserData } from '../app/user-data-path'
+import { configureE2EUserData, E2E_USER_DATA_VARIABLE } from '../app/e2e-user-data'
 
 export interface MainProcessEnvironment {
   isApplicationSmoke: boolean
@@ -15,13 +16,23 @@ export interface MainProcessEnvironment {
   isReleaseDataSmoke: boolean
   isAutomatedRuntime: boolean
   isNativeBridgeStart: boolean
+  e2eUserDataPath?: string
 }
 
-export function configureMainProcessEnvironment(app: App, commandLine: readonly string[]): MainProcessEnvironment {
+export function configureMainProcessEnvironment(
+  app: App,
+  commandLine: readonly string[],
+  variables: NodeJS.ProcessEnv = process.env
+): MainProcessEnvironment {
   const environment = resolveMainProcessEnvironment(commandLine)
+  const requestedProfile = variables[E2E_USER_DATA_VARIABLE]
+  if (requestedProfile !== undefined && (app.isPackaged || environment.isAutomatedRuntime)) {
+    throw new Error(`${E2E_USER_DATA_VARIABLE}: use somente DEV normal, sem instalação empacotada ou runners de smoke.`)
+  }
 
   app.setName(APP_BRAND.name)
-  separateDevelopmentUserData(app)
+  const e2eUserDataPath = configureE2EUserData(app, requestedProfile)
+  if (!e2eUserDataPath) separateDevelopmentUserData(app)
   app.setAppUserModelId(APP_USER_MODEL_ID)
 
   if (environment.isAutomatedRuntime) {
@@ -30,7 +41,7 @@ export function configureMainProcessEnvironment(app: App, commandLine: readonly 
     app.setPath('userData', join(app.getPath('temp'), resolveAutomatedUserDataDirectory(environment)))
   }
 
-  return environment
+  return e2eUserDataPath ? { ...environment, e2eUserDataPath } : environment
 }
 
 export function resolveMainProcessEnvironment(commandLine: readonly string[]): MainProcessEnvironment {
