@@ -1,10 +1,10 @@
 {
-  "zipPath": "../Auri-Extension/release/auri-extension-0.3.0-embedded.zip",
-  "metadataPath": "../Auri-Extension/release/auri-extension-0.3.0-embedded.json",
-  "sha256": "de103c4df7b73b0d0dedc81d4f0aec9d27a29f31ed1c43ef6661725a76e6e515",
-  "metadataSha256": "005e2dd0ca0af256025d8a0c8761cd644ccb9ee7cbd729fa9bae4d40dccf9939",
+  "zipPath": "../Auri-Extension/release/auri-extension-0.3.1-embedded.zip",
+  "metadataPath": "../Auri-Extension/release/auri-extension-0.3.1-embedded.json",
+  "sha256": "a3781628fd5a8b74f09a66b40b7f0d76a6ef2ea77b7048e03e02c83c731eb231",
+  "metadataSha256": "95eadbac1bb226a981f602aec432fd37089012fd24291ab3439fc0109cf6eccc",
   "publicKeySha256": "064580e7584b56038064cd5b4a11e1bfde8ddf403a06cc974d2d63c59b7e155b",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "extensionId": "agefiaohfielfgadiagemnflekbboblp",
   "edgeExtensionId": "alnngjgmhiebpnjefjmhbhmhfpgoibnh",
   "edgeStoreUrl": "https://microsoftedge.microsoft.com/addons/detail/auri/alnngjgmhiebpnjefjmhbhmhfpgoibnh"

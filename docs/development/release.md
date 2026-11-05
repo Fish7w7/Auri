@@ -6,7 +6,7 @@ O [package.json](../../package.json) define a versão do Auri. Os comandos `npm 
 
 Use Windows x64, Node.js 22.12 ou mais recente e as dependências do lockfile. Disponibilize o ZIP e a metadata oficiais da Extension Embedded nos caminhos definidos em [browser-extension.config.json](../../build/browser-extension.config.json). Consulte [desenvolvimento local](browser-extension.md#desenvolvimento-local) para o layout dos repositórios e a preparação inicial.
 
-A preparação valida os hashes dos inputs, a chave pública, o ID Embedded, a versão, os arquivos, as permissões, os locales e o host PROD. A 1.14.0 usa Embedded 0.3.0 com ID `agefiaohfielfgadiagemnflekbboblp`.
+A preparação valida os hashes dos inputs, a chave pública, o ID Embedded, a versão, os arquivos, as permissões, os locales e o host PROD. A 1.14.0 usa Embedded 0.3.1 com ID `agefiaohfielfgadiagemnflekbboblp`.
 
 ## Native Host de produção
 
@@ -57,7 +57,7 @@ Para auditar sem executar o instalador:
 node scripts/release/verify-local-artifacts.mjs '<caminho-do-7za.exe>'
 ```
 
-O verificador extrai o Setup como dados em `artifacts/release-audit/1.14.0/`. Confere os dez arquivos Embedded contra o ZIP oficial, versão 0.3.0, chave/ID, locales en e pt_BR, Native Host PROD, bundles do ASAR contra `out/`, cabeçalho NSIS, as duas origins, registros previstos, updater e blockmap. A comparação do ASAR exige que `out/` ainda corresponda ao build empacotado.
+O verificador extrai o Setup como dados em `artifacts/release-audit/1.14.0/`. Confere os dez arquivos Embedded contra o ZIP oficial, versão 0.3.1, chave/ID, locales en e pt_BR, Native Host PROD, bundles do ASAR contra `out/`, cabeçalho NSIS, as duas origins, registros previstos, updater e blockmap. A comparação do ASAR exige que `out/` ainda corresponda ao build empacotado.
 
 O processo gera `report.json`, `extraction.txt`, `nsis-header.bin` e `extracted/`; apenas extrair esses dados não instala o aplicativo nem altera Registry ou AppData. A assinatura deve ser conferida separadamente com `Get-AuthenticodeSignature` para Setup, Auri e Native Host. Sem certificado configurado, o esperado é `NotSigned`.
 

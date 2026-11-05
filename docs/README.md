@@ -1,6 +1,6 @@
 # Documentação do Auri
 
-Este índice reúne os guias mantidos no repositório. A versão em desenvolvimento do Desktop é **1.14.0**, com **Auri Extension Embedded 0.3.0**, schema **3** e compatibilidade com schemas **1–3**.
+Este índice reúne os guias mantidos no repositório. A versão em desenvolvimento do Desktop é **1.14.0**, com **Auri Extension Embedded 0.3.1**, schema **3** e compatibilidade com schemas **1–3**.
 
 As fontes dessas informações são o [package.json](../package.json), a [configuração Embedded](../build/browser-extension.config.json) e a [compatibilidade de schema](../schema-compatibility.json).
 

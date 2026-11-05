@@ -2,7 +2,7 @@
 
 ## Desenvolvimento local
 
-Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.3.0 e sua metadata ficam em `Auri-Extension/release/`.
+Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.3.1 e sua metadata ficam em `Auri-Extension/release/`.
 
 Com os inputs disponíveis, na raiz do Desktop:
 
@@ -45,10 +45,10 @@ Se uma ação falhar, o guia permanece disponível e o toast identifica a etapa.
 
 ## Entrada e build reproduzível
 
-`build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.3.0 é `../Auri-Extension/release/auri-extension-0.3.0-embedded.zip`, com metadata no `.json` de mesmo nome.
+`build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.3.1 é `../Auri-Extension/release/auri-extension-0.3.1-embedded.zip`, com metadata no `.json` de mesmo nome.
 
-- ZIP SHA-256: `de103c4df7b73b0d0dedc81d4f0aec9d27a29f31ed1c43ef6661725a76e6e515`.
-- Metadata SHA-256: `005e2dd0ca0af256025d8a0c8761cd644ccb9ee7cbd729fa9bae4d40dccf9939`.
+- ZIP SHA-256: `a3781628fd5a8b74f09a66b40b7f0d76a6ef2ea77b7048e03e02c83c731eb231`.
+- Metadata SHA-256: `95eadbac1bb226a981f602aec432fd37089012fd24291ab3439fc0109cf6eccc`.
 - Fingerprint SHA-256 da chave pública: `064580e7584b56038064cd5b4a11e1bfde8ddf403a06cc974d2d63c59b7e155b`.
 - ID Embedded: `agefiaohfielfgadiagemnflekbboblp`.
 - Origin Embedded: `chrome-extension://agefiaohfielfgadiagemnflekbboblp/`.
@@ -108,7 +108,7 @@ A UI informa detecção de navegador e disponibilidade do Embedded, sem alegar e
 4. Fazer typecheck, build app e Native Host, gerar dist local e inspecionar os bytes extraídos do Setup contra o ZIP oficial.
 5. Validar manualmente atualização no mesmo installDir. O navegador pode exigir **Recarregar**; não automatizar essa ação.
 
-Desktop 1.14.0 mantém schema 3, suporte 1–3 e protocolVersion 1. A dependência `@auri/protocol` 0.2.0 acrescenta `work.context` de forma aditiva; a Extension Embedded 0.3.0 usa esse contrato e os hosts DEV/PROD permanecem os mesmos.
+Desktop 1.14.0 mantém schema 3, suporte 1–3 e protocolVersion 1. A dependência `@auri/protocol` 0.2.0 acrescenta `work.context` de forma aditiva; a Extension Embedded 0.3.1 usa esse contrato e os hosts DEV/PROD permanecem os mesmos.
 
 ## Auditoria local do Setup
 

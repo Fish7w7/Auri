@@ -16,7 +16,7 @@ describe('input Embedded oficial validado independentemente da metadata', () => 
   it('confere hashes, identidade, locales e inventário do ZIP real', () => {
     expect(sha256(zip)).toBe(config.sha256)
     expect(sha256(metadata)).toBe(config.metadataSha256)
-    expect(official.metadata).toMatchObject({ version: '0.3.0', extensionId: 'agefiaohfielfgadiagemnflekbboblp', filesCount: 10 })
+    expect(official.metadata).toMatchObject({ version: '0.3.1', extensionId: 'agefiaohfielfgadiagemnflekbboblp', filesCount: 10 })
     expect(manifest).toMatchObject({ manifest_version: 3, default_locale: 'en', permissions: ['activeTab', 'scripting', 'nativeMessaging'] })
     expect(official.files.has('_locales/pt_BR/messages.json')).toBe(true)
   })
