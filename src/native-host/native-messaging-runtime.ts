@@ -16,6 +16,7 @@ import type { NativeHostTransport } from './desktop-connector'
 export class NativeMessagingRuntime {
   private readonly decoder = new LengthPrefixedJsonDecoder()
   private closed = false
+  private started = false
 
   constructor(
     private readonly input: Readable,
@@ -25,6 +26,11 @@ export class NativeMessagingRuntime {
   ) {}
 
   start(): void {
+    if (this.started || this.closed) return
+    this.started = true
+    releaseClosedStreamGuard(this.input)
+    releaseClosedStreamGuard(this.output)
+    this.output.on('error', this.onOutputError)
     this.input.on('data', this.onData)
     this.input.once('end', this.onEnd)
     this.input.once('error', this.onInputError)
@@ -35,8 +41,17 @@ export class NativeMessagingRuntime {
     if (this.closed) return
     this.closed = true
     this.input.removeListener('data', this.onData)
+    this.input.removeListener('end', this.onEnd)
+    this.input.removeListener('error', this.onInputError)
+    this.output.removeListener('error', this.onOutputError)
+    // Do not destroy/end streams owned by the caller or pause another consumer.
+    if (this.input.listenerCount('data') === 0) this.input.pause()
+    guardClosedStream(this.input)
+    guardClosedStream(this.output)
     this.transport.close()
   }
+
+  private readonly onOutputError = (): void => { this.close() }
 
   private readonly onData = (chunk: Buffer): void => {
     if (this.closed) return
@@ -115,3 +130,20 @@ function invalidRequestResponse(input: unknown): ProtocolResponse {
 
 export type { ProtocolRequest }
 
+
+// A queued stream error still needs a listener after runtime handlers are detached.
+// Shared, bounded until close, and never captures a NativeMessagingRuntime instance.
+const closedStreamGuards = new WeakMap<Readable | Writable, () => void>()
+const ignoreClosedStreamError = (): void => undefined
+function releaseClosedStreamGuard(stream: Readable | Writable): void { closedStreamGuards.get(stream)?.() }
+function guardClosedStream(stream: Readable | Writable): void {
+  if (stream.closed || stream.listenerCount('error') !== 0) return
+  const release = (): void => {
+    stream.removeListener('error', ignoreClosedStreamError)
+    stream.removeListener('close', release)
+    closedStreamGuards.delete(stream)
+  }
+  closedStreamGuards.set(stream, release)
+  stream.on('error', ignoreClosedStreamError)
+  stream.once('close', release)
+}

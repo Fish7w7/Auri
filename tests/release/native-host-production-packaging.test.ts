@@ -38,7 +38,7 @@ describe('pipeline de empacotamento do Native Host PROD', () => {
 
   it('faz o build PROD falhar se o executável conservar referências DEV', () => {
     const buildScript = readFileSync(join(process.cwd(), 'scripts', 'build', 'build-native-host.mjs'), 'utf8')
-    expect(buildScript).toContain("if (mode === 'prod') assertProductionExecutable(executablePath)")
+    expect(buildScript).toContain("if (mode === 'prod') assertProductionExecutable(temporaryExecutable)")
     expect(buildScript).toContain("'app.auri.native_host.dev', 'AuriNativeHostDev.exe', 'Auri-Dev'")
   })
 

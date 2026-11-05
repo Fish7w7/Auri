@@ -72,3 +72,43 @@ function decodeAll(chunks: Buffer[]): ProtocolResponse[] {
   const decoder = new LengthPrefixedJsonDecoder()
   return decoder.push(Buffer.concat(chunks)) as ProtocolResponse[]
 }
+
+// Shutdown owns its handlers, never the caller's stream lifetime.
+describe('NativeMessagingRuntime shutdown', () => {
+  it('close é idempotente, pausa entrada sem consumidores e ignora novos frames', async () => {
+    const input = new PassThrough(), output = new PassThrough(), transport = { forward: vi.fn(), close: vi.fn() }
+    const runtime = new NativeMessagingRuntime(input, output, transport, logger)
+    runtime.start(); runtime.start(); expect(input.listenerCount('data')).toBe(1)
+    runtime.close(); runtime.close(); runtime.start()
+    expect(input.listenerCount('data')).toBe(0); expect(input.listenerCount('end')).toBe(0); expect(input.readableFlowing).toBe(false)
+    expect(input.destroyed).toBe(false); expect(output.destroyed).toBe(false); expect(transport.close).toHaveBeenCalledOnce()
+    input.write(encodeLengthPrefixedJson(helloRequest('after-close'))); await new Promise(r => setImmediate(r)); expect(transport.forward).not.toHaveBeenCalled()
+    // A shared late-error guard is intentionally retained until stream close, not a runtime callback.
+    expect(() => input.emit('error', new Error('queued late input'))).not.toThrow()
+    expect(() => output.emit('error', new Error('queued late output'))).not.toThrow()
+    input.destroy(); output.destroy(); await new Promise(r => setImmediate(r))
+    expect(input.listenerCount('error')).toBe(0); expect(output.listenerCount('error')).toBe(0)
+  })
+  it('não remove listeners externos, pausa seus consumidores nem encerra streams alheios', () => {
+    const input = new PassThrough(), output = new PassThrough(), data = vi.fn(), error = vi.fn(), end = vi.fn()
+    input.on('data', data); input.on('error', error); input.on('end', end)
+    const runtime = new NativeMessagingRuntime(input, output, { forward: vi.fn(), close: vi.fn() }, logger)
+    runtime.start(); runtime.close()
+    expect(input.listeners('data')).toEqual([data]); expect(input.listeners('end')).toEqual([end]); expect(input.listeners('error')).toEqual([error])
+    input.emit('error', new Error('owned elsewhere')); expect(error).toHaveBeenCalledOnce(); expect(input.readableFlowing).toBe(true)
+    input.destroy(); output.destroy()
+  })
+  it('resposta pendente concluída após shutdown não é escrita no output do chamador', async () => {
+    const input = new PassThrough(), output = new PassThrough(), written: Buffer[] = []
+    output.on('data', chunk => written.push(chunk)); let finish!: (response: ProtocolResponse) => void
+    const transport = { forward: vi.fn(() => new Promise<ProtocolResponse>(r => { finish = r })), close: vi.fn() }, runtime = new NativeMessagingRuntime(input, output, transport, logger)
+    runtime.start(); input.write(encodeLengthPrefixedJson(helloRequest('pending'))); await vi.waitFor(() => expect(transport.forward).toHaveBeenCalledOnce())
+    runtime.close(); finish(helloResponse('pending')); await new Promise(r => setImmediate(r)); expect(written).toEqual([])
+    expect(output.writableEnded).toBe(false); input.destroy(); output.destroy()
+  })
+  it('erro de output encerra o runtime de modo seguro e sem destruir o output', () => {
+    const input = new PassThrough(), output = new PassThrough(), transport = { forward: vi.fn(), close: vi.fn() }, runtime = new NativeMessagingRuntime(input, output, transport, logger)
+    runtime.start(); expect(() => output.emit('error', new Error('synthetic write failure'))).not.toThrow(); expect(transport.close).toHaveBeenCalledOnce()
+    expect(output.destroyed).toBe(false); input.destroy(); output.destroy()
+  })
+})

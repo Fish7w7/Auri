@@ -1,129 +1,91 @@
 import { randomBytes } from 'node:crypto'
 import { connect, type Socket } from 'node:net'
-import {
-  safeParseResponse,
-  type ProtocolRequest,
-  type ProtocolResponse
-} from '@auri/protocol'
+import { safeParseResponse, type ProtocolRequest, type ProtocolResponse } from '@auri/protocol'
 import { createBridgeProof } from '@shared/native-bridge/authentication'
 import { BRIDGE_HANDSHAKE_TIMEOUT_MS, BRIDGE_REQUEST_TIMEOUT_MS } from '@shared/native-bridge/constants'
 import { encodeLengthPrefixedJson, LengthPrefixedJsonDecoder } from '@shared/native-bridge/framing'
 
 export class NativeHostTransportError extends Error {}
-
-interface PendingRequest {
-  resolve: (response: ProtocolResponse) => void
-  reject: (error: Error) => void
-  timer: ReturnType<typeof setTimeout>
-}
-
-export interface PipeClientTimeouts {
-  connectMs: number
-  handshakeMs: number
-  requestMs: number
-}
-
-const DEFAULT_TIMEOUTS: PipeClientTimeouts = {
-  connectMs: 1_000,
-  handshakeMs: BRIDGE_HANDSHAKE_TIMEOUT_MS,
-  requestMs: BRIDGE_REQUEST_TIMEOUT_MS
-}
+/** Only raised before socket.write is invoked for this request. */
+export class NativeHostRequestNotSentError extends NativeHostTransportError {}
+interface PendingRequest { resolve: (response: ProtocolResponse) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+export interface PipeClientTimeouts { connectMs: number; handshakeMs: number; requestMs: number }
+const DEFAULT_TIMEOUTS: PipeClientTimeouts = { connectMs: 1_000, handshakeMs: BRIDGE_HANDSHAKE_TIMEOUT_MS, requestMs: BRIDGE_REQUEST_TIMEOUT_MS }
 
 export class AuthenticatedPipeClient {
   private socket: Socket | null = null
   private readonly decoder = new LengthPrefixedJsonDecoder()
   private readonly pending = new Map<string, PendingRequest>()
   private authenticated = false
+  private started = false
+  private closed = false
   private serverNonce: string | null = null
-  private handshakeResolve: (() => void) | null = null
-  private handshakeReject: ((error: Error) => void) | null = null
+  private openResolve: (() => void) | null = null
+  private openReject: ((error: Error) => void) | null = null
+  private connectTimer?: ReturnType<typeof setTimeout>
+  private handshakeTimer?: ReturnType<typeof setTimeout>
 
   constructor(
     private readonly endpoint: string,
     private readonly secret: Buffer,
-    private readonly timeouts: PipeClientTimeouts = DEFAULT_TIMEOUTS
+    private readonly timeouts: PipeClientTimeouts = DEFAULT_TIMEOUTS,
+    private readonly onClosed?: (client: AuthenticatedPipeClient) => void
   ) {}
 
+  get isUsable(): boolean {
+    return !this.closed && this.authenticated && this.socket !== null && !this.socket.destroyed && this.socket.writable && !this.socket.writableEnded
+  }
+
   async open(): Promise<this> {
-    if (this.socket) throw new NativeHostTransportError('O cliente do pipe já foi iniciado.')
-    const socket = connect(this.endpoint)
-    this.socket = socket
-    socket.on('data', (chunk) => this.onData(chunk))
-    socket.on('error', (error) => this.fail(new NativeHostTransportError(`Falha no pipe: ${error.name}.`)))
-    socket.on('close', () => this.fail(new NativeHostTransportError('A conexão com o Auri foi encerrada.')))
-
+    if (this.started || this.closed) throw new NativeHostTransportError('O cliente do pipe não pode ser reiniciado.')
+    this.started = true
     await new Promise<void>((resolve, reject) => {
-      let connected = false
-      const connectTimer = setTimeout(() => {
-        if (!connected) {
-          socket.destroy()
-          reject(new NativeHostTransportError('Tempo esgotado ao conectar ao Auri.'))
-        }
-      }, this.timeouts.connectMs)
+      // Install settlement before opening: close/error must also reject an unfinished handshake.
+      this.openResolve = resolve
+      this.openReject = reject
+      this.connectTimer = setTimeout(() => this.terminate(new NativeHostTransportError('Tempo esgotado ao conectar ao Auri.')), this.timeouts.connectMs)
+      const socket = connect(this.endpoint)
+      this.socket = socket
       socket.once('connect', () => {
-        connected = true
-        clearTimeout(connectTimer)
-        resolve()
+        clearTimeout(this.connectTimer)
+        this.connectTimer = undefined
+        if (!this.closed) this.handshakeTimer = setTimeout(() => this.terminate(new NativeHostTransportError('Tempo esgotado na autenticação local.')), this.timeouts.handshakeMs)
       })
-      socket.once('error', () => {
-        clearTimeout(connectTimer)
-        if (!connected) reject(new NativeHostTransportError('O pipe do Auri não está disponível.'))
-      })
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      this.handshakeResolve = resolve
-      this.handshakeReject = reject
-      const timer = setTimeout(() => reject(new NativeHostTransportError('Tempo esgotado na autenticação local.')), this.timeouts.handshakeMs)
-      const finishResolve = resolve
-      const finishReject = reject
-      this.handshakeResolve = () => { clearTimeout(timer); finishResolve() }
-      this.handshakeReject = (error) => { clearTimeout(timer); finishReject(error) }
-    }).catch((error) => {
-      this.close()
-      throw error
-    })
+      socket.on('data', (chunk) => this.onData(chunk))
+      socket.on('error', (error) => this.terminate(new NativeHostTransportError('Falha no pipe: ' + error.name + '.')))
+      socket.on('end', () => this.terminate(new NativeHostTransportError('A conexão com o Auri foi encerrada.')))
+      socket.on('close', () => this.terminate(new NativeHostTransportError('A conexão com o Auri foi encerrada.')))
+    }).catch((error) => { this.terminate(error); throw error })
+    if (!this.isUsable) throw new NativeHostTransportError('A conexão com o Auri foi encerrada.')
     return this
   }
 
   forward(request: ProtocolRequest): Promise<ProtocolResponse> {
-    if (!this.authenticated || !this.socket || this.socket.destroyed) {
-      return Promise.reject(new NativeHostTransportError('O Auri não está pronto.'))
-    }
+    const frame = encodeLengthPrefixedJson(request)
+    if (!this.isUsable) return Promise.reject(new NativeHostRequestNotSentError('O pipe foi encerrado antes do envio.'))
+    const socket = this.socket!
     const key = requestKey(request.id, request.method)
     if (this.pending.has(key)) return Promise.reject(new NativeHostTransportError('Já existe uma solicitação com este identificador.'))
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(key)
-        reject(new NativeHostTransportError('Tempo esgotado aguardando o Auri.'))
-      }, this.timeouts.requestMs)
+      const timer = setTimeout(() => this.terminate(new NativeHostTransportError('Tempo esgotado aguardando o Auri.')), this.timeouts.requestMs)
       this.pending.set(key, { resolve, reject, timer })
-      this.socket!.write(encodeLengthPrefixedJson(request), (error) => {
-        if (!error) return
-        const pending = this.pending.get(key)
-        if (!pending) return
-        clearTimeout(pending.timer)
-        this.pending.delete(key)
-        pending.reject(new NativeHostTransportError('Não foi possível enviar a solicitação ao Auri.'))
-      })
+      // From this point delivery is potentially performed, even if write throws or its callback fails.
+      try {
+        socket.write(frame, (error) => {
+          if (error) this.terminate(new NativeHostTransportError('Não foi possível enviar a solicitação ao Auri.'))
+        })
+      } catch {
+        this.terminate(new NativeHostTransportError('Não foi possível enviar a solicitação ao Auri.'))
+      }
     })
   }
 
-  close(): void {
-    const socket = this.socket
-    this.socket = null
-    this.authenticated = false
-    socket?.destroy()
-    this.fail(new NativeHostTransportError('O Native Host foi encerrado.'))
-  }
+  close(): void { this.terminate(new NativeHostTransportError('O Native Host foi encerrado.')) }
 
   private onData(chunk: Buffer): void {
-    try {
-      for (const message of this.decoder.push(chunk)) this.onMessage(message)
-    } catch {
-      this.fail(new NativeHostTransportError('O Auri enviou um frame inválido.'))
-      this.socket?.destroy()
-    }
+    if (this.closed) return
+    try { for (const message of this.decoder.push(chunk)) this.onMessage(message) }
+    catch { this.terminate(new NativeHostTransportError('O Auri enviou um frame inválido.')) }
   }
 
   private onMessage(message: unknown): void {
@@ -131,24 +93,18 @@ export class AuthenticatedPipeClient {
       if (!isChallenge(message)) throw new NativeHostTransportError('Desafio de autenticação inválido.')
       this.serverNonce = message.nonce
       const clientNonce = randomBytes(32).toString('base64')
-      this.socket?.write(encodeLengthPrefixedJson({
-        type: 'authenticate', clientNonce,
-        proof: createBridgeProof(this.secret, message.nonce, clientNonce)
-      }))
+      this.socket?.write(encodeLengthPrefixedJson({ type: 'authenticate', clientNonce, proof: createBridgeProof(this.secret, message.nonce, clientNonce) }))
       return
     }
     if (!this.authenticated) {
-      if (!isAuthenticated(message)) {
-        this.handshakeReject?.(new NativeHostTransportError('Autenticação local recusada.'))
-        this.handshakeReject = null
-        this.handshakeResolve = null
-        this.socket?.destroy()
-        return
-      }
+      if (!isAuthenticated(message)) { this.terminate(new NativeHostTransportError('Autenticação local recusada.')); return }
       this.authenticated = true
-      this.handshakeResolve?.()
-      this.handshakeReject = null
-      this.handshakeResolve = null
+      clearTimeout(this.handshakeTimer)
+      this.handshakeTimer = undefined
+      const resolve = this.openResolve
+      this.openResolve = null
+      this.openReject = null
+      resolve?.()
       return
     }
     const parsed = safeParseResponse(message)
@@ -162,15 +118,24 @@ export class AuthenticatedPipeClient {
     pending.resolve(response)
   }
 
-  private fail(error: NativeHostTransportError): void {
-    this.handshakeReject?.(error)
-    this.handshakeReject = null
-    this.handshakeResolve = null
-    for (const pending of this.pending.values()) {
-      clearTimeout(pending.timer)
-      pending.reject(error)
-    }
+  private terminate(error: NativeHostTransportError): void {
+    if (this.closed) return
+    this.closed = true
+    this.authenticated = false
+    clearTimeout(this.connectTimer)
+    clearTimeout(this.handshakeTimer)
+    this.connectTimer = undefined
+    this.handshakeTimer = undefined
+    const reject = this.openReject
+    this.openReject = null
+    this.openResolve = null
+    reject?.(error)
+    for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error) }
     this.pending.clear()
+    const socket = this.socket
+    this.socket = null
+    socket?.destroy()
+    this.onClosed?.(this)
   }
 }
 

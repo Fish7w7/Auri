@@ -9,7 +9,7 @@ export interface NativeHostLogFields {
   requestId?: string
   durationMs?: number
   errorCode?: string
-  mode?: 'prod' | 'dev'
+  mode?: 'prod' | 'dev' | 'e2e'
   status?: string
 }
 
@@ -20,7 +20,8 @@ export interface NativeHostLog {
 }
 
 export class NativeHostLogger implements NativeHostLog {
-  constructor(private readonly filePath: string, private readonly development: boolean) {
+  constructor(private readonly filePath: string, private readonly development: boolean, private readonly validatePath?: () => void) {
+    this.validatePath?.()
     mkdirSync(dirname(filePath), { recursive: true })
     this.rotateIfNeeded()
   }
@@ -35,7 +36,7 @@ export class NativeHostLogger implements NativeHostLog {
       ...fields,
       ...(fields.requestId ? { requestId: fields.requestId.slice(0, 32) } : {})
     })
-    try { appendFileSync(this.filePath, `${entry}\n`, 'utf8') } catch { /* logging nunca interfere no transporte */ }
+    try { this.validatePath?.(); appendFileSync(this.filePath, `${entry}\n`, 'utf8') } catch { /* logging nunca interfere no transporte */ }
     if (this.development) {
       try { process.stderr.write(`${entry}\n`) } catch { /* stderr é apenas diagnóstico */ }
     }
