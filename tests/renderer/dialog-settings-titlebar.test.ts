@@ -104,8 +104,9 @@ describe('modais, Configurações e title bar do Auri', () => {
   })
 
   it('mantém dialogs de sistema somente no fluxo de recuperação anterior ao Renderer', () => {
-    const source = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const source = readFileSync(join(process.cwd(), 'src/main/application/startup-recovery.ts'), 'utf8')
     const recovery = source.indexOf('async function showStartupRecovery')
+    expect(recovery).toBeGreaterThanOrEqual(0)
     const messageBoxes = [...source.matchAll(/dialog\.showMessageBox\s*\(/g)].map((match) => match.index ?? -1)
     expect(messageBoxes.length).toBeGreaterThan(0)
     expect(messageBoxes.every((index) => index > recovery)).toBe(true)
