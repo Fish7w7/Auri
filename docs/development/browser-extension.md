@@ -47,8 +47,8 @@ Se uma ação falhar, o guia permanece disponível e o toast identifica a etapa.
 
 `build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.3.0 é `../Auri-Extension/release/auri-extension-0.3.0-embedded.zip`, com metadata no `.json` de mesmo nome.
 
-- ZIP SHA-256: `35a8ad1e0c662285ba3c1e9259d9e852c3b52cdc66e9454458f1b42fddeddade`.
-- Metadata SHA-256: `82e7562af7a640111e66ecfab60d83ea2de19b14bebdd19eece070517764faec`.
+- ZIP SHA-256: `de103c4df7b73b0d0dedc81d4f0aec9d27a29f31ed1c43ef6661725a76e6e515`.
+- Metadata SHA-256: `005e2dd0ca0af256025d8a0c8761cd644ccb9ee7cbd729fa9bae4d40dccf9939`.
 - Fingerprint SHA-256 da chave pública: `064580e7584b56038064cd5b4a11e1bfde8ddf403a06cc974d2d63c59b7e155b`.
 - ID Embedded: `agefiaohfielfgadiagemnflekbboblp`.
 - Origin Embedded: `chrome-extension://agefiaohfielfgadiagemnflekbboblp/`.
