@@ -29,6 +29,8 @@ export const domainApi: Omit<AuriApi, 'system' | 'settings' | 'desktopCommands' 
   works: {
     create: (request) => invoke(IPC_CHANNELS.works.create, request),
     createDetailed: (request) => invoke(IPC_CHANNELS.works.createDetailed, request),
+    previewCreate: (request) => invoke(IPC_CHANNELS.works.previewCreate, request),
+    addReviewedSource: (request) => invoke(IPC_CHANNELS.works.addReviewedSource, request),
     get: (request) => invoke(IPC_CHANNELS.works.get, request),
     getDetails: (request) => invoke(IPC_CHANNELS.works.getDetails, request),
     update: (request) => invoke(IPC_CHANNELS.works.update, request),

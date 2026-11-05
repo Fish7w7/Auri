@@ -96,6 +96,8 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.bulk.moveToTrash, (request) => services.bulk.moveToTrash(request)],
     [IPC_CHANNELS.works.create, (request) => services.works.createWork(request)],
     [IPC_CHANNELS.works.createDetailed, (request) => services.details.createDetailed(request)],
+    [IPC_CHANNELS.works.previewCreate, (request) => services.details.previewCreate(request)],
+    [IPC_CHANNELS.works.addReviewedSource, (request) => services.details.addReviewedSource(request)],
     [IPC_CHANNELS.works.get, (request) => services.works.getWork(request)],
     [IPC_CHANNELS.works.getDetails, (request) => services.details.getDetails(request)],
     [IPC_CHANNELS.works.update, (request) => services.works.updateWork(request)],

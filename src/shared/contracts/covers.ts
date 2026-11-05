@@ -2,7 +2,7 @@ export interface CoverResult { state: 'placeholder' | 'ready' | 'error'; dataUrl
 export interface CoverCacheUsage { files: number; bytes: number; queue: number; active: number }
 export interface CoverApi {
   covers: {
-    get(request: { workId: string }): Promise<CoverResult>
+    get(request: { workId: string; cacheOnly?: boolean }): Promise<CoverResult>
     preview(request: { url: string }): Promise<CoverResult>
     refresh(request: { workId: string }): Promise<CoverResult>
     clearWork(request: { workId: string }): Promise<void>

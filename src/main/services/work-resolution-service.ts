@@ -65,7 +65,7 @@ export class WorkResolutionService {
       source: null,
       matchedBy: candidate.matchedBy,
       confidence: candidate.confidence
-    })))
+    })), false)
     return { status: 'not_found' }
   }
 
@@ -76,14 +76,16 @@ export class WorkResolutionService {
     return matches.length === 1 ? matches[0] : null
   }
 
-  private result(candidates: ResolutionCandidate[]): WorkResolveResult {
+  private result(candidates: ResolutionCandidate[], allowMatched = true): WorkResolveResult {
     const byWork = [...new Map(candidates.map((candidate) => [candidate.work.id, candidate])).values()]
     const mapped = byWork.map((candidate) => ({
       work: this.workSummary(candidate.work),
       ...(candidate.source ? { source: this.sourceSummary(candidate.source) } : {}),
       match: { matchedBy: candidate.matchedBy, confidence: candidate.confidence }
     }))
-    return mapped.length === 1 ? { status: 'matched', ...mapped[0] } : { status: 'ambiguous', candidates: mapped }
+    if (mapped.length === 1 && allowMatched && mapped[0].match.confidence !== 'possible') return { status: 'matched', ...mapped[0] }
+    // Protocol 0.2.0 requires at least two ambiguous candidates. A single suggestion is not an identity.
+    return mapped.length >= 2 ? { status: 'ambiguous', candidates: mapped } : { status: 'not_found' }
   }
 
   private hostname(urls: readonly string[]): string | null {

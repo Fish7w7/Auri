@@ -10,6 +10,7 @@ export type WorkEquivalenceSignal =
   | 'creator'
   | 'cover'
   | 'fuzzy_title'
+  | 'external_conflict'
 
 export interface WorkEquivalenceCandidate {
   work: Work
@@ -29,6 +30,8 @@ export interface WorkCreationEquivalenceInput {
   externalRefs?: readonly { provider: string; externalId: string }[]
   creators?: readonly { name: string }[]
   coverUrl?: string | null
+  discoveryTitles?: readonly string[]
+  reviewedWorkIds?: readonly string[]
 }
 
 interface Evidence {
@@ -98,20 +101,21 @@ export class WorkEquivalenceService {
         this.record(evidence, work, 'cover', 'title', false)
       }
     }
-    if (primaryTitle.length >= 3) {
-      for (const candidate of this.repository.findPossibleTitles(primaryTitle)) {
+    for (const title of uniqueNormalized([input.title, ...(input.discoveryTitles ?? []), ...(input.aliases ?? []).map((alias) => alias.name)])) {
+      for (const candidate of this.repository.findPossibleTitles(title)) {
         this.record(evidence, candidate.work, 'fuzzy_title', candidate.matchedBy, false)
       }
     }
 
     const values = [...evidence.values()]
-    const decisive = values.filter((item) => item.signals.has('external_id') || item.signals.has('exact_alias'))
+    for (const item of values) if (this.repository.hasExternalRefConflict(item.work.id, input.externalRefs ?? [])) item.signals.add('external_conflict')
+    const decisive = values.filter((item) => !item.signals.has('external_conflict') && (item.signals.has('external_id') || item.signals.has('exact_alias')))
     if (decisive.length === 1 && !this.hasContradiction(decisive[0], values)) {
       return { status: 'high-confidence', candidate: this.toCandidate(decisive[0]) }
     }
     if (decisive.length > 1) return { status: 'ambiguous', candidates: values.map((item) => this.toCandidate(item)) }
 
-    const corroborated = values.filter((item) => item.signals.has('exact_title') && (
+    const corroborated = values.filter((item) => !item.signals.has('external_conflict') && item.signals.has('exact_title') && (
       item.signals.has('creator') || item.signals.has('cover')
     ))
     if (corroborated.length === 1 && !this.hasContradiction(corroborated[0], values)) {
@@ -129,7 +133,7 @@ export class WorkEquivalenceService {
 
   private ambiguousOrNone(evidence: Map<string, Evidence>): WorkEquivalenceResult {
     const candidates = [...evidence.values()].map((item) => this.toCandidate(item))
-    return candidates.length ? { status: 'ambiguous', candidates } : { status: 'none' }
+    return candidates.length ? { status: 'ambiguous', candidates: candidates.slice(0, 20) } : { status: 'none' }
   }
 
   private record(
@@ -158,7 +162,7 @@ export class WorkEquivalenceService {
       work: evidence.work,
       signals,
       matchedBy: evidence.matchedBy,
-      confidence: exact ? 'exact' : high ? 'high' : 'possible'
+      confidence: signals.includes('external_conflict') ? 'possible' : exact ? 'exact' : high ? 'high' : 'possible'
     }
   }
 }

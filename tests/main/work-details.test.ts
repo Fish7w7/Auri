@@ -116,17 +116,18 @@ describe('WorkDetailsService', () => {
     fixture.db.close()
   })
 
-  it('permite títulos iguais quando as fontes são distintas e quick add sem source', () => {
+  it('exige revisão explícita para títulos iguais, fontes distintas e quick add', () => {
     const fixture = createDomainFixture()
-    fixture.services.details.createDetailed({
+    const first = fixture.services.details.createDetailed({
       title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading',
       source: { seriesUrl: 'https://reader.example/obra-a' }
     })
-    fixture.services.details.createDetailed({
-      title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading',
+    expect(() => fixture.services.works.createWork({ title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading' })).toThrowError(expect.objectContaining({ code: 'CONFIRMATION_REQUIRED' }))
+    const second = fixture.services.details.createDetailed({
+      title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading', reviewedWorkIds: [first.work.id],
       source: { seriesUrl: 'https://reader.example/obra-b' }
     })
-    fixture.services.works.createWork({ title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading' })
+    fixture.services.works.createWork({ title: 'Mesmo título', mediaType: 'manhwa', userStatus: 'reading', reviewedWorkIds: [first.work.id, second.work.id] })
     expect(fixture.services.library.getSummary().total).toBe(3)
     fixture.db.close()
   })
@@ -147,7 +148,7 @@ describe('WorkDetailsService', () => {
     }))
 
     fixture.services.details.createDetailed({
-      title: 'Retorno do Cão de Caça', mediaType: 'manhwa', userStatus: 'reading',
+      title: 'Retorno do Cão de Caça', mediaType: 'manhwa', userStatus: 'reading', reviewedWorkIds: [existing.id],
       source: { seriesUrl: 'https://reader.example/titulo-parecido' }
     })
     fixture.services.details.createDetailed({

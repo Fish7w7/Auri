@@ -36,6 +36,8 @@ export const IPC_CHANNELS = {
   works: {
     create: 'auri:works:create',
     createDetailed: 'auri:works:create-detailed',
+    previewCreate: 'auri:works:preview-create',
+    addReviewedSource: 'auri:works:add-reviewed-source',
     get: 'auri:works:get',
     getDetails: 'auri:works:get-details',
     update: 'auri:works:update',

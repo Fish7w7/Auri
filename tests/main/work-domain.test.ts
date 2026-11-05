@@ -155,6 +155,7 @@ describe('aliases e external refs', () => {
       title: 'Obra B',
       mediaType: 'manhwa',
       userStatus: 'reading',
+      reviewedWorkIds: [first.id],
       aliases: [{ name: 'Alias Global' }]
     })
     expect(fixture.repositories.aliases.listByWork(first.id)).toHaveLength(1)

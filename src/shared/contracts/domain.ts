@@ -39,7 +39,9 @@ import type {
   workIdSchema,
   workMergeConflictFieldSchema,
   workMergePreviewSchema,
-  workMergeExecuteSchema
+  workMergeExecuteSchema,
+  workCreationReviewSchema,
+  reviewedSourceSchema
 } from '@shared/schemas/domain'
 import type {
   ChapterProgress,
@@ -78,6 +80,12 @@ export type CreateTagRequest = z.infer<typeof createTagSchema>
 export type CreateCollectionRequest = z.infer<typeof createCollectionSchema>
 export type UpdateCollectionRequest = z.infer<typeof updateCollectionSchema>
 export type DetailedCreateWorkRequest = z.infer<typeof detailedCreateWorkSchema>
+export type WorkCreationReviewRequest = z.infer<typeof workCreationReviewSchema>
+export type ReviewedSourceRequest = z.infer<typeof reviewedSourceSchema>
+export interface WorkCreationReview {
+  candidates: Array<{ work: Work; sources: Source[]; canAddSource: boolean; identityConflict: boolean; reasons: string[] }>
+  canKeepSeparate: boolean
+}
 export type DetailedUpdateWorkRequest = z.infer<typeof detailedUpdateWorkSchema>
 export type AliasIdRequest = z.infer<typeof aliasIdSchema>
 export type CreatorIdRequest = z.infer<typeof creatorIdSchema>
@@ -193,6 +201,8 @@ export interface DomainApi {
   works: {
     create(request: CreateWorkRequest): Promise<Work>
     createDetailed(request: DetailedCreateWorkRequest): Promise<WorkDetails>
+    previewCreate(request: WorkCreationReviewRequest): Promise<WorkCreationReview>
+    addReviewedSource(request: ReviewedSourceRequest): Promise<Source>
     get(request: WorkIdRequest): Promise<Work>
     getDetails(request: WorkIdRequest): Promise<WorkDetails>
     update(request: UpdateWorkRequest): Promise<Work>

@@ -96,7 +96,7 @@ export class MetadataService {
       const duplicate = this.findDuplicate(metadata)
     if (duplicate?.kind === 'active') this.throwDuplicate('METADATA_DUPLICATE_ACTIVE', duplicate)
     if (duplicate?.kind === 'trash') this.throwDuplicate('METADATA_DUPLICATE_TRASH', duplicate)
-    if (duplicate?.kind === 'probable' && !request.allowProbableDuplicate) this.throwDuplicate('METADATA_PROBABLE_DUPLICATE', duplicate)
+    if (duplicate?.kind === 'probable' && (!request.allowProbableDuplicate || (request.reviewedWorkIds && !request.reviewedWorkIds.includes(duplicate.work.id)))) this.throwDuplicate('METADATA_PROBABLE_DUPLICATE', duplicate)
     const now = this.clock()
     const operation = this.db.transaction(() => {
       const created = this.details.createDetailed({
@@ -115,8 +115,9 @@ export class MetadataService {
         externalRefs: [{ provider: metadata.provider, externalId: metadata.externalId, canonicalUrl: metadata.canonicalUrl }],
         creators: metadata.creators.map((creator) => ({ ...creator, source: metadata.provider })),
         genres: metadata.genres,
+        reviewedWorkIds: request.reviewedWorkIds ?? (request.allowProbableDuplicate && duplicate?.kind === 'probable' ? [duplicate.work.id] : undefined),
         source: request.source
-      })
+      }, [metadata.title])
       const work = this.repositories.works.findById(created.work.id)!
       this.repositories.works.update({ ...work, metadataUpdatedAt: now, updatedAt: now })
       const reference = this.repositories.externalRefs.findByWorkAndProvider(work.id, metadata.provider)!

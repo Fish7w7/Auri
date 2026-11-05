@@ -111,12 +111,34 @@ describe('MetadataService', () => {
     fixture.db.close()
   })
 
-  it('avisa provável duplicata e exige decisão explícita', async () => {
+  it('avisa provável duplicata e confirmação não ignora alias forte', async () => {
     const fixture = setup()
     createMinimalWork(fixture, 'Nano Mashin')
     await expect(fixture.service.review({ provider: 'anilist', externalId: '42' })).resolves.toMatchObject({ duplicate: { kind: 'probable' } })
     await expect(fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa', userStatus: 'reading' })).rejects.toMatchObject({ code: 'METADATA_PROBABLE_DUPLICATE' })
-    await expect(fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa', userStatus: 'reading', allowProbableDuplicate: true })).resolves.toMatchObject({ work: { title: 'Nano Machine' } })
+    await expect(fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Nano Machine', mediaType: 'manhwa', userStatus: 'reading', allowProbableDuplicate: true })).rejects.toMatchObject({ code: 'DUPLICATE_WORK' })
+    fixture.db.close()
+  })
+
+  it('revisa o título remoto mesmo quando o título local é totalmente diferente', async () => {
+    const fixture = setup({ ...base, aliases: [], creators: [] })
+    const existing = createMinimalWork(fixture, 'Nano Machine')
+    const request = { provider: 'anilist', externalId: '42', title: 'Tradução local distinta', mediaType: 'manhwa', userStatus: 'reading' }
+    await expect(fixture.service.import({ ...request, allowProbableDuplicate: true, reviewedWorkIds: [] })).rejects.toMatchObject({ code: 'METADATA_PROBABLE_DUPLICATE' })
+    await expect(fixture.service.import({ ...request, allowProbableDuplicate: true, reviewedWorkIds: [existing.id] })).resolves.toMatchObject({ work: { title: request.title } })
+    expect(fixture.services.library.getSummary().total).toBe(2)
+    fixture.db.close()
+  })
+
+  it('candidato surgido durante a espera de metadados não é aceito por confirmação antiga', async () => {
+    let finish!: (value: MetadataWork) => void
+    const provider: MetadataProvider = { id: 'anilist', search: async () => [], getById: () => new Promise((resolve) => { finish = resolve }) }
+    const fixture = setup({ ...base, aliases: [], creators: [] }, provider)
+    const pending = fixture.service.import({ provider: 'anilist', externalId: '42', title: 'Tradução local distinta', mediaType: 'manhwa', userStatus: 'reading', allowProbableDuplicate: true, reviewedWorkIds: [] })
+    createMinimalWork(fixture, 'Nano Machine')
+    finish({ ...base, aliases: [], creators: [] })
+    await expect(pending).rejects.toMatchObject({ code: 'METADATA_PROBABLE_DUPLICATE' })
+    expect(fixture.services.library.getSummary().total).toBe(1)
     fixture.db.close()
   })
 

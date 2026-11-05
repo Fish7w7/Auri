@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import sharp from 'sharp'
 import type { CoverCacheUsage, CoverResult } from '@shared/contracts'
 import { DomainError } from '@shared/errors/domain-error'
-import { coverPreviewSchema, coverWorkSchema } from '@shared/schemas/domain'
+import { coverGetSchema, coverPreviewSchema, coverWorkSchema } from '@shared/schemas/domain'
 import type { WorkRepository } from '../../database/repositories/work-repository'
 import type { Logger } from '../../logging/logger'
 import type { AssetService } from '../asset-service'
@@ -41,7 +41,7 @@ export class CoverService {
   }
 
   async getCover(input: unknown): Promise<CoverResult> {
-    const { workId } = parseDomainInput(coverWorkSchema, input)
+    const { workId, cacheOnly } = parseDomainInput(coverGetSchema, input)
     const work = this.works.findById(workId)
     if (!work || work.deletedAt) return { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
     if (work.cover.type === 'custom') {
@@ -52,6 +52,7 @@ export class CoverService {
     const cacheExists = existsSync(this.cachePath(workId))
     const currentSource = this.readCacheSource(workId)
     if (cacheExists && currentSource === work.cover.sourceUrl) return this.cachedResult(workId)
+    if (cacheOnly) return { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
     if (!this.client.isOnline()) return cacheExists ? this.cachedResult(workId) : { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
     try {
       const prepared = await this.enqueue(workId, work.cover.sourceUrl)

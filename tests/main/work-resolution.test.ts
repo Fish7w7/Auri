@@ -150,8 +150,8 @@ describe('WorkResolutionService', () => {
 
   it('retorna ambiguous para candidatos plausíveis e not_found sem evidência', () => {
     const { fixture, resolution } = setup()
-    createMinimalWork(fixture, 'A Lenda do Norte')
-    createMinimalWork(fixture, 'A Lenda do Norte: Retorno')
+    const first = createMinimalWork(fixture, 'A Lenda do Norte')
+    fixture.services.works.createWork({ title: 'A Lenda do Norte: Retorno', mediaType: 'manhwa', userStatus: 'reading', reviewedWorkIds: [first.id] })
     expect(resolution.resolve({ url: 'https://example.com', title: 'Lenda do Norte' })).toMatchObject({ status: 'ambiguous', candidates: expect.arrayContaining([expect.objectContaining({ match: { confidence: 'possible', matchedBy: 'title' } })]) })
     expect(resolution.resolve({ url: 'https://example.com', title: 'Obra inexistente' })).toEqual({ status: 'not_found' })
   })

@@ -31,6 +31,24 @@ function addRemoteWork(fixture: CoverFixture, title: string, sourceUrl: string) 
 }
 
 describe('CoverService', () => {
+  it('revisão cacheOnly não consulta rede e reutiliza somente capa local compatível', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#111111' } }).png().toBuffer()
+    const client = { isOnline: vi.fn(() => true), download: vi.fn(async () => image) }
+    const fixture = await setup(client)
+    expect(await fixture.service.getCover({ workId: fixture.work.id, cacheOnly: true })).toMatchObject({ state: 'placeholder', dataUrl: null })
+    expect(client.isOnline).not.toHaveBeenCalled()
+    expect(client.download).not.toHaveBeenCalled()
+    await fixture.service.getCover({ workId: fixture.work.id })
+    client.isOnline.mockClear(); client.download.mockClear()
+    expect(await fixture.service.getCover({ workId: fixture.work.id, cacheOnly: true })).toMatchObject({ state: 'ready', cached: true })
+    expect(client.download).not.toHaveBeenCalled()
+    expect(client.isOnline).not.toHaveBeenCalled()
+    fixture.services.works.updateWork({ id: fixture.work.id, cover: { type: 'remote', sourceUrl: 'https://img.example/changed.png' } })
+    expect(await fixture.service.getCover({ workId: fixture.work.id, cacheOnly: true })).toMatchObject({ state: 'placeholder', dataUrl: null })
+    expect(client.download).not.toHaveBeenCalled()
+    fixture.db.close()
+  })
+
   it('bloqueia destino privado e redirect público para destino privado', async () => {
     const publicResolver = async () => ['93.184.216.34']
     let fetches = 0

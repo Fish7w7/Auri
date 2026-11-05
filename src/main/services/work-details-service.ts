@@ -2,14 +2,14 @@ import type Database from 'better-sqlite3'
 import type {
   CreateAliasRequest, CreateCollectionRequest, CreateCreatorRequest, CreateGenreRequest,
   CreateTagRequest, DetailedCreateWorkRequest, DetailedUpdateWorkRequest, UpdateAliasRequest,
-  UpdateCollectionRequest, UpdateCreatorRequest, WorkDetails
+  UpdateCollectionRequest, UpdateCreatorRequest, WorkDetails, WorkCreationReviewRequest, WorkCreationReview, ReviewedSourceRequest
 } from '@shared/contracts'
 import { DomainError } from '@shared/errors/domain-error'
 import {
   aliasIdSchema, collectionIdSchema, collectionWorkSchema, createAliasSchema,
   createCollectionSchema, createCreatorSchema, createGenreSchema, createTagSchema,
   creatorIdSchema, detailedCreateWorkSchema, detailedUpdateWorkSchema, genreWorkSchema,
-  tagWorkSchema, updateAliasSchema, updateCollectionSchema, updateCreatorSchema, workIdSchema
+  tagWorkSchema, updateAliasSchema, updateCollectionSchema, updateCreatorSchema, workIdSchema, workCreationReviewSchema, reviewedSourceSchema
 } from '@shared/schemas/domain'
 import type { Alias, Collection, Creator, Genre, Tag, Work } from '@shared/types/domain'
 import { normalizeChapter } from '@shared/utils/normalize-chapter'
@@ -59,7 +59,7 @@ export class WorkDetailsService {
     return this.compose(work)
   }
 
-  createDetailed(input: unknown): WorkDetails {
+  createDetailed(input: unknown, discoveryTitles: readonly string[] = []): WorkDetails {
     const request = parseDomainInput(detailedCreateWorkSchema, input) as DetailedCreateWorkRequest
     const sourceIdentityContext = this.createSourceIdentityContext(request)
     const operation = this.db.transaction(() => {
@@ -69,7 +69,9 @@ export class WorkDetailsService {
         aliases: request.aliases,
         externalRefs: request.externalRefs,
         creators: request.creators,
-        coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null
+        discoveryTitles,
+        coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null,
+        reviewedWorkIds: request.reviewedWorkIds
       })
       const hasExplicitSourceProgress = request.source !== undefined && request.chapter !== null && request.chapter !== undefined
       const work = this.worksService.createWork(hasExplicitSourceProgress ? { ...request, chapter: null } : request)
@@ -89,6 +91,70 @@ export class WorkDetailsService {
       return this.compose(this.repositories.works.findById(work.id)!)
     })
     return operation.immediate()
+  }
+
+
+  previewCreate(input: unknown): WorkCreationReview {
+    const request = parseDomainInput(workCreationReviewSchema, input) as WorkCreationReviewRequest
+    const result = this.worksService.evaluateCreation({
+      ...request,
+      coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null
+    })
+    const evidence = result.status === 'high-confidence' ? [result.candidate] : result.status === 'ambiguous' ? result.candidates : []
+    const candidates: WorkCreationReview['candidates'] = evidence.map((candidate) => ({
+      work: candidate.work,
+      sources: this.repositories.sources.listByWork(candidate.work.id),
+      canAddSource: false,
+      identityConflict: candidate.signals.includes('external_conflict'),
+      reasons: candidate.signals
+    }))
+    let canKeepSeparate = result.status !== 'high-confidence' && !evidence.some((candidate) => candidate.signals.includes('external_id'))
+    let sourceAvailable = true
+    const include = (workId: string, reason: string) => {
+      const existing = candidates.find((candidate) => candidate.work.id === workId)
+      if (existing) { if (!existing.reasons.includes(reason)) existing.reasons.push(reason); return }
+      const work = this.repositories.works.findById(workId)
+      if (work) candidates.push({ work, sources: this.repositories.sources.listByWork(workId), canAddSource: false, identityConflict: false, reasons: [reason] })
+    }
+    if (request.source) {
+      try { this.sourcesService.assertExternalDraftSourceAvailable(request.source, this.createSourceIdentityContext(request)) }
+      catch (error) {
+        if (!(error instanceof DomainError) || error.code !== 'DUPLICATE_SOURCE') throw error
+        sourceAvailable = false
+        canKeepSeparate = false
+        if (typeof error.details?.workId === 'string') include(error.details.workId, 'source')
+      }
+    }
+    for (const reference of request.externalRefs ?? []) {
+      const existing = this.repositories.externalRefs.findByProviderExternalId(reference.provider, reference.externalId)
+      if (existing) { include(existing.workId, 'external_id'); canKeepSeparate = false }
+    }
+    if (request.search) {
+      for (const work of this.repositories.works.queryActive({ search: normalizeSearchText(request.search), limit: 5 })) include(work.id, 'search')
+    }
+    // Search results and weak evidence never grant permission to associate a source.
+    const selected = result.status === 'high-confidence' ? result.candidate : null
+    const validSource = Boolean(request.source?.seriesUrl || request.source?.lastReadUrl)
+    if (selected && sourceAvailable && validSource && !selected.work.deletedAt &&
+      !candidates.some((candidate) => candidate.work.id !== selected.work.id && candidate.reasons.includes('external_id'))) {
+      const candidate = candidates.find((item) => item.work.id === selected.work.id)!
+      candidate.canAddSource = !candidate.identityConflict
+    }
+    return { candidates, canKeepSeparate }
+  }
+
+  addReviewedSource(input: unknown) {
+    const { workId, draft } = parseDomainInput(reviewedSourceSchema, input) as ReviewedSourceRequest
+    return this.db.transaction(() => {
+      if (draft.source) this.sourcesService.assertExternalDraftSourceAvailable(draft.source, this.createSourceIdentityContext(draft))
+      const preview = this.previewCreate(draft)
+      if (!draft.source || !preview.candidates.some((candidate) => candidate.work.id === workId && candidate.canAddSource)) {
+        throw new DomainError('CONFIRMATION_REQUIRED', 'A correspondência mudou. Revise a obra antes de adicionar a fonte.')
+      }
+      this.requireActiveWork(workId)
+      // Linking is explicit and preserves all progress, history, metadata and the preferred source.
+      return this.sourcesService.createSource({ ...draft.source, workId, isPreferred: false }, this.createSourceIdentityContext(draft))
+    }).immediate()
   }
 
   updateDetailed(input: unknown): WorkDetails {
@@ -213,7 +279,7 @@ export class WorkDetailsService {
   private compose(work: Work): WorkDetails {
     return { work, aliases: this.repositories.aliases.listByWork(work.id), creators: this.repositories.creators.listByWork(work.id), genres: this.repositories.genres.listByWork(work.id), tags: this.repositories.tags.listByWork(work.id), collections: this.repositories.collections.listByWork(work.id), allCollections: this.repositories.collections.listAll(), sources: this.repositories.sources.listByWork(work.id), metadataOverrides: this.repositories.overrides.listByWork(work.id), externalRefs: this.repositories.externalRefs.listByWork(work.id) }
   }
-  private createSourceIdentityContext(request: DetailedCreateWorkRequest): SourceIdentityInput | undefined {
+  private createSourceIdentityContext(request: Pick<DetailedCreateWorkRequest, 'source' | 'chapter' | 'title'>): SourceIdentityInput | undefined {
     if (!request.source) return undefined
     const pageUrl = request.source.lastReadUrl ?? request.source.seriesUrl
     if (!pageUrl) return undefined

@@ -33,6 +33,7 @@ export interface ImportMetadataRequest {
   chapter?: string | null
   lastReadNote?: string | null
   allowProbableDuplicate?: boolean
+  reviewedWorkIds?: string[]
   source?: { name?: string | null; seriesUrl?: string | null; lastReadUrl?: string | null; language?: string | null; translatorGroup?: string | null; isPreferred?: boolean }
 }
 export type MetadataFieldKey = 'title' | 'description' | 'media_type' | 'publication_status' | 'country_code' | 'start_date' | 'end_date' | 'aliases' | 'creators' | 'genres' | 'cover'

@@ -29,7 +29,7 @@ export class ExternalRefRepository {
 
   findByProviderExternalId(provider: string, externalId: string): ExternalRef | null {
     const row = this.db
-      .prepare('SELECT * FROM external_refs WHERE provider = ? AND external_id = ?')
+      .prepare('SELECT * FROM external_refs WHERE LOWER(provider) = LOWER(?) AND external_id = ?')
       .get(provider, externalId) as ExternalRefRow | undefined
     return row ? this.map(row) : null
   }

@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import type { Source, Work } from '@shared/types/domain'
 import { WorkRepository } from './work-repository'
 import { SourceRepository } from './source-repository'
+import { workTitleSimilarity, workTitleTokens } from '@shared/utils/work-title-similarity'
 
 export interface ResolutionCandidate {
   work: Work
@@ -67,7 +68,37 @@ export class WorkResolutionRepository {
           SELECT 1 FROM aliases a WHERE a.work_id = w.id AND a.normalized_name LIKE ? ESCAPE '\\'
         )
       ) ORDER BY w.normalized_title, w.id LIMIT 20`).all(like, like, like) as CandidateRow[]
-    return this.map(rows, 'possible')
+    const substring = this.map(rows, 'possible')
+    const tokens = workTitleTokens(normalizedTitle).sort((a, b) => b.length - a.length).slice(0, 8)
+    if (tokens.length < 2) return substring
+    const params = Object.fromEntries(tokens.map((token, index) => [`token${index}`, ` ${token} `]))
+    const count = (column: string) => tokens.map((_, index) => `CASE WHEN instr(' ' || ${column} || ' ', @token${index}) > 0 THEN 1 ELSE 0 END`).join(' + ')
+    const byTitle = count('w.normalized_title')
+    const byAlias = count('a.normalized_name')
+    const partial = this.db.prepare(`SELECT w.id, w.normalized_title, a.normalized_name
+      FROM works w LEFT JOIN aliases a ON a.work_id = w.id
+      WHERE w.deleted_at IS NULL AND ((${byTitle}) >= 2 OR (${byAlias}) >= 2)
+      ORDER BY MAX((${byTitle}), (${byAlias})) DESC, w.id LIMIT 80`).all(params) as Array<{ id: string; normalized_title: string; normalized_name: string | null }>
+    const ranked = partial.map((row) => {
+      const title = workTitleSimilarity(normalizedTitle, row.normalized_title)
+      const alias = row.normalized_name ? workTitleSimilarity(normalizedTitle, row.normalized_name) : 0
+      return { ...row, score: Math.max(title, alias), matchedBy: alias > title ? 'alias' as const : 'title' as const }
+    }).filter((row) => row.score >= 0.6).sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+    const candidates = [...substring]
+    for (const row of ranked) {
+      if (candidates.length >= 20) break
+      if (candidates.some((item) => item.work.id === row.id)) continue
+      const work = this.works.findActiveById(row.id)
+      if (work) candidates.push({ work, source: null, matchedBy: row.matchedBy, confidence: 'possible' })
+      if (candidates.length >= 20) break
+    }
+    return candidates
+  }
+
+  hasExternalRefConflict(workId: string, references: readonly { provider: string; externalId: string }[]): boolean {
+    return references.some((reference) => Boolean(this.db.prepare(`SELECT 1 FROM external_refs
+      WHERE work_id = ? AND LOWER(provider) = LOWER(?) AND external_id <> ? LIMIT 1`)
+      .get(workId, reference.provider, reference.externalId)))
   }
 
   findWorksByExternalRef(provider: string, externalId: string): Work[] {
@@ -82,7 +113,7 @@ export class WorkResolutionRepository {
     const rows = this.db.prepare(`SELECT DISTINCT w.id AS work_id
       FROM works w JOIN work_creators wc ON wc.work_id = w.id
       WHERE w.deleted_at IS NULL AND wc.normalized_name = ?
-      ORDER BY w.id`).all(normalizedName) as Array<{ work_id: string }>
+      ORDER BY w.id LIMIT 20`).all(normalizedName) as Array<{ work_id: string }>
     return this.mapWorks(rows)
   }
 
@@ -90,7 +121,7 @@ export class WorkResolutionRepository {
     const rows = this.db.prepare(`SELECT w.id AS work_id
       FROM works w
       WHERE w.deleted_at IS NULL AND w.cover_type = 'remote' AND w.cover_source_url = ?
-      ORDER BY w.id`).all(coverUrl) as Array<{ work_id: string }>
+      ORDER BY w.id LIMIT 20`).all(coverUrl) as Array<{ work_id: string }>
     return this.mapWorks(rows)
   }
 

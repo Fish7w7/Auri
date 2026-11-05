@@ -1020,3 +1020,14 @@ dt { color: var(--text-muted); } dd { margin: 0; min-width: 0; overflow: hidden;
 .browser-extension-privacy { margin-top: 18px; padding: 12px; border-radius: var(--radius-sm); background: var(--background-elevated); color: var(--text-muted); }
 .browser-extension-notice { padding: 14px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .browser-extension-notice .button { margin-top: 8px; }
+
+/* Shared pre-save duplicate review. */
+.add-work-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.work-creation-review { display: grid; gap: 14px; }
+.work-creation-review > h3, .work-creation-review p { margin: 0; }
+.work-creation-review p { color: var(--text-secondary); font-size: .9rem; }
+.work-creation-review__results { display: grid; gap: 10px; }
+.work-creation-review__candidate { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.work-creation-review__candidate > .work-cover { flex-shrink: 0; }
+.work-creation-review__copy { min-width: 0; display: grid; gap: 7px; overflow-wrap: anywhere; }
+.work-creation-review__sources { font-size: .8rem; }

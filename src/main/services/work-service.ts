@@ -80,7 +80,8 @@ export class WorkService {
         title: request.title,
         aliases: request.aliases,
         externalRefs: request.externalRefs,
-        coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null
+        coverUrl: request.cover?.type === 'remote' ? request.cover.sourceUrl : null,
+        reviewedWorkIds: request.reviewedWorkIds
       })
       this.repositories.works.create(work)
 
@@ -109,10 +110,22 @@ export class WorkService {
     return create.immediate()
   }
 
+  evaluateCreation(input: WorkCreationEquivalenceInput) {
+    return this.workEquivalence.evaluateCreation(input)
+  }
+
   assertNoEquivalentWork(input: WorkCreationEquivalenceInput): void {
-    const result = this.workEquivalence.evaluateCreation(input)
-    if (result.status !== 'high-confidence') return
-    const { work, signals } = result.candidate
+    const result = this.evaluateCreation(input)
+    const candidates = result.status === 'high-confidence' ? [result.candidate] : result.status === 'ambiguous' ? result.candidates : []
+    const externalMatch = candidates.find((candidate) => candidate.signals.includes('external_id'))
+    if (result.status !== 'high-confidence' && !externalMatch) {
+      const unseen = candidates.find((candidate) => !input.reviewedWorkIds?.includes(candidate.work.id))
+      if (unseen) throw new DomainError('CONFIRMATION_REQUIRED', 'Revise as possíveis correspondências antes de cadastrar.', {
+        kind: 'possible_duplicate', workId: unseen.work.id, workTitle: unseen.work.title
+      })
+      return
+    }
+    const { work, signals } = externalMatch ?? (result.status === 'high-confidence' ? result.candidate : candidates[0])
     const externalIdMatch = signals.includes('external_id')
     throw new DomainError(externalIdMatch ? 'DUPLICATE_EXTERNAL_REF' : 'DUPLICATE_WORK', externalIdMatch
       ? 'Este identificador externo já pertence a outra obra.'

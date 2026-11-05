@@ -69,11 +69,12 @@ export const createWorkSchema = z.object({
     })
     .optional(),
   aliases: z.array(aliasInputSchema).optional(),
-  externalRefs: z.array(externalRefInputSchema).optional()
+  externalRefs: z.array(externalRefInputSchema).optional(),
+  reviewedWorkIds: z.array(z.string().uuid()).max(40).optional()
 })
 
 export const updateWorkSchema = createWorkSchema
-  .omit({ chapter: true, aliases: true, externalRefs: true })
+  .omit({ chapter: true, aliases: true, externalRefs: true, reviewedWorkIds: true })
   .partial()
   .extend({ id: z.string().uuid() })
   .refine((value) => Object.keys(value).some((key) => key !== 'id'), 'Nenhum campo para atualizar.')
@@ -154,6 +155,12 @@ export const detailedCreateWorkSchema = createWorkSchema.extend({
   source: createSourceSchema.omit({ workId: true }).optional()
 })
 
+export const workCreationReviewSchema = detailedCreateWorkSchema.extend({
+  discoveryTitles: z.array(z.string().trim().min(1).max(512)).max(20).optional(),
+  search: z.string().trim().max(200).optional()
+})
+export const reviewedSourceSchema = z.object({ workId: z.string().uuid(), draft: workCreationReviewSchema })
+
 export const detailedUpdateWorkSchema = z.object({
   work: z.union([updateWorkSchema, z.object({ id: z.string().uuid() })]),
   aliases: z.array(aliasInputSchema).optional(),
@@ -178,10 +185,12 @@ export const metadataImportSchema = z.object({
   provider: z.string().trim().min(1), externalId: z.string().trim().min(1), title: z.string().trim().min(1),
   mediaType: mediaTypeSchema, userStatus: userStatusSchema, chapter: z.string().trim().min(1).nullable().optional(),
   lastReadNote: nullableText, allowProbableDuplicate: z.boolean().optional(),
+  reviewedWorkIds: z.array(z.string().uuid()).max(40).optional(),
   requestId: metadataRequestIdSchema,
   source: createSourceSchema.omit({ workId: true }).optional()
 })
 export const metadataRefreshSchema = workIdSchema.extend({ requestId: metadataRequestIdSchema })
+export const coverGetSchema = workIdSchema.extend({ cacheOnly: z.boolean().optional() })
 export const coverWorkSchema = workIdSchema
 export const coverPreviewSchema = z.object({
   url: z.string().url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), 'Protocolo não permitido.')
