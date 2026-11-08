@@ -5,7 +5,8 @@ const dependencies = vi.hoisted(() => ({
   context: {
     services: {
       backups: { runAutomaticIfDue: vi.fn(async () => undefined) },
-      updates: { isDevelopmentMock: true }
+      updates: { isDevelopmentMock: true },
+      settings: {}
     },
     logger: { error: vi.fn() },
     dispose: vi.fn()
@@ -14,7 +15,7 @@ const dependencies = vi.hoisted(() => ({
   bridge: { close: vi.fn() },
   window: { id: 1 },
   windowController: {
-    create: vi.fn(), getWindow: vi.fn(), activateExisting: vi.fn(),
+    create: vi.fn(), getWindow: vi.fn(), activateExisting: vi.fn(), attachSettings: vi.fn(),
     createIfMissing: vi.fn(), beginQuit: vi.fn(), dispose: vi.fn()
   },
   showStartupRecovery: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('@main/windows/main-window-controller', () => ({
     getWindow = dependencies.windowController.getWindow
     activateExisting = dependencies.windowController.activateExisting
     createIfMissing = dependencies.windowController.createIfMissing
+    attachSettings = dependencies.windowController.attachSettings
     beginQuit = dependencies.windowController.beginQuit
     dispose = dependencies.windowController.dispose
   }
@@ -73,6 +75,45 @@ describe('runtime do processo principal', () => {
     expect(registerIpcHandlers).toHaveBeenCalledOnce()
     expect(dependencies.windowController.create).toHaveBeenCalledOnce()
     expect(startDesktopBridge).toHaveBeenCalledOnce()
+  })
+
+  it('abre a introdução antes do contexto e só libera o Renderer após registrar IPC', async () => {
+    let finishContext!: () => void
+    vi.mocked(createAppContext).mockImplementationOnce(() => new Promise((resolve) => {
+      finishContext = () => resolve(dependencies.context as never)
+    }))
+    const runtime = new MainProcessRuntime(createApp() as never, environment)
+    const startup = runtime.start()
+    const { cinematicIntro, servicesReady } = dependencies.windowController.create.mock.calls[0][0]
+    const ready = vi.fn()
+    void servicesReady.then(ready)
+    await Promise.resolve()
+
+    expect(cinematicIntro).toBe(true)
+    expect(registerIpcHandlers).not.toHaveBeenCalled()
+    expect(ready).not.toHaveBeenCalled()
+    finishContext()
+    await startup
+    expect(registerIpcHandlers).toHaveBeenCalledOnce()
+    expect(ready).toHaveBeenCalledWith(true)
+  })
+
+  it('encerra o contexto que termina de abrir depois do fechamento', async () => {
+    let finishContext!: () => void
+    vi.mocked(createAppContext).mockImplementationOnce(() => new Promise((resolve) => {
+      finishContext = () => resolve(dependencies.context as never)
+    }))
+    const runtime = new MainProcessRuntime(createApp() as never, environment)
+    const startup = runtime.start()
+    const { servicesReady } = dependencies.windowController.create.mock.calls[0][0]
+    runtime.dispose()
+    finishContext()
+    await startup
+
+    await expect(servicesReady).resolves.toBe(false)
+    expect(dependencies.context.dispose).toHaveBeenCalledOnce()
+    expect(registerIpcHandlers).not.toHaveBeenCalled()
+    expect(startDesktopBridge).not.toHaveBeenCalled()
   })
 
   it('valida o perfil E2E antes dos serviços e não usa recovery se a guarda falha', async () => {

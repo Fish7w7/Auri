@@ -95,7 +95,6 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; margin:
 .window-titlebar img { width: 19px; height: 19px; flex: 0 0 auto; border-radius: 5px; object-fit: contain; pointer-events: none; }
 .window-titlebar strong { overflow: hidden; color: var(--text-primary); font-size: .76rem; font-weight: 650; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; transition: opacity var(--transition); }
 .window-titlebar.is-inactive img, .window-titlebar.is-inactive strong { opacity: .55; }
-.app-loading { min-height: 0; flex: 1; display: grid; place-content: center; justify-items: center; gap: 16px; color: var(--text-secondary); background: var(--background); }
 .renderer-fallback { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 32px; color: var(--text-primary); background: var(--background); text-align: center; }
 .renderer-fallback h1 { margin: 8px 0 0; font-size: 1.45rem; }
 .renderer-fallback p { max-width: 460px; margin: 0 0 8px; color: var(--text-secondary); line-height: 1.55; }

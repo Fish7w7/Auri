@@ -1,4 +1,5 @@
 export const IPC_CHANNELS = {
+  startup: { waitForServices: 'auri:startup:wait-for-services' },
   browserExtension: {
     getStatus: 'auri:browser-extension:status',
     openEdgeStore: 'auri:browser-extension:edge-store',

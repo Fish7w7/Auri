@@ -34,11 +34,12 @@ export function resolveShortcut(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | '
   return null
 }
 
-export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, canAddWork }: {
+export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, canAddWork, paused = false }: {
   children: ReactNode
   onQuickSearch(): void
   onAddWork(): void
   canAddWork: boolean
+  paused?: boolean
 }) {
   const scopes = useRef<Array<RefObject<ShortcutScope>>>([])
   const actions = useRef({ onQuickSearch, onAddWork, canAddWork })
@@ -52,6 +53,7 @@ export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, 
   })
 
   useEffect(() => {
+    if (paused) return
     const latest = (predicate: (scope: ShortcutScope) => boolean) => {
       for (let index = scopes.current.length - 1; index >= 0; index -= 1) {
         const scope = scopes.current[index].current
@@ -110,7 +112,7 @@ export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, 
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
-  }, [])
+  }, [paused])
 
   return <ShortcutContext.Provider value={registry.current}>{children}</ShortcutContext.Provider>
 }

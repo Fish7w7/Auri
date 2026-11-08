@@ -1,5 +1,5 @@
 import type { App, BrowserWindow } from 'electron'
-import type { AppContext } from '../app/create-app-context'
+import type { SettingsService } from '../services/settings-service'
 import { createApplicationTray } from './create-application-tray'
 import { createMainWindow, type MainWindowOptions } from './create-main-window'
 import { activateMainWindow } from './window-activation'
@@ -8,17 +8,21 @@ import { WindowTrayController } from './window-tray-controller'
 export class MainWindowController {
   private window: BrowserWindow | null = null
   private trayController: WindowTrayController | null = null
+  private settings: SettingsService | null = null
 
-  constructor(
-    private readonly app: App,
-    private readonly context: AppContext
-  ) {}
+  constructor(private readonly app: App) {}
+
+  attachSettings(settings: SettingsService): void {
+    this.settings = settings
+    const window = this.getWindow()
+    if (window) this.trayController = this.createTrayController(window, settings)
+  }
 
   create(options?: MainWindowOptions): BrowserWindow {
     this.trayController?.dispose()
     const window = createMainWindow(options)
     this.window = window
-    this.trayController = this.createTrayController(window)
+    this.trayController = this.settings ? this.createTrayController(window, this.settings) : null
     window.once('closed', () => {
       if (this.window === window) this.window = null
     })
@@ -46,10 +50,10 @@ export class MainWindowController {
     this.trayController?.dispose()
     this.trayController = null
     this.window = null
+    this.settings = null
   }
 
-  private createTrayController(window: BrowserWindow): WindowTrayController {
-    const settings = this.context.services.settings
+  private createTrayController(window: BrowserWindow, settings: SettingsService): WindowTrayController {
     return new WindowTrayController({
       window,
       getCloseToTray: () => settings.getSettings().closeToTray,

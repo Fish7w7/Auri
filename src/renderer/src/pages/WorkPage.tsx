@@ -28,7 +28,7 @@ const LANGUAGES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Portugu�
 const CREATOR_ROLES: Record<string, string> = { author: 'Autores', artist: 'Artistas', story: 'História', original_creator: 'Criadores originais', other: 'Outros' }
 const COUNTRIES: Record<string, string> = { KR: 'Coreia do Sul', JP: 'Japão', CN: 'China', BR: 'Brasil', US: 'Estados Unidos' }
 
-export function WorkPage({ id }: { id: string }) {
+export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: () => void }) {
   const [details, setDetails] = useState<WorkDetails | null>(null)
   const [pageState, setPageState] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
   const [history, setHistory] = useState<ReadingHistory[]>([])
@@ -54,6 +54,9 @@ export function WorkPage({ id }: { id: string }) {
   const reload = useCallback(() => { refreshData() }, [refreshData])
   useEffect(() => { setPageState('loading'); void loadDetails(); void loadHistory() }, [loadDetails, loadHistory])
   useEffect(() => subscribeToDataChanges(() => { void loadDetails(); void loadHistory() }, id), [id, loadDetails, loadHistory])
+  useEffect(() => {
+    if (pageState !== 'loading') onInitialReady?.()
+  }, [onInitialReady, pageState])
 
   const bestSource = selectBestReadingSource(details?.sources ?? [])
 

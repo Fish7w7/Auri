@@ -14,7 +14,6 @@ import { CollectionsPage } from '../pages/CollectionsPage'
 import { KeyboardShortcutsProvider } from './keyboard-shortcuts'
 import { QuickSearchDialog } from '../components/library/QuickSearchDialog'
 import { WindowTitleBar } from '../components/shell/WindowTitleBar'
-import { BrandMark } from '../components/shell/BrandMark'
 import { StartupIntro } from '../components/shell/StartupIntro'
 import { navigate } from './navigation'
 import { INITIAL_ADD_WORK_DIALOG_STATE, reduceAddWorkDialogState } from './add-work-dialog-state'
@@ -23,11 +22,11 @@ import { recordRecentWork } from '@shared/home-preferences'
 import { getActiveLibraryNavigationSnapshot } from './navigation-session'
 import { navigateToWork } from './navigation'
 
-const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null, homePreferences: { sectionOrder: ['continueReading', 'recent', 'favorites', 'recentlyAdded'], enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false }, pinnedCollectionIds: [] }, recentWorkIds: [] }
+const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, cinematicIntro: true, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null, homePreferences: { sectionOrder: ['continueReading', 'recent', 'favorites', 'recentlyAdded'], enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false }, pinnedCollectionIds: [] }, recentWorkIds: [] }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
 
 export function App() {
-  return <div className="window-frame"><WindowTitleBar /><ToastProvider><AppShell /></ToastProvider><StartupIntro /></div>
+  return <div className="window-frame"><WindowTitleBar /><ToastProvider><AppShell /></ToastProvider></div>
 }
 
 function AppShell() {
@@ -35,6 +34,15 @@ function AppShell() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [summary, setSummary] = useState(EMPTY_SUMMARY)
   const [ready, setReady] = useState(false)
+  const [startupFailed, setStartupFailed] = useState(false)
+  const [initialPage, setInitialPage] = useState('')
+  const [introComplete, setIntroComplete] = useState(false)
+  const [cinematic] = useState(() => window.auriStartup?.cinematic === true
+    && (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type !== 'reload')
+  const completeIntro = useCallback(() => setIntroComplete(true), [])
+  const markHomeReady = useCallback(() => setInitialPage('home'), [])
+  const workId = route.page === 'work' ? route.id : null
+  const markWorkReady = useCallback(() => setInitialPage(`work:${workId}`), [workId])
   const [addDialog, dispatchAddDialog] = useReducer(reduceAddWorkDialogState, INITIAL_ADD_WORK_DIALOG_STATE)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const settingsUpdateQueue = useRef<Promise<void>>(Promise.resolve())
@@ -43,7 +51,17 @@ function AppShell() {
     try { setSummary(await window.auri.library.summary()) } catch { /* páginas mostram o erro de dados */ }
   }, [])
   useEffect(() => {
-    void Promise.all([window.auri.settings.get().then(setSettings), loadSummary()]).finally(() => setReady(true))
+    let active = true
+    async function initialize() {
+      if (window.auriStartup && !await window.auriStartup.waitForServices()) throw new Error('Serviços indisponíveis.')
+      if (!active) return
+      const [settingsResult] = await Promise.allSettled([window.auri.settings.get(), loadSummary()])
+      if (!active) return
+      if (settingsResult.status === 'fulfilled') setSettings(settingsResult.value)
+      setReady(true)
+    }
+    void initialize().catch(() => { if (active) setStartupFailed(true) })
+    return () => { active = false }
   }, [loadSummary])
   const refreshData = useCallback(() => {
     void loadSummary()
@@ -67,11 +85,11 @@ function AppShell() {
     await operation
   }, [])
   useEffect(() => {
-    if (route.page !== 'work') return
+    if (!ready || route.page !== 'work') return
     const next = recordRecentWork(settings.recentWorkIds, route.id)
     if (next.length === settings.recentWorkIds.length && next.every((id, index) => id === settings.recentWorkIds[index])) return
     void updateSettings({ recentWorkIds: next })
-  }, [route, settings.recentWorkIds, updateSettings])
+  }, [ready, route, settings.recentWorkIds, updateSettings])
   const openWorkFromQuickSearch = useCallback((workId: string) => {
     if (route.page === 'home') navigateToWork(workId, 'home')
     else if (route.page === 'library' || route.page === 'collections') {
@@ -82,22 +100,28 @@ function AppShell() {
   }, [route])
   const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => dispatchAddDialog({ type: 'open-manual' }), openWorkFromQuickSearch }), [openWorkFromQuickSearch, refreshData, settings, summary, updateSettings])
 
-  if (!ready) return <div className="app-loading"><BrandMark large /><span>Preparando sua biblioteca…</span></div>
+  if (startupFailed) throw new Error('Não foi possível iniciar os serviços do Auri.')
 
-  return <AppContext.Provider value={context}><KeyboardShortcutsProvider onQuickSearch={() => {
+  const pageReady = route.page === 'home' ? initialPage === 'home'
+    : route.page === 'work' ? initialPage === `work:${route.id}` : true
+
+  return <>
+    {ready && <AppContext.Provider value={context}><KeyboardShortcutsProvider paused={!introComplete} onQuickSearch={() => {
     if (quickSearchOpen) document.querySelector<HTMLInputElement>('.quick-search input')?.focus()
     else setQuickSearchOpen(true)
-  }} onAddWork={() => dispatchAddDialog({ type: 'open-manual' })} canAddWork={route.page !== 'settings'}><div className="app-shell">
+  }} onAddWork={() => dispatchAddDialog({ type: 'open-manual' })} canAddWork={route.page !== 'settings'}><div className="app-shell" inert={!introComplete}>
       <Sidebar route={route} summary={summary} compact={settings.sidebarCompact} onToggleCompact={() => void updateSettings({ sidebarCompact: !settings.sidebarCompact })} />
       <main className="app-content" id="main-content">
-        {route.page === 'home' && <HomePage />}
+        {route.page === 'home' && <HomePage onInitialReady={introComplete ? undefined : markHomeReady} />}
         {route.page === 'library' && <LibraryPage key={`${route.status ?? 'all'}:${route.favorite ?? false}:${route.sort ?? 'default'}`} initialStatus={route.status} initialFavorite={route.favorite} initialSort={route.sort} />}
         {route.page === 'trash' && <TrashPage />}
         {route.page === 'settings' && <SettingsPage key={route.section ?? 'appearance'} initialSection={route.section} />}
         {route.page === 'collections' && <CollectionsPage collectionId={route.id} />}
-        {route.page === 'work' && <WorkPage id={route.id} />}
+        {route.page === 'work' && <WorkPage key={route.id} id={route.id} onInitialReady={introComplete ? undefined : markWorkReady} />}
       </main>
-      <AddWorkDialog open={addDialog.open} draft={addDialog.draft} onClose={() => dispatchAddDialog({ type: 'close' })} onCreated={refreshData} />
+      <AddWorkDialog open={introComplete && addDialog.open} draft={addDialog.draft} onClose={() => dispatchAddDialog({ type: 'close' })} onCreated={refreshData} />
       <QuickSearchDialog open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
-    </div></KeyboardShortcutsProvider></AppContext.Provider>
+    </div></KeyboardShortcutsProvider></AppContext.Provider>}
+    {!introComplete && <StartupIntro cinematic={cinematic} ready={ready && pageReady} onComplete={completeIntro} />}
+  </>
 }

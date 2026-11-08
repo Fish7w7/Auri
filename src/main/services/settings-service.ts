@@ -8,6 +8,11 @@ import { parseDomainInput } from './service-utils'
 const DEFAULT_SETTINGS: AppSettings = appSettingsSchema.parse({})
 type SettingsListener = (settings: AppSettings) => void
 
+export function readStoredSettings(settingsPath: string): AppSettings {
+  if (!existsSync(settingsPath)) return { ...DEFAULT_SETTINGS }
+  return appSettingsSchema.parse(JSON.parse(readFileSync(settingsPath, 'utf8')))
+}
+
 export class SettingsService {
   private readonly listeners = new Set<SettingsListener>()
 
@@ -17,10 +22,8 @@ export class SettingsService {
   ) {}
 
   getSettings(): AppSettings {
-    if (!existsSync(this.settingsPath)) return { ...DEFAULT_SETTINGS }
     try {
-      const stored: unknown = JSON.parse(readFileSync(this.settingsPath, 'utf8'))
-      return appSettingsSchema.parse(stored)
+      return readStoredSettings(this.settingsPath)
     } catch (error) {
       this.logger.warn('app', 'Configurações inválidas; usando defaults.', {
         event: 'settings.invalid',

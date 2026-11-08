@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SettingsService } from '@main/services/settings-service'
+import { readStoredSettings, SettingsService } from '@main/services/settings-service'
 import { TestLogger } from '../fixtures/test-logger'
 
 describe('SettingsService', () => {
@@ -44,6 +44,17 @@ describe('SettingsService', () => {
     expect(changes).toEqual([true, false])
 
     unsubscribe()
+  })
+
+  it('mantém a introdução em perfis legados e aplica o modo rápido na próxima abertura', () => {
+    directory = mkdtempSync(join(tmpdir(), 'auri-settings-intro-'))
+    const path = join(directory, 'settings.json')
+    writeFileSync(path, JSON.stringify({ closeToTray: true }), 'utf8')
+    const service = new SettingsService(path, new TestLogger())
+
+    expect(readStoredSettings(path).cinematicIntro).toBe(true)
+    service.updateSettings({ cinematicIntro: false })
+    expect(readStoredSettings(path)).toMatchObject({ cinematicIntro: false, closeToTray: true })
   })
 
   it('normaliza HomePreferences e Recentes sem migration de banco', () => {

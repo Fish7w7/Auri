@@ -25,7 +25,7 @@ function libraryContext(): AppContextValue {
   const context: AppContextValue = {
     settings: {
       libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium',
-      sidebarCompact: false, closeToTray: false, coverCacheMaxMb: 500,
+      sidebarCompact: false, cinematicIntro: true, closeToTray: false, coverCacheMaxMb: 500,
       backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null,
       homePreferences: { sectionOrder: ['continueReading', 'recent', 'favorites', 'recentlyAdded'], enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false }, pinnedCollectionIds: [] }, recentWorkIds: []
     },

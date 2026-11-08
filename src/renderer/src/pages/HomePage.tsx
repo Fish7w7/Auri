@@ -34,7 +34,7 @@ function HomeSection({ section, actions, onContinue, onHide }: { section: HomeSe
   return <section className={`home-section home-section--${columnCount}-columns`}><div className="section-heading"><div><h2>{section.title}</h2></div>{section.viewAllPath && <Button variant="ghost" onClick={() => navigate(section.viewAllPath!)}>{section.key === 'continueReading' || section.key === 'favorites' || section.key === 'recentlyAdded' ? 'Ver todas' : 'Abrir coleção'}</Button>}</div>{section.works.length > 0 ? <div className="home-work-grid">{section.works.map((work) => <HomeWorkCard key={work.id} work={work} showLastReadNote={section.key === 'continueReading'} onOpen={actions.onOpen} onIncrement={actions.onIncrement} onContinue={onContinue} onHide={onHide} />)}</div> : <div className="home-section__empty"><strong>{section.emptyTitle}</strong>{section.emptyDescription && <span>{section.emptyDescription}</span>}{section.key === 'continueReading' && <Button onClick={() => navigate('/library')}>Abrir Biblioteca</Button>}</div>}</section>
 }
 
-export function HomePage() {
+export function HomePage({ onInitialReady }: { onInitialReady?: () => void } = {}) {
   const { settings, summary, refreshData, openAddWork, updateSettings } = useAppContext()
   const { showToast } = useToast()
   const [data, setData] = useState<HomeData>(EMPTY_HOME)
@@ -50,6 +50,7 @@ export function HomePage() {
     if (orphan) void updateSettings({ homePreferences: unpinHomeCollection(settings.homePreferences, orphan) })
   } catch { if (!hasData.current) setState('error') } }, [settings.homePreferences, settings.recentWorkIds, updateSettings])
   useEffect(() => { void load(); return subscribeToDataChanges(() => void load()) }, [load])
+  useEffect(() => { if (state !== 'loading') onInitialReady?.() }, [onInitialReady, state])
   const refresh = useCallback(() => { refreshData() }, [refreshData])
   const actions = useWorkActions(refresh, (work) => navigateToWork(work.id, 'home'))
   const sections = getVisibleHomeSections(data, settings.homePreferences)

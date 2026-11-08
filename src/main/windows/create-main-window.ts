@@ -1,13 +1,18 @@
 import { join } from 'node:path'
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 import { APP_BRAND } from '@shared/constants/app-branding'
+import { IPC_CHANNELS } from '@shared/constants/ipc-channels'
 
 export interface MainWindowOptions {
-  showWhenReady?: boolean
+  showWhenReady?: boolean | (() => boolean)
   keepRenderingWhenHidden?: boolean
+  cinematicIntro?: boolean
+  servicesReady?: Promise<boolean>
 }
 
-export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden = false }: MainWindowOptions = {}): BrowserWindow {
+export function createMainWindow({
+  showWhenReady = true, keepRenderingWhenHidden = false, cinematicIntro = false, servicesReady
+}: MainWindowOptions = {}): BrowserWindow {
   const window = new BrowserWindow({
     title: APP_BRAND.name,
     width: 1200,
@@ -25,6 +30,7 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     },
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
+      additionalArguments: cinematicIntro ? ['--auri-cinematic-intro'] : [],
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -33,8 +39,14 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     }
   })
 
+  window.webContents.ipc.handle(IPC_CHANNELS.startup.waitForServices, (event) =>
+    event.senderFrame === window.webContents.mainFrame ? servicesReady ?? true : false
+  )
+
   if (showWhenReady) {
-    window.once('ready-to-show', () => window.show())
+    window.once('ready-to-show', () => {
+      if (showWhenReady === true || showWhenReady()) window.show()
+    })
   }
 
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -47,11 +59,15 @@ export function createMainWindow({ showWhenReady = true, keepRenderingWhenHidden
     if (url !== currentUrl) event.preventDefault()
   })
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void window.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  const loading = process.env.ELECTRON_RENDERER_URL
+    ? window.loadURL(process.env.ELECTRON_RENDERER_URL)
+    : window.loadFile(join(__dirname, '../renderer/index.html'))
+  void loading.catch((error: unknown) => {
+    if (window.isDestroyed()) return
+    console.error('Falha ao carregar a interface do Auri.', error)
+    dialog.showErrorBox('Auri', 'Não foi possível carregar a interface do Auri.')
+    if (!window.isDestroyed()) window.destroy()
+  })
 
   return window
 }

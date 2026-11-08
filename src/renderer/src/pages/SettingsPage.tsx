@@ -256,6 +256,9 @@ export function SettingsPage({ initialSection }: { initialSection?: SettingsSect
             </div>
           </SettingsGroup>
           <SettingsGroup title="Inicialização e comportamento da janela">
+            <SettingRow title="Introdução cinematográfica" description="Exibe a abertura animada ao iniciar o Auri. Desative para usar a abertura rápida.">
+              <Switch checked={settings.cinematicIntro} label="Introdução cinematográfica" onCheckedChange={(cinematicIntro) => void updateSettings({ cinematicIntro })} />
+            </SettingRow>
             <SettingRow title="O botão Fechar mantém o Auri na bandeja" description="Ao clicar no X, o Auri continuará executando em segundo plano.">
               <Switch checked={settings.closeToTray} label="O botão Fechar mantém o Auri na bandeja" onCheckedChange={(closeToTray) => void updateSettings({ closeToTray })} />
             </SettingRow>
