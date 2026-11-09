@@ -16,7 +16,7 @@ describe('input Embedded oficial validado independentemente da metadata', () => 
   it('confere hashes, identidade, locales e inventário do ZIP real', () => {
     expect(sha256(zip)).toBe(config.sha256)
     expect(sha256(metadata)).toBe(config.metadataSha256)
-    expect(official.metadata).toMatchObject({ version: '0.3.1', extensionId: 'agefiaohfielfgadiagemnflekbboblp', filesCount: 10 })
+    expect(official.metadata).toMatchObject({ version: '0.3.2', extensionId: 'agefiaohfielfgadiagemnflekbboblp', filesCount: 10 })
     expect(manifest).toMatchObject({ manifest_version: 3, default_locale: 'en', permissions: ['activeTab', 'scripting', 'nativeMessaging'] })
     expect(official.files.has('_locales/pt_BR/messages.json')).toBe(true)
   })
@@ -30,7 +30,7 @@ describe('input Embedded oficial validado independentemente da metadata', () => 
     { manifest_version: 2 }, { version: '9.9.9' }, { key: undefined }, { key: 'invalid' },
     { default_locale: 'pt_BR' }, { permissions: ['activeTab', 'scripting'] },
     { permissions: [...manifest.permissions, 'tabs'] }, { permissions: [...manifest.permissions, 'activeTab'] },
-    { host_permissions: ['<all_urls>'] }, { optional_permissions: ['tabs'] }
+    { host_permissions: ['<all_urls>'] }, { optional_permissions: ['tabs'] }, { content_scripts: [] }
   ])('recusa manifest divergente: %j', (change) => {
     expect(() => validateEmbeddedFiles(changedManifest(change))).toThrow()
   })
@@ -41,7 +41,7 @@ describe('input Embedded oficial validado independentemente da metadata', () => 
     const files = new Map(official.files); files.delete(name)
     expect(() => validateEmbeddedFiles(files)).toThrow()
   })
-  it.each(['app.auri.native_host.dev', 'Auri-Dev', '-----BEGIN PRIVATE KEY-----', '//# sourceMappingURL=popup.js.map'])('recusa conteúdo proibido %s', (text) => {
+  it.each(['app.auri.native_host.dev', 'app.auri.native_host.e2e', 'Auri-Dev', '-----BEGIN PRIVATE KEY-----', '//# sourceMappingURL=popup.js.map'])('recusa conteúdo proibido %s', (text) => {
     expect(() => validateEmbeddedFiles(new Map(official.files).set('assets/popup.js', Buffer.from(text)))).toThrow()
   })
   it('exige host PROD no bundle', () => {

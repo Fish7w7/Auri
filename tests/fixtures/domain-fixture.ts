@@ -82,7 +82,7 @@ export function createDomainFixture(databasePath = ':memory:') {
       clock
     ),
     sources: new SourceService(db, repositories.sources, repositories.works, sourceIdentity, clock),
-    library: new LibraryService(repositories.works, repositories.collections),
+    library: new LibraryService(repositories.works, repositories.collections, repositories.sources),
     bulk: new BulkLibraryService(db, {
       works: repositories.works,
       tags: repositories.tags,

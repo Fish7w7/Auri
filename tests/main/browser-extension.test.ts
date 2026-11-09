@@ -80,7 +80,7 @@ describe('ações restritas da extensão no Main', () => {
   })
   it('status não revela executáveis nem alega extensão instalada', async () => {
     const { service } = fixture(); const status = await service.getStatus()
-    expect(status).toMatchObject({ embeddedVersion: '0.3.1', embeddedAvailable: true })
+    expect(status).toMatchObject({ embeddedVersion: '0.3.2', embeddedAvailable: true })
     expect(status.browsers.map((browser) => browser.availableAction)).toEqual(['store', 'manual', 'manual'])
     expect(JSON.stringify(status)).not.toMatch(/\.exe|extensionInstalled|folder|path/)
   })

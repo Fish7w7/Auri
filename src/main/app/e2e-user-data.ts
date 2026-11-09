@@ -41,7 +41,9 @@ function assertPrivateTree(directory: string): void {
   if (!lstatSync(directory, { throwIfNoEntry: false })) return
   for (const name of readdirSync(directory)) {
     const entryPath = join(directory, name)
-    const entry = lstatSync(entryPath)
+    // Chromium can rename its temporary cache files between readdir and lstat.
+    const entry = lstatSync(entryPath, { throwIfNoEntry: false })
+    if (!entry) continue
     if (entry.isSymbolicLink()) invalid('o perfil contém symlink ou junction.')
     if (entry.isDirectory()) assertPrivateTree(entryPath)
     else if (!entry.isFile() || entry.nlink > 1) invalid('o perfil contém arquivo especial ou compartilhado por hard link.')

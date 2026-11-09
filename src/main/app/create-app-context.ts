@@ -176,7 +176,7 @@ export async function createAppContext(app: App, options: CreateAppContextOption
       sources: sourcesRepository,
       overrides: overridesRepository
     }, sourceIdentity, settings, backups)
-    const library = new LibraryService(worksRepository, collectionsRepository)
+    const library = new LibraryService(worksRepository, collectionsRepository, sourcesRepository)
     const transfer = new TransferService(database.db, {
       works: worksRepository, aliases: aliasesRepository, creators: creatorsRepository,
       genres: genresRepository, tags: tagsRepository, collections: collectionsRepository,

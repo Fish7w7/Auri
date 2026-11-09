@@ -72,7 +72,7 @@ describe('ações rápidas dos cards da Biblioteca', () => {
   })
 
   it('mantém Ocultar da Home somente dentro do menu secundário', () => {
-    const html = renderToStaticMarkup(createElement(HomeWorkCard, { work, showLastReadNote: false, onOpen() {}, onContinue() {}, onIncrement() {}, onHide() {} }))
+    const html = renderToStaticMarkup(createElement(HomeWorkCard, { work, showLastReadNote: false, onOpen() {}, onContinue() {}, onIncrement() {}, onHide() {}, onChooseSource() {} }))
     const source = readFileSync(join(process.cwd(), 'src/renderer/src/components/home/HomeWorkCard.tsx'), 'utf8')
     expect(html).toContain('class="home-work-card__actions"')
     expect(html).toContain('class="work-overflow home-work-menu"')

@@ -52,7 +52,15 @@ export class CoverService {
     const cacheExists = existsSync(this.cachePath(workId))
     const currentSource = this.readCacheSource(workId)
     if (cacheExists && currentSource === work.cover.sourceUrl) return this.cachedResult(workId)
-    if (cacheOnly) return { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
+    if (cacheOnly) {
+      // A local reader can reuse a download started by the Library or Home.
+      const pending = this.inflight.get(`${workId}:${work.cover.sourceUrl}`)
+      if (pending) {
+        await pending.catch(() => undefined)
+        if (existsSync(this.cachePath(workId)) && this.readCacheSource(workId) === work.cover.sourceUrl) return this.cachedResult(workId)
+      }
+      return { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
+    }
     if (!this.client.isOnline()) return cacheExists ? this.cachedResult(workId) : { state: 'placeholder', dataUrl: null, source: 'none', cached: false }
     try {
       const prepared = await this.enqueue(workId, work.cover.sourceUrl)

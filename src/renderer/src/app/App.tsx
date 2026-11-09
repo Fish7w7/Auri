@@ -11,6 +11,7 @@ import { TrashPage } from '../pages/TrashPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { WorkPage } from '../pages/WorkPage'
 import { CollectionsPage } from '../pages/CollectionsPage'
+import { StatisticsPage } from '../pages/StatisticsPage'
 import { KeyboardShortcutsProvider } from './keyboard-shortcuts'
 import { QuickSearchDialog } from '../components/library/QuickSearchDialog'
 import { WindowTitleBar } from '../components/shell/WindowTitleBar'
@@ -21,6 +22,7 @@ import { dispatchDataChanged } from './data-changes'
 import { recordRecentWork } from '@shared/home-preferences'
 import { getActiveLibraryNavigationSnapshot } from './navigation-session'
 import { navigateToWork } from './navigation'
+import type { WorkCommand } from '../lib/quick-search'
 
 const DEFAULT_SETTINGS: AppSettings = { libraryView: 'grid', librarySort: 'last_read_desc', cardSize: 'medium', sidebarCompact: false, cinematicIntro: true, closeToTray: false, coverCacheMaxMb: 500, backupAutomatic: true, backupFrequency: 'daily', backupRetention: 10, backupDirectory: null, homePreferences: { sectionOrder: ['continueReading', 'recent', 'favorites', 'recentlyAdded'], enabledSections: { continueReading: true, recent: true, favorites: true, recentlyAdded: false }, pinnedCollectionIds: [] }, recentWorkIds: [] }
 const EMPTY_SUMMARY: LibrarySummary = { total: 0, favorite: 0, byStatus: { want_to_read: 0, reading: 0, paused: 0, waiting: 0, completed: 0, dropped: 0 } }
@@ -45,6 +47,8 @@ function AppShell() {
   const markWorkReady = useCallback(() => setInitialPage(`work:${workId}`), [workId])
   const [addDialog, dispatchAddDialog] = useReducer(reduceAddWorkDialogState, INITIAL_ADD_WORK_DIALOG_STATE)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
+  const [workCommand, setWorkCommand] = useState<{ id: string; action: WorkCommand } | null>(null)
+  const clearWorkCommand = useCallback(() => setWorkCommand(null), [])
   const settingsUpdateQueue = useRef<Promise<void>>(Promise.resolve())
 
   const loadSummary = useCallback(async () => {
@@ -68,8 +72,16 @@ function AppShell() {
     dispatchDataChanged()
   }, [loadSummary])
   useEffect(() => {
-    const removeOpenWork = window.auri.desktopCommands.onOpenWork((workId) => navigate(`/work/${workId}`))
-    const removeOpenAddWork = window.auri.desktopCommands.onOpenAddWork((draft) => dispatchAddDialog({ type: 'open-external', draft }))
+    const removeOpenWork = window.auri.desktopCommands.onOpenWork((workId) => {
+      setQuickSearchOpen(false)
+      setWorkCommand(null)
+      navigate(`/work/${workId}`)
+    })
+    const removeOpenAddWork = window.auri.desktopCommands.onOpenAddWork((draft) => {
+      setQuickSearchOpen(false)
+      setWorkCommand(null)
+      dispatchAddDialog({ type: 'open-external', draft })
+    })
     const removeWorkChanged = window.auri.desktopCommands.onWorkChanged((change) => {
       void loadSummary()
       dispatchDataChanged(change)
@@ -96,8 +108,12 @@ function AppShell() {
       const snapshot = getActiveLibraryNavigationSnapshot()
       if (snapshot) navigateToWork(workId, 'library', snapshot)
       else navigateToWork(workId, 'direct')
-    } else navigateToWork(workId, 'direct')
+    } else navigateToWork(workId, route.page === 'statistics' ? 'statistics' : 'direct')
   }, [route])
+  const openWorkCommand = (id: string, action: WorkCommand) => {
+    setWorkCommand({ id, action })
+    if (workId !== id) openWorkFromQuickSearch(id)
+  }
   const context = useMemo(() => ({ settings, summary, updateSettings, refreshData, openAddWork: () => dispatchAddDialog({ type: 'open-manual' }), openWorkFromQuickSearch }), [openWorkFromQuickSearch, refreshData, settings, summary, updateSettings])
 
   if (startupFailed) throw new Error('Não foi possível iniciar os serviços do Auri.')
@@ -117,10 +133,11 @@ function AppShell() {
         {route.page === 'trash' && <TrashPage />}
         {route.page === 'settings' && <SettingsPage key={route.section ?? 'appearance'} initialSection={route.section} />}
         {route.page === 'collections' && <CollectionsPage collectionId={route.id} />}
-        {route.page === 'work' && <WorkPage key={route.id} id={route.id} onInitialReady={introComplete ? undefined : markWorkReady} />}
+        {route.page === 'statistics' && <StatisticsPage />}
+        {route.page === 'work' && <WorkPage key={route.id} id={route.id} command={workCommand?.id === route.id ? workCommand.action : undefined} onCommandHandled={clearWorkCommand} onInitialReady={introComplete ? undefined : markWorkReady} />}
       </main>
       <AddWorkDialog open={introComplete && addDialog.open} draft={addDialog.draft} onClose={() => dispatchAddDialog({ type: 'close' })} onCreated={refreshData} />
-      <QuickSearchDialog open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
+      <QuickSearchDialog open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} currentWorkId={workId ?? undefined} onWorkCommand={openWorkCommand} />
     </div></KeyboardShortcutsProvider></AppContext.Provider>}
     {!introComplete && <StartupIntro cinematic={cinematic} ready={ready && pageReady} onComplete={completeIntro} />}
   </>

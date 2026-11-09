@@ -8,6 +8,7 @@ export type IconName =
   | 'bookmark'
   | 'pause'
   | 'clock'
+  | 'chart'
   | 'check'
   | 'x-circle'
   | 'star'
@@ -37,6 +38,7 @@ const paths: Record<IconName, React.ReactNode> = {
   bookmark: <path d="M6 4h12v17l-6-4-6 4z"/>,
   pause: <><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  chart: <path d="M4 4v16h16M8 16v-4m5 4V8m5 8V5"/>,
   check: <><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></>,
   'x-circle': <><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></>,
   star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>,

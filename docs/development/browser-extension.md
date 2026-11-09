@@ -2,7 +2,7 @@
 
 ## Desenvolvimento local
 
-Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.3.1 e sua metadata ficam em `Auri-Extension/release/`.
+Use Windows x64 e Node.js 22.12 ou mais recente. Além do checkout do Desktop, disponibilize os inputs oficiais da Auri Extension nos caminhos definidos em `build/browser-extension.config.json`. No layout padrão, `Auri/` e `Auri-Extension/` são diretórios irmãos, e o ZIP Embedded 0.3.2 e sua metadata ficam em `Auri-Extension/release/`.
 
 Com os inputs disponíveis, na raiz do Desktop:
 
@@ -45,10 +45,10 @@ Se uma ação falhar, o guia permanece disponível e o toast identifica a etapa.
 
 ## Entrada e build reproduzível
 
-`build/browser-extension.config.json` é a configuração revisável da distribuição: caminhos dos inputs oficiais, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.3.1 é `../Auri-Extension/release/auri-extension-0.3.1-embedded.zip`, com metadata no `.json` de mesmo nome.
+`build/browser-extension.config.json` define os caminhos, hashes SHA-256, versão, identidade Embedded, fingerprint público e URL pública da loja Edge. Os caminhos são relativos à raiz do Desktop. A entrada 0.3.2 é `../Auri-Extension/release/auri-extension-0.3.2-embedded.zip`, com metadata no `.json` de mesmo nome.
 
-- ZIP SHA-256: `a3781628fd5a8b74f09a66b40b7f0d76a6ef2ea77b7048e03e02c83c731eb231`.
-- Metadata SHA-256: `95eadbac1bb226a981f602aec432fd37089012fd24291ab3439fc0109cf6eccc`.
+- ZIP SHA-256 `62f35b96e5d0a20073930e7fc9bf82d1f4a2ae82649bf332cf6d2202a344786d`.
+- Metadata SHA-256 `d5a6ca241f739a60b42e4463fcab104a43f085cf2c23da145e22b88eae8e2296`.
 - Fingerprint SHA-256 da chave pública: `064580e7584b56038064cd5b4a11e1bfde8ddf403a06cc974d2d63c59b7e155b`.
 - ID Embedded: `agefiaohfielfgadiagemnflekbboblp`.
 - Origin Embedded: `chrome-extension://agefiaohfielfgadiagemnflekbboblp/`.

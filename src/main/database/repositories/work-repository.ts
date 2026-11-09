@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
-import type { LibraryQuery, LibrarySummary } from '@shared/contracts'
+import type { LibraryQuery, LibrarySummary, ReadingStatisticsRequest } from '@shared/contracts'
+import { readReadingStatistics } from './reading-statistics-repository'
 import type { LibrarySort } from '@shared/types/domain'
 import type { ChapterProgress, Work } from '@shared/types/domain'
 
@@ -227,7 +228,9 @@ export class WorkRepository {
     return this.findMany(
       `SELECT ${WORK_COLUMNS} FROM works
        WHERE deleted_at IS NULL AND hidden_from_home = 0 AND user_status = 'reading'
-       ORDER BY last_read_at IS NULL ASC, last_read_at DESC, created_at DESC, normalized_title ASC, id ASC LIMIT ?`,
+       ORDER BY max(coalesce(julianday(last_read_at), 0), coalesce((
+         SELECT max(julianday(s.last_used_at)) FROM sources s WHERE s.work_id = works.id
+       ), 0)) DESC, created_at DESC, normalized_title ASC, id ASC LIMIT ?`,
       limit
     )
   }
@@ -262,6 +265,10 @@ export class WorkRepository {
 
   searchActive(normalizedQuery: string, recentWorkIds: readonly string[], query: LibraryQuery = {}): Work[] {
     return this.queryActive({ ...query, search: normalizedQuery }, { normalizedQuery, recentWorkIds })
+  }
+
+  getReadingStatistics(request: ReadingStatisticsRequest, now: Date) {
+    return readReadingStatistics(this.db, request, now)
   }
 
   getSummary(): LibrarySummary {

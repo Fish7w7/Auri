@@ -1,4 +1,4 @@
-import { createRequest, PROTOCOL_VERSION } from '@auri/protocol'
+import { createRequest, PROTOCOL_LIMITS, PROTOCOL_VERSION } from '@auri/protocol'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '@shared/errors/domain-error'
 import { DESKTOP_PROTOCOL_FEATURES, ProtocolDispatcher, type ProtocolFeatureCapability, type ProtocolHandlerMap } from '@main/protocol/protocol-dispatcher'
@@ -9,6 +9,16 @@ function dispatcher(handlers: ProtocolHandlerMap, features: readonly ProtocolFea
 }
 
 describe('ProtocolDispatcher', () => {
+  it('rejeita system.hello acima do limite antes de acessar os itens', async () => {
+    const versions = new Array(PROTOCOL_LIMITS.supportedProtocolVersions + 1)
+    Object.defineProperty(versions, 0, { get: () => { throw new Error('Não deve ler as versões.') } })
+    const response = await dispatcher({}).dispatch({
+      kind: 'request', id: 'oversized', protocolVersion: PROTOCOL_VERSION, method: 'system.hello',
+      params: { supportedProtocolVersions: versions }
+    })
+    expect(response).toMatchObject({ id: 'oversized', method: 'system.hello', ok: false, error: { code: 'INVALID_PARAMS' } })
+  })
+
   it('responde hello e deriva capabilities dos handlers registrados', async () => {
     let instance!: ProtocolDispatcher
     instance = dispatcher({

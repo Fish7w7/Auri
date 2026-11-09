@@ -7,7 +7,6 @@ import { CoverDialog } from '../components/work/CoverDialog'
 import { ProgressDialog } from '../components/work/ProgressDialog'
 import { RelationDialog, type RelationKind } from '../components/work/RelationDialog'
 import { SourceDialog } from '../components/work/SourceDialog'
-import { AlternativeSourceDialog } from '../components/work/AlternativeSourceDialog'
 import { WorkCover } from '../components/work/WorkCover'
 import { WorkEditorDialog } from '../components/work/WorkEditorDialog'
 import { MetadataRefreshDialog } from '../components/work/MetadataRefreshDialog'
@@ -19,16 +18,23 @@ import { ErrorState } from '../components/ui/States'
 import { useToast } from '../components/ui/Toast'
 import { Select } from '../components/ui/Select'
 import { MEDIA_TYPE_LABELS, PUBLICATION_LABELS, STATUS_LABELS, mapDomainError } from '../lib/format'
-import { listEligibleReadingSources, openReadingSource, selectBestReadingSource } from '../lib/source-selection'
+import { selectResumeSource } from '../lib/source-selection'
+import { useReadingResume } from '../hooks/use-reading-resume'
 import { BrandMark } from '../components/shell/BrandMark'
 import { subscribeToDataChanges } from '../app/data-changes'
+import type { WorkCommand } from '../lib/quick-search'
 
 const SOURCE_STATUS = { active: 'Ativa', unavailable: 'Indisponível', archived: 'Arquivada' }
 const LANGUAGES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Português', en: 'Inglês', es: 'Espanhol', ja: 'Japonês', ko: 'Coreano', zh: 'Chinês', other: 'Outro' }
 const CREATOR_ROLES: Record<string, string> = { author: 'Autores', artist: 'Artistas', story: 'História', original_creator: 'Criadores originais', other: 'Outros' }
 const COUNTRIES: Record<string, string> = { KR: 'Coreia do Sul', JP: 'Japão', CN: 'China', BR: 'Brasil', US: 'Estados Unidos' }
 
-export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: () => void }) {
+export function WorkPage({ id, onInitialReady, command, onCommandHandled }: {
+  id: string
+  onInitialReady?: () => void
+  command?: WorkCommand
+  onCommandHandled?(): void
+}) {
   const [details, setDetails] = useState<WorkDetails | null>(null)
   const [pageState, setPageState] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
   const [history, setHistory] = useState<ReadingHistory[]>([])
@@ -39,7 +45,6 @@ export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: 
   const [collectionsOpen, setCollectionsOpen] = useState(false)
   const [editingSource, setEditingSource] = useState<Source | null>(null)
   const [deleteSource, setDeleteSource] = useState<Source | null>(null)
-  const [alternativeSources, setAlternativeSources] = useState<Source[]>([])
   const [trashOpen, setTrashOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const { refreshData } = useAppContext()
@@ -52,13 +57,24 @@ export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: 
   }, [id])
   const loadHistory = useCallback(async () => { try { setHistory(await window.auri.progress.history({ workId: id })); setHistoryError(false) } catch { setHistoryError(true) } }, [id])
   const reload = useCallback(() => { refreshData() }, [refreshData])
+  const resume = useReadingResume(reload)
   useEffect(() => { setPageState('loading'); void loadDetails(); void loadHistory() }, [loadDetails, loadHistory])
   useEffect(() => subscribeToDataChanges(() => { void loadDetails(); void loadHistory() }, id), [id, loadDetails, loadHistory])
   useEffect(() => {
     if (pageState !== 'loading') onInitialReady?.()
   }, [onInitialReady, pageState])
+  useEffect(() => {
+    if (!command || pageState === 'loading') return
+    onCommandHandled?.()
+    if (pageState !== 'ready' || !details || details.work.deletedAt) return
+    if (command === 'history') {
+      const section = document.getElementById('work-history')
+      section?.focus({ preventScroll: true })
+      section?.scrollIntoView({ block: 'start' })
+    } else setDialog(command)
+  }, [command, details, onCommandHandled, pageState])
 
-  const bestSource = selectBestReadingSource(details?.sources ?? [])
+  const bestSource = selectResumeSource(details?.sources ?? [])
 
   if (pageState === 'loading') return <WorkSkeleton />
   if (pageState === 'not-found') return <div className="page"><ErrorState title="Esta obra não foi encontrada." description="O endereço pode estar antigo ou a obra pode ter sido excluída permanentemente." onRetry={() => navigateFromWork(id)} /></div>
@@ -104,24 +120,7 @@ export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: 
       showToast({ kind: 'success', message: `Progresso atualizado para ${result.progress.chapter?.label}.`, dedupeKey: `progress:${work.id}`, action: { label: 'Desfazer', onClick: async () => { await window.auri.progress.undo({ historyId: result.history.id }); reload(); showToast({ kind: 'info', message: 'Alteração desfeita.' }) } } }); reload()
     } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) }
   }
-  async function openSource(source: Source): Promise<boolean> {
-    try {
-      await openReadingSource(source, {
-        openExternal: (url) => window.auri.shell.openExternal({ url }),
-        markUsed: (sourceId) => window.auri.sources.markUsed({ sourceId })
-      })
-      reload()
-      return true
-    } catch {
-      const alternatives = listEligibleReadingSources(details!.sources).filter((candidate) => candidate.id !== source.id)
-      showToast({
-        kind: 'error',
-        message: 'Não foi possível abrir esta fonte.',
-        ...(alternatives.length ? { action: { label: 'Escolher outra', onClick: () => setAlternativeSources(alternatives) } } : {})
-      })
-      return false
-    }
-  }
+  const openSource = (source: Source) => resume.openSource(source, details.sources)
   async function updateCollection(collectionId: string, checked: boolean) {
     try {
       if (checked) await window.auri.collections.addWork({ workId: work.id, collectionId })
@@ -150,7 +149,7 @@ export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: 
       <Section title="Coleções" action="Gerenciar coleções" onAction={() => setCollectionsOpen(true)}><ChipList personal items={details.collections.map((collection) => ({ id: collection.id, label: collection.name }))} onRemove={(collectionId) => void removeRelation(() => window.auri.collections.removeWork({ workId: work.id, collectionId }), reload, showToast)} empty="Nenhuma coleção associada." /></Section>
       <Section title="Fontes" action="Adicionar fonte" onAction={() => { setEditingSource(null); setDialog('source') }}><div className="source-list">{details.sources.map((source) => <article className={`source-row source-row--${source.status}`} key={source.id}><div className="source-row__main"><div><strong>{source.isPreferred && <span title="Fonte preferida">★ </span>}{source.name || source.domain}</strong><span>{SOURCE_STATUS[source.status]}</span></div><p>{LANGUAGES[source.language ?? ''] ?? source.language ?? 'Idioma não informado'} · {source.domain}</p>{source.lastUsedAt && <small>Último uso: {new Intl.DateTimeFormat('pt-BR').format(new Date(source.lastUsedAt))}</small>}</div><Button disabled={!source.lastReadUrl && !source.seriesUrl} onClick={() => void openSource(source)}>Abrir</Button><KeyboardMenu className="source-menu" label={`Ações de ${source.name || source.domain}`}><button onClick={() => { setEditingSource(source); setDialog('source') }}>Editar</button>{!source.isPreferred && source.status === 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.setPreferred({ sourceId: source.id }), 'Fonte definida como preferida.', reload, showToast)}>Definir como preferida</button>}{source.status === 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.markUnavailable({ sourceId: source.id }), 'Fonte marcada como indisponível.', reload, showToast)}>Marcar como indisponível</button>}{source.status !== 'active' && <button onClick={() => void sourceAction(() => window.auri.sources.reactivate({ sourceId: source.id }), 'Fonte reativada.', reload, showToast)}>Reativar</button>}{source.status !== 'archived' && <button onClick={() => void sourceAction(() => window.auri.sources.archive({ sourceId: source.id }), 'Fonte arquivada.', reload, showToast)}>Arquivar</button>}<button className="is-danger" onClick={() => setDeleteSource(source)}>Excluir permanentemente</button></KeyboardMenu></article>)}</div>{details.sources.length === 0 && <p className="inline-empty">Nenhuma fonte cadastrada.</p>}</Section>
       <NoteSection title="Minha nota" value={work.notes ?? ''} placeholder="Escreva suas impressões sobre a obra." onSave={async (value) => { await window.auri.works.update({ id: work.id, notes: value || null }); reload() }} />
-      <Section title="Histórico">{historyError ? <div className="section-error"><p>Não foi possível carregar o histórico.</p><Button onClick={() => void loadHistory()}>Tentar novamente</Button></div> : <HistoryList history={history.slice(0, historyLimit)} onUndo={async (historyId) => { try { await window.auri.progress.undo({ historyId }); showToast({ kind: 'info', message: 'Alteração desfeita.' }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }} />}{history.length > historyLimit && <Button onClick={() => setHistoryLimit((value) => value + 20)}>Mostrar mais</Button>}</Section>
+      <Section title="Histórico" id="work-history">{historyError ? <div className="section-error"><p>Não foi possível carregar o histórico.</p><Button onClick={() => void loadHistory()}>Tentar novamente</Button></div> : <HistoryList history={history.slice(0, historyLimit)} onUndo={async (historyId) => { try { await window.auri.progress.undo({ historyId }); showToast({ kind: 'info', message: 'Alteração desfeita.' }); reload() } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }} />}{history.length > historyLimit && <Button onClick={() => setHistoryLimit((value) => value + 20)}>Mostrar mais</Button>}</Section>
     </div>
 
     {dialog === 'edit' && <WorkEditorDialog open details={details} onClose={() => setDialog(null)} onSaved={reload} />}
@@ -160,7 +159,7 @@ export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: 
     {dialog === 'metadata' && <MetadataRefreshDialog open workId={work.id} onClose={() => setDialog(null)} onSaved={reload} />}
     <WorkMergeDialog open={mergeOpen} currentWork={work} onClose={() => setMergeOpen(false)} onMerged={(primaryWorkId) => { setMergeOpen(false); refreshData(); showToast({ kind: 'success', message: 'Obras mescladas.' }); if (primaryWorkId === id) { void loadDetails(); void loadHistory() } else navigate(`/work/${primaryWorkId}`) }} />
     {relation && <RelationDialog open kind={relation} work={work} onClose={() => setRelation(null)} onSaved={reload} />}
-    <AlternativeSourceDialog open={alternativeSources.length > 0} sources={alternativeSources} onClose={() => setAlternativeSources([])} onOpen={openSource} />
+    {resume.dialog}
     <Dialog open={collectionsOpen} title="Gerenciar coleções" description="Marque as coleções às quais esta obra pertence." onClose={() => setCollectionsOpen(false)} footer={<><Button onClick={() => { setCollectionsOpen(false); setRelation('collection') }}>Criar coleção</Button><Button variant="primary" onClick={() => setCollectionsOpen(false)}>Concluir</Button></>}><div className="collection-checklist">{details.allCollections.map((collection) => { const checked = details.collections.some((item) => item.id === collection.id); return <label key={collection.id}><input type="checkbox" checked={checked} onChange={(event) => void updateCollection(collection.id, event.target.checked)} /><span>{collection.name}</span></label> })}{details.allCollections.length === 0 && <p className="inline-empty">Nenhuma coleção criada.</p>}</div></Dialog>
     <ConfirmDialog open={trashOpen} title="Mover para a Lixeira?" context={<strong>{work.title}</strong>} description="A obra poderá ser restaurada depois. Seu progresso, histórico, fontes e notas serão preservados." confirmLabel="Mover para a Lixeira" danger onClose={() => setTrashOpen(false)} onConfirm={async () => { try { await window.auri.works.trash({ workId: work.id }); refreshData(); showToast({ kind: 'success', message: `“${work.title}” foi movida para a Lixeira.` }); navigate('/library') } catch (error) { showToast({ kind: 'error', message: mapDomainError(error) }) } }} />
     <ConfirmDialog open={deleteSource !== null} title="Excluir esta fonte permanentemente?" description="Arquivar preserva o cadastro completo. Ao excluir, a fonte deixa de existir; o histórico mantém apenas nome e domínio." confirmLabel="Excluir" danger onClose={() => setDeleteSource(null)} onConfirm={async () => { if (!deleteSource) return; await sourceAction(() => window.auri.sources.deletePermanently({ sourceId: deleteSource.id }), 'Fonte excluída.', reload, showToast); setDeleteSource(null) }} />
@@ -168,7 +167,7 @@ export function WorkPage({ id, onInitialReady }: { id: string; onInitialReady?: 
 }
 
 function WorkSkeleton() { return <div className="page work-page"><div className="work-skeleton"><div /><div><i /><i /><i /></div></div><div className="work-skeleton__surface" /><div className="work-skeleton__surface work-skeleton__surface--short" /></div> }
-function Section({ title, action, onAction, featured = false, children }: { title: string; action?: string; onAction?(): void; featured?: boolean; children: React.ReactNode }) { return <section className={`work-section ${featured ? 'work-section--featured' : ''}`}><div className="work-section__heading"><h2>{title}</h2>{action && <button onClick={onAction}>+ {action}</button>}</div>{children}</section> }
+function Section({ id, title, action, onAction, featured = false, children }: { id?: string; title: string; action?: string; onAction?(): void; featured?: boolean; children: React.ReactNode }) { return <section id={id} tabIndex={id ? -1 : undefined} aria-labelledby={id ? `${id}-title` : undefined} className={`work-section ${featured ? 'work-section--featured' : ''}`}><div className="work-section__heading"><h2 id={id ? `${id}-title` : undefined}>{title}</h2>{action && <button onClick={onAction}>+ {action}</button>}</div>{children}</section> }
 function EmptyInline({ text, action, onClick }: { text: string; action: string; onClick(): void }) { return <div className="inline-empty"><span>{text}</span><button onClick={onClick}>{action}</button></div> }
 function ChipList({ items, onRemove, empty, personal = false }: { items: Array<{ id: string; label: string; hint?: string }>; onRemove(id: string): void; empty: string; personal?: boolean }) { if (!items.length) return <p className="inline-empty">{empty}</p>; return <div className={`detail-chips ${personal ? 'detail-chips--personal' : ''}`}>{items.map((item) => <span key={item.id}>{item.label}{item.hint && <small>{item.hint}</small>}<button aria-label={`Remover ${item.label}`} onClick={() => onRemove(item.id)}>×</button></span>)}</div> }
 function groupCreators(details: WorkDetails): Array<[string, string]> { const groups = new Map<string, string[]>(); for (const creator of details.creators) groups.set(CREATOR_ROLES[creator.role] ?? creator.role, [...(groups.get(CREATOR_ROLES[creator.role] ?? creator.role) ?? []), creator.name]); return [...groups.entries()].map(([label, names]) => [label, names.join(', ')]) }

@@ -34,7 +34,7 @@ describe('IPC real registra somente operações específicas', () => {
     expect(openPath).toHaveBeenCalledWith(resolve('build/generated/browser-extension'))
     await invoke(channels.openEdgeStore, { url: 'https://evil.example' })
     expect(openExternal).toHaveBeenCalledWith('https://microsoftedge.microsoft.com/addons/detail/auri/alnngjgmhiebpnjefjmhbhmhfpgoibnh')
-    expect(await invoke(channels.getStatus)).toMatchObject({ ok: true, data: { embeddedVersion: '0.3.1' } })
+    expect(await invoke(channels.getStatus)).toMatchObject({ ok: true, data: { embeddedVersion: '0.3.2' } })
     unregister()
     for (const channel of Object.values(channels)) expect(handlers.has(channel)).toBe(false)
   })

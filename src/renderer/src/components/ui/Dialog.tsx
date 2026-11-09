@@ -4,7 +4,7 @@ import { Button } from './Button'
 const FOCUSABLE_SELECTOR = 'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'
 
 export function getDialogFocusableElements(dialog: Pick<HTMLElement, 'querySelectorAll'>): HTMLElement[] {
-  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => element.getAttribute('aria-hidden') !== 'true')
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => element.getAttribute('aria-hidden') !== 'true' && element.getAttribute('tabindex') !== '-1')
 }
 
 export async function runDialogAction(action: () => void | Promise<void>, onError: (message: string) => void): Promise<boolean> {
@@ -19,9 +19,11 @@ export async function runDialogAction(action: () => void | Promise<void>, onErro
 
 type DialogSize = 'small' | 'medium' | 'large'
 
-export function Dialog({ open, title, description, children, onClose, footer, busy = false, error, size = 'medium' }: { open: boolean; title: string; description?: ReactNode; children?: ReactNode; onClose(): void; footer?: ReactNode; busy?: boolean; error?: string | null; size?: DialogSize }) {
+export function Dialog({ open, title, description, children, onClose, footer, closeButton, dismissOnBackdrop = false, busy = false, error, size = 'medium' }: { open: boolean; title: string; description?: ReactNode; children?: ReactNode; onClose(): void; footer?: ReactNode; closeButton?: boolean; dismissOnBackdrop?: boolean; busy?: boolean; error?: string | null; size?: DialogSize }) {
   const ref = useRef<HTMLDialogElement>(null)
   const opener = useRef<HTMLElement | null>(null)
+  const pointerOnBackdrop = useRef(false)
+  const pendingStateCloses = useRef(0)
   const titleId = useId()
   const descriptionId = useId()
 
@@ -36,13 +38,19 @@ export function Dialog({ open, title, description, children, onClose, footer, bu
         initial?.focus()
       })
     }
-    if (!open && dialog.open) dialog.close()
+    if (!open && dialog.open) {
+      pendingStateCloses.current += 1
+      dialog.close()
+    }
   }, [open])
 
   const restoreFocus = () => {
     const target = opener.current
     opener.current = null
-    if (target?.isConnected) window.requestAnimationFrame(() => target.focus())
+    if (target?.isConnected) window.requestAnimationFrame(() => {
+      const active = document.activeElement
+      if (active === document.body || ref.current?.contains(active)) target.focus()
+    })
   }
 
   const trapFocus = (event: KeyboardEvent<HTMLDialogElement>) => {
@@ -77,17 +85,26 @@ export function Dialog({ open, title, description, children, onClose, footer, bu
       aria-busy={busy || undefined}
       tabIndex={-1}
       onKeyDown={trapFocus}
+      onPointerDown={(event) => { pointerOnBackdrop.current = event.target === event.currentTarget }}
+      onClick={(event) => {
+        if (dismissOnBackdrop && !busy && pointerOnBackdrop.current && event.target === event.currentTarget) onClose()
+        pointerOnBackdrop.current = false
+      }}
       onCancel={(event) => {
         event.preventDefault()
         if (!busy) onClose()
       }}
-      onClose={() => {
+      onClose={(event) => {
+        const stateClose = pendingStateCloses.current > 0
+        if (stateClose) pendingStateCloses.current -= 1
+        if (event.currentTarget.open) return
         restoreFocus()
-        if (open && !busy) onClose()
+        if (!stateClose && open && !busy) onClose()
       }}
     >
       <div className="dialog__body">
         <h2 id={titleId}>{title}</h2>
+        {closeButton && <Button className="dialog__close" variant="ghost" icon="x-circle" disabled={busy} onClick={onClose}>Fechar</Button>}
         {description && <div id={descriptionId} className="dialog__description">{description}</div>}
         {error && <p className="dialog__error" role="alert">{error}</p>}
         {children}

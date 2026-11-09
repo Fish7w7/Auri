@@ -23,7 +23,7 @@ export function AlternativeSourceDialog({ open, sources, onClose, onOpen }: {
     try { if (await onOpen(selected)) onClose() } finally { setBusy(false) }
   }
 
-  return <Dialog open={open} title="Escolher outra fonte" description="Selecione outra fonte ativa para esta obra." onClose={onClose} footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" disabled={busy || !selected} onClick={() => void confirm()}>{busy ? 'Abrindo…' : 'Abrir fonte'}</Button></>}>
+  return <Dialog open={open} title="Escolher outra fonte" description="Selecione outra fonte ativa para esta obra." onClose={onClose} busy={busy} footer={<><Button onClick={onClose} disabled={busy}>Cancelar</Button><Button variant="primary" disabled={busy || !selected} onClick={() => void confirm()}>{busy ? 'Abrindo…' : 'Abrir fonte'}</Button></>}>
     <label className="field"><span>Fonte</span><Select label="Fonte alternativa" value={sourceId} onChange={setSourceId} options={eligible.map((source) => ({ value: source.id, label: source.name || source.domain }))} /></label>
   </Dialog>
 }

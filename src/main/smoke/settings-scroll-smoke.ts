@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { app, type BrowserWindow } from 'electron'
 
 export function registerSettingsScrollSmoke(mainWindow: BrowserWindow): void {
-  mainWindow.setSize(1440, 900)
+  mainWindow.setSize(1440, 650)
   mainWindow.webContents.once('did-finish-load', () => {
     const output = join(process.cwd(), 'artifacts', 'settings-scroll')
     mkdirSync(output, { recursive: true })
@@ -23,7 +23,7 @@ export function registerSettingsScrollSmoke(mainWindow: BrowserWindow): void {
           const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup e dados')
           backup?.click()
           const started = Date.now()
-          const check = () => document.querySelector('.settings-panel .backup-list')
+          const check = () => document.querySelector('.settings-panel h2')?.textContent === 'Backup e dados'
             ? resolve(true)
             : Date.now() - started > 5000 ? reject(new Error('Backup não abriu.')) : setTimeout(check, 50)
           check()
@@ -32,24 +32,23 @@ export function registerSettingsScrollSmoke(mainWindow: BrowserWindow): void {
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
           const page = document.querySelector('.settings-page')
-          const header = page?.querySelector('.page-header')
           const nav = page?.querySelector('.settings-layout > nav')
           const panel = page?.querySelector('.settings-panel')
-          if (!page || !header || !nav || !panel) return reject(new Error('Estrutura de Configurações incompleta.'))
+          if (!page || !nav || !panel) return reject(new Error('Estrutura de Configurações incompleta.'))
           if (getComputedStyle(page).overflowY !== 'hidden' || getComputedStyle(panel).overflowY !== 'auto') return reject(new Error('Overflow não está isolado no painel.'))
           if (panel.scrollHeight <= panel.clientHeight) return reject(new Error('Backup não possui conteúdo rolável para o smoke.'))
-          const before = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+          const before = { panel: panel.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
           panel.scrollTop = panel.scrollHeight
           requestAnimationFrame(() => requestAnimationFrame(() => {
-            const after = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
-            if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.header !== after.header || before.nav !== after.nav) reject(new Error('Cabeçalho ou menu se moveu durante a rolagem de Backup.'))
+            const after = { panel: panel.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+            if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.panel !== after.panel || before.nav !== after.nav) reject(new Error('Painel ou menu se moveu durante a rolagem de Backup.'))
             else resolve(true)
           }))
         })
       `))
-      .then(() => { mainWindow.setSize(1438, 898); mainWindow.setSize(1440, 900); mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
+      .then(() => { mainWindow.webContents.invalidate(); return new Promise((resolve) => setTimeout(resolve, 400)) })
       .then(() => mainWindow.webContents.capturePage())
-      .then((image) => writeFileSync(join(output, 'auri-settings-backup-1440x900-bottom.png'), image.toPNG()))
+      .then((image) => writeFileSync(join(output, 'auri-settings-backup-1440x650-bottom.png'), image.toPNG()))
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
           const appearance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Aparência')
@@ -67,7 +66,7 @@ export function registerSettingsScrollSmoke(mainWindow: BrowserWindow): void {
           const maintenance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Manutenção')
           maintenance?.click()
           const started = Date.now()
-          const check = () => document.querySelector('.settings-panel .storage-value')
+          const check = () => document.querySelector('.settings-panel .settings-info-list')
             ? resolve(true)
             : Date.now() - started > 5000 ? reject(new Error('Manutenção não abriu.')) : setTimeout(check, 50)
           check()
@@ -76,18 +75,17 @@ export function registerSettingsScrollSmoke(mainWindow: BrowserWindow): void {
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
           const page = document.querySelector('.settings-page')
-          const header = page?.querySelector('.page-header')
           const nav = page?.querySelector('.settings-layout > nav')
           const panel = page?.querySelector('.settings-panel')
-          if (!page || !header || !nav || !panel) return reject(new Error('Estrutura compacta de Configurações incompleta.'))
+          if (!page || !nav || !panel) return reject(new Error('Estrutura compacta de Configurações incompleta.'))
           const scrollables = [page, ...page.querySelectorAll('*')].filter((element) => element.scrollHeight > element.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(element).overflowY))
           if (scrollables.length !== 1 || scrollables[0] !== panel) return reject(new Error('Configurações possui mais de uma área rolável: ' + scrollables.map((item) => item.className).join(', ')))
           if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) return reject(new Error('Overflow horizontal global em 1100x720.'))
-          const before = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+          const before = { panel: panel.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
           panel.scrollTop = panel.scrollHeight
           requestAnimationFrame(() => requestAnimationFrame(() => {
-            const after = { header: header.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
-            if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.header !== after.header || before.nav !== after.nav) reject(new Error('Cabeçalho ou menu se moveu durante a rolagem de Manutenção.'))
+            const after = { panel: panel.getBoundingClientRect().top, nav: nav.getBoundingClientRect().top }
+            if (panel.scrollTop <= 0 || page.scrollTop !== 0 || before.panel !== after.panel || before.nav !== after.nav) reject(new Error('Painel ou menu se moveu durante a rolagem de Manutenção.'))
             else resolve(true)
           }))
         })
@@ -110,7 +108,7 @@ export function registerSettingsScrollSmoke(mainWindow: BrowserWindow): void {
       .then(() => mainWindow.webContents.capturePage())
       .then((image) => writeFileSync(join(output, 'auri-settings-appearance-1100x720-top.png'), image.toPNG()))
       .then(() => {
-        console.log('AURI_SETTINGS_SCROLL_TEST_OK resolutions=1440x900,1100x720')
+        console.log('AURI_SETTINGS_SCROLL_TEST_OK resolutions=1440x650,1100x720')
         app.quit()
       })
       .catch((error: unknown) => {

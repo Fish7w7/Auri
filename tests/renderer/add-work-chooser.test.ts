@@ -63,7 +63,7 @@ describe('chooser Adicionar ao Auri', () => {
   it('continua oferecendo o mesmo fluxo pelo Ctrl+K', () => {
     const action = getQuickSearchActions('adicionar obra').find((item) => item.id === 'add-work')
     const appSource = readFileSync(join(process.cwd(), 'src/renderer/src/app/App.tsx'), 'utf8')
-    expect(action?.command).toBe('add-work')
+    expect(action?.kind).toBe('add')
     expect(appSource).toContain("openAddWork: () => dispatchAddDialog({ type: 'open-manual' })")
   })
 })

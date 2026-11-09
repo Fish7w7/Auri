@@ -10,6 +10,7 @@ import {
   type ProtocolResponse
 } from '@auri/protocol'
 import { encodeLengthPrefixedJson, LengthPrefixedFrameError, LengthPrefixedJsonDecoder } from '@shared/native-bridge/framing'
+import { exceedsHelloVersionLimit } from '@shared/native-bridge/protocol-limits'
 import type { NativeHostLog } from './host-logger'
 import type { NativeHostTransport } from './desktop-connector'
 
@@ -80,8 +81,8 @@ export class NativeMessagingRuntime {
   }
 
   private async process(input: unknown): Promise<void> {
-    const parsed = safeParseRequest(input)
-    if (!parsed.success) {
+    const parsed = exceedsHelloVersionLimit(input) ? undefined : safeParseRequest(input)
+    if (!parsed?.success) {
       this.writeResponse(invalidRequestResponse(input))
       return
     }

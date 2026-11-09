@@ -19,6 +19,29 @@ $env:AURI_DEV_UPDATER_SCENARIO = 'up-to-date'
 
 Substituir o placeholder antes de usar. Depois de encerrar, remover apenas as variáveis da sessão. Nenhuma rotina E2E faz reset ou limpa o perfil automaticamente.
 
+## Conferir Estatísticas com uma biblioteca representativa
+
+No Windows, a instalação usa `%APPDATA%\Auri` como `userData`, e `npm run dev` usa `%APPDATA%\Auri-Dev`. Cada perfil tem seu próprio `data\library.sqlite`, preferências e capas. Para trabalhar com uma cópia da biblioteca instalada, use um perfil E2E novo, separado dos dois.
+
+1. No Auri instalado, abra **Configurações → Backup e dados → Criar backup**. Guarde o `.auri-backup` fora do checkout e mantenha o original intacto.
+2. Abra o PowerShell na raiz do Desktop. Defina um caminho de teste que ainda não exista e execute o Electron a partir do build local. Assim o aplicativo pode reiniciar após a restauração sem depender do servidor do Vite.
+
+   ```powershell
+   npm.cmd run build:app
+   if ($LASTEXITCODE -ne 0) { throw 'O build do Auri falhou.' }
+   $statisticsProfile = Join-Path (Get-Location) ('artifacts/e2e-profiles/statistics-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+   if (Test-Path -LiteralPath $statisticsProfile) { throw 'Escolha um perfil de teste novo.' }
+   $env:AURI_E2E_USER_DATA = $statisticsProfile
+   $env:AURI_DEV_UPDATER_MOCK = '1'
+   $env:AURI_DEV_UPDATER_SCENARIO = 'up-to-date'
+   & .\node_modules\electron\dist\electron.exe .
+   ```
+
+3. Na janela de teste, confira se a biblioteca abre vazia. Em **Configurações → Backup e dados → Escolher backup**, selecione o arquivo, confira a prévia e restaure. A restauração usa uma cópia de trabalho e preserva o diretório de backups do perfil de destino.
+4. Após o reinício, abra **Estatísticas**. Para editar com recarregamento do renderer, feche a janela e execute `npm.cmd run dev` no mesmo PowerShell, com as variáveis ainda definidas. Ao terminar, feche o aplicativo e remova as variáveis da sessão com `Remove-Item Env:AURI_E2E_USER_DATA, Env:AURI_DEV_UPDATER_MOCK, Env:AURI_DEV_UPDATER_SCENARIO`.
+
+O backup inclui o histórico, as preferências e as capas personalizadas. O cache de capas remotas é local a cada perfil. O ranking usa apenas as capas já disponíveis no perfil. Trate o perfil de teste como dados pessoais e mantenha-o fora do controle de versão.
+
 ## Integração Native Messaging disponível
 
 O host E2E separado já existe e obtém caminhos por configuração adjacente validada, sem depender do ambiente do terminal do Desktop. A identidade/manifest são exclusivos e ele não inicia um Desktop instalado. O validador do host atualmente seleciona o perfil canônico auritest-01 desse checkout; outros perfis aceitos pelo Desktop não são automaticamente aceitos pelo host.

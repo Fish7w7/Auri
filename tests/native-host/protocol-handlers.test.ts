@@ -139,13 +139,19 @@ describe('handlers do Desktop Bridge', () => {
   })
 
   it('progress.update persiste a URL real somente para a Source vinculada', async () => {
-    const { fixture, dispatcher } = setup()
+    const { fixture, desktop, dispatcher } = setup()
     const work = createMinimalWork(fixture, 'Obra', '14')
     const source = fixture.services.sources.createSource({
       workId: work.id,
       seriesUrl: 'https://reader.example/obra-contextual'
     })
 
+    desktop.notifyWorkChanged.mockImplementationOnce(() => {
+      const home = fixture.services.library.getHome()
+      expect(home.continueReading[0].lastReadChapter?.label).toBe('16')
+      expect(home.reading[work.id]).toMatchObject({ lastSource: 'reader.example', sourceCount: 1 })
+      expect(fixture.repositories.sources.findById(source.id)?.lastReadUrl).toBe('https://reader.example/obra-contextual/16')
+    })
     await expect(dispatcher.dispatch(createRequest('linked-page', 'progress.update', {
       workId: work.id,
       chapter: { value: '16', numericValue: 16 },

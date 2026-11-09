@@ -1,6 +1,6 @@
 import type { LibraryQuery } from '@shared/contracts'
 
-export type WorkNavigationOrigin = 'home' | 'library' | 'direct'
+export type WorkNavigationOrigin = 'home' | 'library' | 'statistics' | 'direct'
 
 export interface LibraryNavigationContext {
   id: number
@@ -19,7 +19,7 @@ export interface LibraryNavigationSnapshot {
 
 export interface WorkReturnTarget {
   path: string
-  label: 'Home' | 'Biblioteca'
+  label: 'Home' | 'Biblioteca' | 'Estatísticas'
   libraryContextId?: number
 }
 
@@ -63,6 +63,9 @@ export function getWorkReturnTarget(workId: string): WorkReturnTarget {
   const context = libraryContext
   if (workNavigation?.workId === workId && workNavigation.origin === 'home') {
     return { path: '/', label: 'Home' }
+  }
+  if (workNavigation?.workId === workId && workNavigation.origin === 'statistics') {
+    return { path: '/statistics', label: 'Estatísticas' }
   }
   if (workNavigation?.workId === workId && workNavigation.origin === 'library' && context && context.id === workNavigation.libraryContextId) {
     return { path: context.path, label: 'Biblioteca', libraryContextId: context.id }

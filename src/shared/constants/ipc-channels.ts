@@ -107,7 +107,8 @@ export const IPC_CHANNELS = {
     search: 'auri:library:search',
     query: 'auri:library:query',
     summary: 'auri:library:summary',
-    home: 'auri:library:home'
+    home: 'auri:library:home',
+    statistics: 'auri:library:statistics'
   },
   settings: {
     get: 'auri:settings:get',

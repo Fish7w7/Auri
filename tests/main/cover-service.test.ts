@@ -49,6 +49,23 @@ describe('CoverService', () => {
     fixture.db.close()
   })
 
+  it('entrega ao leitor local a capa que a Biblioteca já está baixando, sem repetir o download', async () => {
+    const image = await sharp({ create: { width: 20, height: 30, channels: 3, background: '#224466' } }).png().toBuffer()
+    let release!: (bytes: Buffer) => void
+    const pending = new Promise<Buffer>((resolve) => { release = resolve })
+    const client = { isOnline: () => true, download: vi.fn(() => pending) }
+    const fixture = await setup(client)
+    const fromLibrary = fixture.service.getCover({ workId: fixture.work.id })
+    const fromRanking = fixture.service.getCover({ workId: fixture.work.id, cacheOnly: true })
+    release(image)
+    try {
+      expect(await fromRanking).toEqual(await fromLibrary)
+      expect(client.download).toHaveBeenCalledTimes(1)
+    } finally {
+      fixture.db.close()
+    }
+  })
+
   it('bloqueia destino privado e redirect público para destino privado', async () => {
     const publicResolver = async () => ['93.184.216.34']
     let fetches = 0

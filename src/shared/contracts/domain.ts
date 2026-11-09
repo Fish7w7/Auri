@@ -160,10 +160,17 @@ export interface LibrarySummary {
 
 export interface HomeData {
   continueReading: Work[]
+  reading: Record<string, HomeReadingDetails>
   recent: Work[]
   favorites: Work[]
   recentlyAdded: Work[]
   pinnedCollections: Array<{ collection: Collection; works: Work[] }>
+}
+
+export interface HomeReadingDetails {
+  lastSource: string | null
+  lastActivityAt: string | null
+  sourceCount: number
 }
 
 export interface ProgressState {
@@ -281,5 +288,6 @@ export interface DomainApi {
     query(request?: LibraryQuery): Promise<Work[]>
     summary(): Promise<LibrarySummary>
     home(request?: HomeRequest): Promise<HomeData>
+    statistics(request: import('./reading-statistics').ReadingStatisticsRequest): Promise<import('./reading-statistics').ReadingStatistics>
   }
 }

@@ -31,22 +31,22 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
       .then((image) => writeFileSync(join(output, 'auri-home.png'), image.toPNG()))
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
-          const menu = document.querySelector('.home-work-menu')
-          const summary = menu?.querySelector('summary')
-          summary?.click()
+          const trigger = document.querySelector('.home-work-menu button[aria-haspopup="menu"]')
+          trigger?.click()
           requestAnimationFrame(() => requestAnimationFrame(() => {
-            const panel = menu?.querySelector('[role="menu"]')
+            const panel = trigger && document.getElementById(trigger.getAttribute('aria-controls'))
             const panelBounds = panel?.getBoundingClientRect()
-            const summaryBounds = summary?.getBoundingClientRect()
-            if (!menu?.open || !panel || !panelBounds || !summaryBounds) return reject(new Error('Menu da Home não abriu para o smoke visual.'))
-            if (getComputedStyle(panel).position !== 'absolute' || panelBounds.bottom > summaryBounds.top - 4 || panelBounds.height > 100) return reject(new Error('Menu da Home entrou no fluxo ou ficou esticado.'))
+            const anchor = trigger?.getBoundingClientRect()
+            if (trigger?.getAttribute('aria-expanded') !== 'true' || !panel || !panelBounds || !anchor) return reject(new Error('Menu da Home não abriu para o smoke visual.'))
+            const separated = panelBounds.bottom <= anchor.top - 4 || panelBounds.top >= anchor.bottom + 4
+            if (getComputedStyle(panel).position !== 'fixed' || !separated || panelBounds.height > 100) return reject(new Error('Menu da Home entrou no fluxo, sobrepôs o botão ou ficou esticado.'))
             resolve(true)
           }))
         })
       `))
       .then(() => mainWindow.webContents.capturePage())
       .then((image) => writeFileSync(join(output, 'auri-home-menu.png'), image.toPNG()))
-      .then(() => mainWindow.webContents.executeJavaScript(`document.querySelector('.home-work-menu')?.removeAttribute('open')`))
+      .then(() => mainWindow.webContents.executeJavaScript(`document.querySelector('.home-work-menu button[aria-expanded="true"]')?.click()`))
       .then(() => captureNativeWindow(mainWindow, join(output, 'auri-titlebar-native-restored.png')))
       .then(async () => {
         focusProbe = new BrowserWindow({ width: 80, height: 80, show: false, frame: false, skipTaskbar: true })
@@ -211,7 +211,7 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
           const backup = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Backup e dados')
           backup?.click()
           const started = Date.now()
-          const check = () => document.querySelector('.settings-panel .backup-list')
+          const check = () => document.querySelector('.settings-panel h2')?.textContent === 'Backup e dados'
             ? resolve(true)
             : Date.now() - started > 5000
               ? reject(new Error('Configuração de backup não terminou de renderizar.'))
@@ -224,13 +224,29 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
       .then((image) => writeFileSync(join(output, 'auri-settings-backup.png'), image.toPNG()))
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
-          const create = Array.from(document.querySelectorAll('.settings-panel button')).find((button) => button.textContent.trim() === 'Criar backup')
-          create?.click()
+          const buttons = (root) => Array.from(root?.querySelectorAll('button') ?? [])
+          const find = (root, name) => buttons(root).find((button) => button.textContent.trim() === name && !button.disabled)
+          const settings = document.querySelector('.settings-panel')
+          const create = find(settings, 'Criar backup')
+          if (!create) return reject(new Error('Botão Criar backup ausente.'))
+          create.click()
           const started = Date.now()
+          let managerOpened = false
+          let triggerClicked = false
           const check = () => {
-            const remove = document.querySelector('.backup-list article .button--danger:not(:disabled)')
+            const manager = find(settings, 'Gerenciar backups')
+            if (!managerOpened && manager && !create.disabled) { managerOpened = true; manager.click() }
+            const trigger = document.querySelector('dialog[open] .backup-manager-list .backup-item-menu button[aria-haspopup="menu"]')
+            if (trigger && !triggerClicked) {
+              triggerClicked = true
+              requestAnimationFrame(() => requestAnimationFrame(() => trigger.click()))
+            }
+            const remove = document.querySelector('dialog[open] .backup-item-menu__popover button.is-danger:not(:disabled)')
             if (remove) { remove.click(); resolve(true) }
-            else if (Date.now() - started > 5000) reject(new Error('Modal visual de exclusão de backup não abriu.'))
+            else if (Date.now() - started > 5000) reject(new Error('Modal visual de exclusão de backup não abriu. ' + JSON.stringify({
+              managerOpened, triggerClicked, openDialogs: Array.from(document.querySelectorAll('dialog[open] h2'), (heading) => heading.textContent),
+              backupActions: Array.from(document.querySelectorAll('dialog[open] [role="menu"] button'), (button) => button.textContent.trim())
+            })))
             else setTimeout(check, 50)
           }
           check()
@@ -240,10 +256,10 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
         new Promise((resolve, reject) => {
           const started = Date.now()
           const check = () => {
-            const dialog = document.querySelector('dialog[open]:has(.dialog__filename)')
+            const dialog = document.querySelector('dialog[open]:has(.backup-dialog-context)')
             if (dialog) {
-              const filename = dialog.querySelector('.dialog__filename')
-              if (!filename?.getAttribute('title') || !dialog.querySelector('.button--danger')) reject(new Error('Modal destrutivo sem nome completo ou CTA claro.'))
+              const context = dialog.querySelector('.backup-dialog-context')
+              if (!context.querySelector('strong')?.textContent || !context.querySelector('time[datetime]') || !dialog.querySelector('.button--danger')) reject(new Error('Modal destrutivo sem identificação do backup ou ação clara.'))
               else resolve(true)
             } else if (Date.now() - started > 5000) reject(new Error('Confirmação destrutiva não renderizou.'))
             else setTimeout(check, 50)
@@ -256,11 +272,20 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
       .then((image) => writeFileSync(join(output, 'auri-dialog-delete-backup.png'), image.toPNG()))
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
-          const dialog = document.querySelector('dialog[open]:has(.dialog__filename)')
+          const dialog = document.querySelector('dialog[open]:has(.backup-dialog-context)')
           const confirm = Array.from(dialog?.querySelectorAll('button') ?? []).find((button) => button.textContent.trim() === 'Excluir backup')
           confirm?.click()
           const started = Date.now()
-          const check = () => !document.querySelector('dialog[open]') ? resolve(true) : Date.now() - started > 5000 ? reject(new Error('Modal de exclusão não fechou após concluir.')) : setTimeout(check, 50)
+          const check = () => {
+            if (!document.querySelector('dialog[open]:has(.backup-dialog-context)')) {
+              const manager = document.querySelector('dialog[open]:has(.backup-manager-list)')
+              const close = Array.from(manager?.querySelectorAll('button') ?? []).find((button) => button.textContent.trim() === 'Fechar')
+              close?.click()
+              if (!manager) return resolve(true)
+            }
+            if (Date.now() - started > 5000) reject(new Error('Confirmação ou gerenciador de backups não fechou.'))
+            else setTimeout(check, 50)
+          }
           check()
         })
       `))
@@ -270,14 +295,19 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
           updates?.click()
           const started = Date.now()
           const check = () => {
-            const card = document.querySelector('.settings-panel .update-card')
+            const card = document.querySelector('.settings-panel .update-summary')
             const notes = document.querySelector('.release-notes__content')
             if (card && notes) {
                 if (notes.textContent.includes('<h1>') || window.__auriUnsafeReleaseNote) return reject(new Error('HTML remoto inseguro foi executado ou exibido cru.'))
                 if (notes.querySelector('script, iframe, style, object, embed')) return reject(new Error('Elemento remoto inseguro permaneceu no Renderer.'))
                 if (!notes.querySelector('h1, h2') || !notes.querySelector('ul li') || !notes.querySelector('strong') || !notes.querySelector('a[href^="https://"]')) return reject(new Error('Estrutura das release notes ficou incompleta.'))
-                if (notes.scrollHeight <= notes.clientHeight) return reject(new Error('Release notes extensas não ativaram o scroll interno.'))
-                return resolve(true)
+                const expand = document.querySelector('.release-notes__toggle[aria-expanded="false"]')
+                // The Renderer measures overflow in an effect after mounting the notes.
+                if (notes.scrollHeight > notes.clientHeight && expand) {
+                  expand.click()
+                  return resolve(true)
+                }
+                if (Date.now() - started > 5000) return reject(new Error('A prévia de notas extensas não ofereceu expansão.'))
             }
             if (Date.now() - started > 5000) return reject(new Error('Configuração de atualizações não terminou de renderizar.'))
             setTimeout(check, 50)
@@ -289,7 +319,7 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
       .then(() => mainWindow.webContents.executeJavaScript(`
         (() => {
           const notes = document.querySelector('.release-notes__content')
-          if (!notes || !notes.textContent.includes('Janela integrada ao Auri')) throw new Error('Release notes não permaneceram estáveis antes da captura.')
+          if (!notes?.classList.contains('is-expanded') || !notes.textContent.includes('Janela integrada ao Auri')) throw new Error('Release notes não permaneceram abertas antes da captura.')
           return true
         })()
       `))
@@ -301,7 +331,7 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
           const maintenance = Array.from(document.querySelectorAll('.settings-layout nav button')).find((button) => button.textContent.trim() === 'Manutenção')
           maintenance?.click()
           const started = Date.now()
-          const check = () => document.querySelector('.settings-panel .storage-value')
+          const check = () => document.querySelector('.settings-panel .settings-info-list')
             ? resolve(true)
             : Date.now() - started > 5000
               ? reject(new Error('Manutenção não terminou de renderizar.'))
@@ -452,7 +482,7 @@ export function registerScreenshotSmoke(mainWindow: BrowserWindow): void {
       .then((image) => writeFileSync(join(output, 'auri-bulk-actions-compact.png'), image.toPNG()))
       .then(() => mainWindow.webContents.executeJavaScript(`
         new Promise((resolve, reject) => {
-          const exit = Array.from(document.querySelectorAll('.bulk-toolbar button')).find((button) => button.textContent.trim() === 'Sair da seleção')
+          const exit = document.querySelector('.bulk-toolbar button[aria-label="Sair da seleção"]')
           exit?.click()
           const collapse = document.querySelector('button[aria-label="Recolher sidebar"]')
           collapse?.click()

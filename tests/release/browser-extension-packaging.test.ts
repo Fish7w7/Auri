@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { loadProductionExtensionConfiguration, createProductionInstallerInclude, createProductionHostManifest } from '../../scripts/release/native-host-production.js'
 
 const expected = ['chrome-extension://alnngjgmhiebpnjefjmhbhmhfpgoibnh/', 'chrome-extension://agefiaohfielfgadiagemnflekbboblp/']
-describe('configuração de empacotamento 1.14.0', () => {
+describe('configuração de empacotamento 1.15.1', () => {
   it('configuração PROD gera exatamente Edge + Embedded, sem IDs de loja Chrome/Brave', () => {
     const configuration = loadProductionExtensionConfiguration({})
     expect(configuration.allowedOrigins).toEqual(expected)
@@ -26,11 +26,12 @@ describe('configuração de empacotamento 1.14.0', () => {
   it('versiona mantendo schema e ProtocolVersion e empacota arquivos gerados em path estável', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
     const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'))
-    expect([pkg.version, lock.version, lock.packages[''].version]).toEqual(['1.14.0', '1.14.0', '1.14.0'])
-    expect(pkg.dependencies['@auri/protocol']).toBe('github:Fish7w7/Auri-Protocol#v0.2.0')
+    expect([pkg.version, lock.version, lock.packages[''].version]).toEqual(['1.15.1', '1.15.1', '1.15.1'])
+    expect(pkg.dependencies['@auri/protocol']).toBe('file:vendor/auri-protocol-0.2.1.tgz')
     expect(lock.packages['node_modules/@auri/protocol']).toMatchObject({
-      version: '0.2.0',
-      resolved: 'git+ssh://git@github.com/Fish7w7/Auri-Protocol.git#d49202778bd1eedb8a24e944982a432c6c7c6d6b'
+      version: '0.2.1',
+      resolved: 'file:vendor/auri-protocol-0.2.1.tgz',
+      dependencies: { zod: '4.6.6' }
     })
     expect(pkg.build.extraResources).toContainEqual({ from: 'build/generated/browser-extension', to: 'browser-extension' })
     expect(pkg.build.beforePack).toBe('scripts/release/before-pack.cjs')

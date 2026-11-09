@@ -3,7 +3,8 @@ import type { Source } from '@shared/contracts'
 import {
   listEligibleReadingSources,
   openReadingSource,
-  selectBestReadingSource,
+  selectResumeSource,
+  readingSourceUrl,
   selectDefaultProgressSource
 } from '@renderer/lib/source-selection'
 
@@ -30,8 +31,8 @@ describe('seleção e abertura de fontes', () => {
     const preferred = source({ id: 'preferred', isPreferred: true, createdAt: '2026-08-02T00:00:00.000Z' })
     const lastUsed = source({ id: 'used', lastUsedAt: '2026-08-20T00:00:00.000Z' })
     const archived = source({ id: 'archived', status: 'archived', lastUsedAt: '2026-08-21T00:00:00.000Z' })
-    expect(selectBestReadingSource([preferred, archived, lastUsed])?.id).toBe('used')
-    expect(selectBestReadingSource([source({ id: 'later', createdAt: '2026-08-03T00:00:00.000Z' }), preferred])?.id).toBe('preferred')
+    expect(listEligibleReadingSources([preferred, archived, lastUsed])[0]?.id).toBe('used')
+    expect(listEligibleReadingSources([source({ id: 'later', createdAt: '2026-08-03T00:00:00.000Z' }), preferred])[0]?.id).toBe('preferred')
     expect(listEligibleReadingSources([source({ id: 'later', createdAt: '2026-08-03T00:00:00.000Z' }), source({ id: 'earlier' })]).map((item) => item.id)).toEqual(['earlier', 'later'])
   })
 
@@ -40,6 +41,17 @@ describe('seleção e abertura de fontes', () => {
     const preferred = source({ id: 'preferred', isPreferred: true })
     expect(selectDefaultProgressSource([unavailable, preferred])?.id).toBe('preferred')
     expect(selectDefaultProgressSource([unavailable])).toBeNull()
+  })
+
+  it('retoma o endereço persistido antes do endereço da série e ignora URLs inválidas', () => {
+    const recent = source({ id: 'recent', lastUsedAt: '2026-08-21T00:00:00.000Z', isPreferred: true })
+    const chapter = source({ id: 'chapter', lastReadUrl: 'https://example.org/chapter?id=7#pagina-2', lastUsedAt: '2026-08-20T00:00:00.000Z' })
+    const invalid = source({ lastReadUrl: 'https://user:password@reader.example/work', seriesUrl: 'file:///a' })
+    expect(selectResumeSource([recent, invalid, chapter])).toBe(chapter)
+    expect(readingSourceUrl(chapter)).toBe(chapter.lastReadUrl)
+    expect(selectResumeSource([invalid])).toBeNull()
+    expect(readingSourceUrl({ ...recent, lastReadUrl: 'javascript:alert(1)' })).toBe(recent.seriesUrl)
+    expect(selectResumeSource([{ ...chapter, status: 'unavailable' }, recent])).toBe(recent)
   })
 
   it('registra uso somente depois que a abertura é aceita e não altera preferência', async () => {

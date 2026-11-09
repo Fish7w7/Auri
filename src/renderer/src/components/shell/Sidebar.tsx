@@ -46,6 +46,7 @@ export function Sidebar({ route, summary, compact, onToggleCompact }: { route: A
         <div className="sidebar__group">
           <NavButton icon="star" label="Favoritos" count={summary.favorite} active={route.page === 'library' && route.favorite === true} {...navProps} onClick={() => navigate('/library/favorites')} />
           <NavButton icon="layers" label="Coleções" active={route.page === 'collections'} {...navProps} onClick={() => navigate('/collections')} />
+          <NavButton icon="chart" label="Estatísticas" active={route.page === 'statistics'} {...navProps} onClick={() => navigate('/statistics')} />
         </div>
         <div className="sidebar__group">
           <NavButton icon="trash" label="Lixeira" active={route.page === 'trash'} {...navProps} onClick={() => navigate('/trash')} />

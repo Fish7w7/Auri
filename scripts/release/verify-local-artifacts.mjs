@@ -6,22 +6,22 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { gunzipSync, inflateRawSync } from 'node:zlib'
-import { extractFile } from '@electron/asar'
+import { extractFile, listPackage } from '@electron/asar'
 import yaml from 'js-yaml'
 import { blake2b } from '@noble/hashes/blake2.js'
 import { embeddedConfig, validateEmbeddedInput, validateEmbeddedFiles } from '../build/prepare-browser-extension.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-const release = join(root, 'release')
+const release = resolve(root, process.argv[3] ?? 'release')
 const filename = `Auri-Setup-${pkg.version}-x64.exe`
 const setupPath = join(release, filename)
-const audit = join(root, 'artifacts/release-audit', pkg.version)
+const audit = process.argv[3] ? join(release, 'verification') : join(root, 'artifacts/release-audit', pkg.version)
 const extracted = join(audit, 'extracted')
 const sevenZip = process.argv[2]
 assert(sevenZip, 'Pass the path of 7za.exe as the first argument.')
 mkdirSync(extracted, { recursive: true })
-const extraction = spawnSync(sevenZip, ['x', '-y', `-o${extracted}`, setupPath, 'Auri.exe', 'resources/app.asar', 'resources/native-host/*', 'resources/browser-extension/*', 'resources/browser-extension-integrity.json'], { windowsHide: true, shell: false, encoding: 'utf8' })
+const extraction = spawnSync(sevenZip, ['x', '-y', `-o${extracted}`, setupPath, 'Auri.exe', 'resources/app.asar', 'resources/app.asar.unpacked/*', 'resources/native-host/*', 'resources/browser-extension/*', 'resources/browser-extension-integrity.json'], { windowsHide: true, shell: false, encoding: 'utf8' })
 writeFileSync(join(audit, 'extraction.txt'), (extraction.stdout ?? '') + (extraction.stderr ?? ''))
 assert(extraction.status === 0 || extraction.status === 1, 'Installer extraction failed.')
 
@@ -40,12 +40,35 @@ const embedded = validateEmbeddedFiles(files)
 assert.deepEqual(JSON.parse(readFileSync(join(extracted, 'resources/browser-extension-integrity.json'), 'utf8')), embedded)
 
 const nativeHost = readFileSync(join(extracted, 'resources/native-host/AuriNativeHost.exe'))
+const executable = readFileSync(join(extracted, 'Auri.exe'))
+assert.equal(executable.subarray(0, 2).toString(), 'MZ')
+assert.equal(nativeHost.subarray(0, 2).toString(), 'MZ')
 assert(nativeHost.equals(readFileSync(join(root, 'artifacts/native-host/AuriNativeHost.exe'))), 'Native Host differs from build')
-for (const forbidden of ['app.auri.native_host.dev', 'Auri-Dev', 'AuriNativeHostDev.exe']) assert(!nativeHost.includes(Buffer.from(forbidden)), `Forbidden Native Host content: ${forbidden}`)
+for (const forbidden of ['app.auri.native_host.dev', 'app.auri.native_host.e2e', 'Auri-Dev', 'AuriNativeHostDev.exe']) assert(!nativeHost.includes(Buffer.from(forbidden)), `Forbidden Native Host content: ${forbidden}`)
 const asar = join(extracted, 'resources/app.asar')
 const shippedPackage = JSON.parse(extractFile(asar, 'package.json').toString())
 assert.equal(shippedPackage.version, pkg.version)
-assert.equal(shippedPackage.dependencies['@auri/protocol'], 'github:Fish7w7/Auri-Protocol#v0.2.0')
+assert.equal(shippedPackage.dependencies['@auri/protocol'], pkg.dependencies['@auri/protocol'])
+const lock = JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8')).packages
+const archivePaths = listPackage(asar).map(path => path.replaceAll('\\', '/').replace(/^\//, ''))
+const productionDependencies = Object.fromEntries(Object.keys(pkg.dependencies).map(name => {
+  const path = `node_modules/${name}`
+  const installed = JSON.parse(extractFile(asar, join(path, 'package.json')).toString())
+  assert.equal(installed.version, lock[path].version, `ASAR dependency differs from lock: ${name}`)
+  return [name, installed.version]
+}))
+const protocolEntry = join('node_modules', '@auri/protocol', 'dist', 'index.cjs')
+assert(extractFile(asar, protocolEntry).equals(readFileSync(join(root, protocolEntry))), 'Protocol entry differs from installed dependency')
+for (const path of archivePaths) {
+  assert(!/(^|\/)(\.git|\.env[^/]*|e2e-profiles|secrets|credentials|backups|artifacts)(\/|$)|\.(auri-backup|db|sqlite3?|pem|key|pfx|p12|log)$/i.test(path), `Unexpected personal or temporary data in ASAR: ${path}`)
+  assert(!/\/node_modules\/zod\/package\.json$/.test(path), `Unexpected second Zod installation: ${path}`)
+}
+const unpackedNativeFiles = readTree(join(extracted, 'resources/app.asar.unpacked')).filter(([name]) => /\.(dll|node)$/i.test(name)).map(([name, bytes]) => {
+  assert(bytes.equals(readFileSync(join(root, name))), `Unpacked runtime differs: ${name}`)
+  return name
+})
+assert(unpackedNativeFiles.some(name => name.endsWith('better-sqlite3/prebuilds/win32-x64.node')))
+assert(unpackedNativeFiles.some(name => name.startsWith('node_modules/@img/sharp-win32-x64/lib/') && /\.(dll|node)$/i.test(name)))
 for (const [name, bytes] of readTree(join(root, 'out'))) {
   assert(extractFile(asar, join('out', name)).equals(bytes), `Packaged app differs: ${name}`)
 }
@@ -94,7 +117,7 @@ assert.deepEqual(origins?.sort(), [
   'chrome-extension://alnngjgmhiebpnjefjmhbhmhfpgoibnh/',
   'chrome-extension://agefiaohfielfgadiagemnflekbboblp/'
 ].sort())
-for (const forbidden of ['kldacocmhefloboachmkpeojenaaocek', 'app.auri.native_host.dev', 'Auri-Dev', 'chrome-extension://*/', 'ExtensionInstallForcelist']) assert(!nsisText.includes(forbidden), `Forbidden NSIS content: ${forbidden}`)
+for (const forbidden of ['kldacocmhefloboachmkpeojenaaocek', 'fbcmppmndedakdhfdffihoijoelkdhgi', 'app.auri.native_host.dev', 'app.auri.native_host.e2e', 'Auri-Dev', 'chrome-extension://*/', 'ExtensionInstallForcelist']) assert(!nsisText.includes(forbidden), `Forbidden NSIS content: ${forbidden}`)
 for (const browser of ['Google\\Chrome', 'Microsoft\\Edge', 'BraveSoftware\\Brave-Browser']) assert(nsisText.includes(`Software\\${browser}\\NativeMessagingHosts\\app.auri.native_host`))
 assert(nsisText.includes('resources\\native-host\\AuriNativeHost.exe'))
 assert(nsisText.includes('"allowed_origins"'))
@@ -104,7 +127,7 @@ const report = {
   sha256: hash('sha256'), sha512Base64: hash('sha512', 'base64'), sha512Hex: hash('sha512'),
   blockmap: { path: setupPath + '.blockmap', sizeBytes: blockmapBytes.length, verifiedBlocks: blocks },
   latestValidated: true, compatibility, embedded, allowedOrigins: origins,
-  nativeHostBytesMatch: true, packagedAppBytesMatch: true,
+  nativeHostBytesMatch: true, packagedAppBytesMatch: true, productionDependencies, unpackedNativeFiles,
   nsisCompiledHeaderValidated: true, extractedPath: extracted,
   note: 'Setup was extracted as data, never executed. Authenticode checked separately with Get-AuthenticodeSignature.'
 }

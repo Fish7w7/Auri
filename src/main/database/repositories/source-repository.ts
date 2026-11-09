@@ -54,6 +54,12 @@ export class SourceRepository {
     )
   }
 
+  listByWorkIds(workIds: readonly string[]): Source[] {
+    if (!workIds.length) return []
+    return this.mapMany(this.db.prepare(`SELECT ${SOURCE_COLUMNS} FROM sources
+      WHERE work_id IN (${workIds.map(() => '?').join(', ')})`).all(...workIds) as SourceRow[])
+  }
+
   listAll(): Source[] {
     return this.mapMany(
       this.db.prepare(`SELECT ${SOURCE_COLUMNS} FROM sources ORDER BY created_at`).all() as SourceRow[]

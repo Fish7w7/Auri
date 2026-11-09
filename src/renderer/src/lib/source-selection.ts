@@ -1,4 +1,6 @@
 import type { Source } from '@shared/contracts'
+import { readingSourceUrl } from '@shared/reading-sources'
+export { listEligibleReadingSources, readingSourceUrl, selectResumeSource } from '@shared/reading-sources'
 
 function timestamp(value: string | null): number {
   if (!value) return 0
@@ -8,23 +10,6 @@ function timestamp(value: string | null): number {
 
 function deterministicOrder(a: Source, b: Source): number {
   return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
-}
-
-export function readingSourceUrl(source: Source): string | null {
-  return source.lastReadUrl || source.seriesUrl
-}
-
-export function listEligibleReadingSources(sources: Source[]): Source[] {
-  const eligible = sources.filter((source) => source.status === 'active' && readingSourceUrl(source))
-  const hasUsedSource = eligible.some((source) => timestamp(source.lastUsedAt) > 0)
-  return [...eligible].sort((a, b) => {
-    if (hasUsedSource) return timestamp(b.lastUsedAt) - timestamp(a.lastUsedAt) || deterministicOrder(a, b)
-    return Number(b.isPreferred) - Number(a.isPreferred) || deterministicOrder(a, b)
-  })
-}
-
-export function selectBestReadingSource(sources: Source[]): Source | null {
-  return listEligibleReadingSources(sources)[0] ?? null
 }
 
 export function selectDefaultProgressSource(sources: Source[]): Source | null {

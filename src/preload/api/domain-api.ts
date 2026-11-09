@@ -128,7 +128,8 @@ export const domainApi: Omit<AuriApi, 'system' | 'settings' | 'desktopCommands' 
     search: (request) => invoke(IPC_CHANNELS.library.search, request),
     query: (request) => invoke(IPC_CHANNELS.library.query, request),
     summary: () => invoke(IPC_CHANNELS.library.summary),
-    home: (request) => invoke(IPC_CHANNELS.library.home, request)
+    home: (request) => invoke(IPC_CHANNELS.library.home, request),
+    statistics: (request) => invoke(IPC_CHANNELS.library.statistics, request)
   },
   backup: {
     state: () => invoke(IPC_CHANNELS.backup.state),

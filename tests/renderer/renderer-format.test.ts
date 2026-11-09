@@ -23,6 +23,7 @@ describe('formatação da interface', () => {
   it('mantém estados vazios das seções habilitadas e respeita a ordem', () => {
     const sections = getVisibleHomeSections({
       continueReading: [],
+      reading: {},
       recent: [{ id: 'work' } as never],
       favorites: [],
       recentlyAdded: [],

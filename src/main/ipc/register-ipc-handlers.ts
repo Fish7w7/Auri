@@ -181,6 +181,7 @@ export function registerIpcHandlers(services: IpcServices, logger: Logger, optio
     [IPC_CHANNELS.library.query, (request) => services.library.queryWorks(request)],
     [IPC_CHANNELS.library.summary, () => services.library.getSummary()],
     [IPC_CHANNELS.library.home, (request) => services.library.getHome(request)],
+    [IPC_CHANNELS.library.statistics, (request) => services.library.getStatistics(request)],
     [IPC_CHANNELS.settings.get, () => services.settings.getSettings()],
     [IPC_CHANNELS.settings.update, (request) => services.settings.updateSettings(request)],
     [IPC_CHANNELS.backup.state, () => services.backups.getState()],

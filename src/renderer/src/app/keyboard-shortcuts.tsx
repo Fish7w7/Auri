@@ -65,6 +65,9 @@ export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, 
       if (event.defaultPrevented) return
       const intent = resolveShortcut(event, isTypingTarget(event.target))
       if (!intent) return
+      const openDialog = Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]')).at(-1)
+      const paletteOpen = !!openDialog?.querySelector('.quick-search')
+      if (paletteOpen && intent !== 'quick-search') return
 
       if (intent === 'save') {
         const scope = latest((item) => Boolean(item.save && item.canSave))
@@ -75,8 +78,7 @@ export function KeyboardShortcutsProvider({ children, onQuickSearch, onAddWork, 
       }
 
       if (intent === 'quick-search') {
-        const openDialog = document.querySelector<HTMLDialogElement>('dialog[open]')
-        if (openDialog && !openDialog.querySelector('.quick-search')) return
+        if (openDialog && !paletteOpen) return
         event.preventDefault()
         actions.current.onQuickSearch()
         return

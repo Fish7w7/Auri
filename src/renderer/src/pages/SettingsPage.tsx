@@ -75,6 +75,7 @@ export function SettingsPage({ initialSection }: { initialSection?: SettingsSect
   const [cache, setCache] = useState<CoverCacheUsage | null>(null)
   const [backup, setBackup] = useState<BackupState | null>(null)
   const [backupManagerOpen, setBackupManagerOpen] = useState(false)
+  const [backupMenuFocusPath, setBackupMenuFocusPath] = useState<string | null>(null)
   const [restorePreview, setRestorePreview] = useState<BackupPreview | BackupRecord | null>(null)
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [deleteBackup, setDeleteBackup] = useState<BackupRecord | null>(null)
@@ -173,6 +174,7 @@ export function SettingsPage({ initialSection }: { initialSection?: SettingsSect
   }
 
   const openStoredBackupAction = (item: BackupRecord, action: 'restore' | 'delete') => {
+    setBackupMenuFocusPath(null)
     setReturnToBackupManager(true)
     setBackupManagerOpen(false)
     if (action === 'restore') setRestorePreview(item)
@@ -180,6 +182,7 @@ export function SettingsPage({ initialSection }: { initialSection?: SettingsSect
   }
 
   const closeDeleteBackup = () => {
+    if (returnToBackupManager) setBackupMenuFocusPath(deleteBackup?.path ?? null)
     setDeleteBackup(null)
     if (returnToBackupManager) setBackupManagerOpen(true)
     setReturnToBackupManager(false)
@@ -300,7 +303,7 @@ export function SettingsPage({ initialSection }: { initialSection?: SettingsSect
             <SettingRow title="Importar biblioteca" description="Importa uma biblioteca anteriormente exportada em JSON."><Button disabled={busy} onClick={async () => { try { const preview = await window.auri.transfer.chooseImport(); if (preview) setImportPreview(preview) } catch (error) { showToast({ kind: 'error', message: error instanceof Error ? error.message : 'Arquivo de importação inválido.' }) } }}>Importar</Button></SettingRow>
           </SettingsGroup>
           <SettingsGroup title="Backups disponíveis">
-            <SettingRow title={backupCountLabel(backup?.backups.length ?? 0)} description="Consulte, restaure ou exclua as cópias armazenadas na pasta configurada."><Button disabled={!backup?.backups.length} onClick={() => setBackupManagerOpen(true)}>Gerenciar backups</Button></SettingRow>
+            <SettingRow title={backupCountLabel(backup?.backups.length ?? 0)} description="Consulte, restaure ou exclua as cópias armazenadas na pasta configurada."><Button disabled={!backup?.backups.length} onClick={() => { setBackupMenuFocusPath(null); setBackupManagerOpen(true) }}>Gerenciar backups</Button></SettingRow>
           </SettingsGroup>
         </>}
 
@@ -337,7 +340,7 @@ export function SettingsPage({ initialSection }: { initialSection?: SettingsSect
         </div>
         <div className="backup-manager-item__actions">
           <Button variant="primary" disabled={busy} onClick={() => openStoredBackupAction(item, 'restore')}>Restaurar</Button>
-          <KeyboardMenu className="backup-item-menu" label={`Mais ações para ${backupTypeLabel(item.type)}`}><button disabled={busy} onClick={() => void dataAction(() => window.auri.backup.openFolder(), 'Pasta de backups aberta.')}>Abrir pasta de backups</button><button className="is-danger" disabled={busy} onClick={() => openStoredBackupAction(item, 'delete')}>Excluir backup</button></KeyboardMenu>
+          <KeyboardMenu className="backup-item-menu" label={`Mais ações para ${backupTypeLabel(item.type)}`} initialDialogFocus={backupMenuFocusPath === item.path}><button disabled={busy} onClick={() => void dataAction(() => window.auri.backup.openFolder(), 'Pasta de backups aberta.')}>Abrir pasta de backups</button><button className="is-danger" disabled={busy} onClick={() => openStoredBackupAction(item, 'delete')}>Excluir backup</button></KeyboardMenu>
         </div>
       </article>) : <p className="muted-copy">Nenhum backup criado nesta pasta.</p>}</div>
     </Dialog>

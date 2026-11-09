@@ -63,7 +63,9 @@ export function validateEmbeddedFiles(files, config = embeddedConfig) {
   check(extensionId === config.extensionId, 'extension ID divergente.')
   check(manifest.default_locale === 'en', 'default_locale divergente.')
   check(JSON.stringify([...manifest.permissions ?? []].sort()) === JSON.stringify(['activeTab', 'nativeMessaging', 'scripting']), 'permissões divergentes.')
-  check(!manifest.host_permissions?.length && !manifest.optional_permissions?.length && !manifest.optional_host_permissions?.length, 'permissões extras.')
+  for (const key of ['host_permissions', 'optional_permissions', 'optional_host_permissions', 'content_scripts', 'background', 'externally_connectable']) {
+    check(!(key in manifest), `campo de acesso inesperado no manifest: ${key}.`)
+  }
   for (const locale of ['en', 'pt_BR']) {
     const messages = JSON.parse(files.get(`_locales/${locale}/messages.json`)?.toString('utf8') ?? '{}')
     check(typeof messages.extensionName?.message === 'string', `locale ${locale} ausente/inválido.`)
@@ -74,7 +76,7 @@ export function validateEmbeddedFiles(files, config = embeddedConfig) {
   let productionHost = false
   for (const [name, bytes] of files) {
     const text = bytes.toString('utf8')
-    check(!/app\.auri\.native_host\.dev|Auri-Dev|BEGIN [A-Z ]*PRIVATE KEY|sourceMappingURL|"private_key"/.test(text), 'conteúdo DEV/privado/sourcemap proibido.')
+    check(!/app\.auri\.native_host\.(?:dev|e2e)|Auri-Dev|BEGIN [A-Z ]*PRIVATE KEY|sourceMappingURL|"private_key"/.test(text), 'conteúdo DEV/E2E/privado/sourcemap proibido.')
     if (name.endsWith('.js') && text.includes('app.auri.native_host')) productionHost = true
   }
   check(productionHost, 'host PROD ausente no bundle.')

@@ -45,6 +45,28 @@ describe('NativeMessagingRuntime', () => {
     input.end()
   })
 
+  it('rejeita versões em excesso e continua aceitando mensagens válidas na mesma conexão', async () => {
+    const input = new PassThrough()
+    const output = new PassThrough()
+    const chunks: Buffer[] = []
+    output.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+    const transport = { forward: vi.fn(async () => helloResponse('good')), close: vi.fn() }
+    new NativeMessagingRuntime(input, output, transport, logger).start()
+    const bad = { ...helloRequest('oversized'), params: {
+      client: { kind: 'extension', name: 'Auri', version: '0.3.1' },
+      supportedProtocolVersions: Array.from({ length: 5000 }, () => 'x')
+    } }
+    input.write(encodeLengthPrefixedJson(bad))
+    input.write(encodeLengthPrefixedJson(helloRequest('good')))
+    await vi.waitFor(() => expect(decodeAll(chunks)).toHaveLength(2))
+    expect(decodeAll(chunks)).toMatchObject([
+      { id: 'oversized', method: 'system.hello', ok: false, error: { code: 'INVALID_PARAMS' } },
+      { id: 'good', method: 'system.hello', ok: true }
+    ])
+    expect(transport.forward).toHaveBeenCalledExactlyOnceWith(helloRequest('good'))
+    input.end()
+  })
+
   it('encerra sem escrever dados não enquadrados quando o frame é inválido', async () => {
     const input = new PassThrough(); const output = new PassThrough(); const chunks: Buffer[] = []
     output.on('data', (chunk) => chunks.push(Buffer.from(chunk)))

@@ -4,6 +4,7 @@ import {
   type ProtocolResponse, type ProtocolResult
 } from '@auri/protocol'
 import { DomainError } from '@shared/errors/domain-error'
+import { exceedsHelloVersionLimit } from '@shared/native-bridge/protocol-limits'
 import type { Logger } from '../logging/logger'
 
 export type ProtocolHandler<Method extends ProtocolMethod> = (params: ProtocolParams<Method>) => Promise<ProtocolResult<Method>> | ProtocolResult<Method>
@@ -38,6 +39,7 @@ export class ProtocolDispatcher {
   }
 
   async dispatch(input: unknown): Promise<ProtocolResponse> {
+    if (exceedsHelloVersionLimit(input)) return this.invalidRequest(input)
     const parsed = safeParseRequest(input)
     if (!parsed.success) return this.invalidRequest(input)
     const request = parsed.data

@@ -7,7 +7,7 @@ describe('LibraryService — filtros, resumo e Home', () => {
   afterEach(() => fixture?.db.close())
 
   function create(input: Partial<{ title: string; mediaType: Work['mediaType']; userStatus: Work['userStatus']; publicationStatus: Work['publicationStatus']; favorite: boolean; chapter: string; notes: string; lastReadNote: string }>) {
-    return fixture!.services.works.createWork({
+    const request = {
       title: input.title ?? 'Obra',
       mediaType: input.mediaType ?? 'manhwa',
       userStatus: input.userStatus ?? 'reading',
@@ -16,7 +16,9 @@ describe('LibraryService — filtros, resumo e Home', () => {
       chapter: input.chapter,
       notes: input.notes,
       lastReadNote: input.lastReadNote
-    })
+    } as const
+    const review = fixture!.services.details.previewCreate(request)
+    return fixture!.services.works.createWork({ ...request, reviewedWorkIds: review.candidates.map((candidate) => candidate.work.id) })
   }
 
   it('combina status, favorito, tipo, publicação e progresso no SQLite', () => {

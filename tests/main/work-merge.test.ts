@@ -24,7 +24,9 @@ describe('WorkMergeService', () => {
   it('mescla o caso real, preserva fontes, alias, busca e posição mais recente', async () => {
     const fixture = createDomainFixture()
     const primary = createMinimalWork(fixture, 'O Retorno do Cão de Caça dos Baskerville', '180')
-    const secondary = createMinimalWork(fixture, 'A Vingança do Cão de Caça dos Baskerville')
+    const secondaryDraft = { title: 'A Vingança do Cão de Caça dos Baskerville', mediaType: 'manhwa', userStatus: 'reading' }
+    expect(() => fixture.services.works.createWork(secondaryDraft)).toThrow('Revise as possíveis correspondências')
+    const secondary = fixture.services.works.createWork({ ...secondaryDraft, reviewedWorkIds: [primary.id] })
     const other = createMinimalWork(fixture, 'Outra obra')
     await fixture.services.sources.createSource({ workId: primary.id, name: 'ToonLivre', seriesUrl: 'https://toon.example/obra', lastReadUrl: 'https://toon.example/obra/180', isPreferred: true })
     await fixture.services.sources.createSource({ workId: secondary.id, name: 'NexusMangás', seriesUrl: 'https://nexus.example/serie', lastReadUrl: 'https://nexus.example/serie/1' })
@@ -178,7 +180,9 @@ describe('WorkMergeService', () => {
   it('não cria alias redundante ao título equivalente da Primary', async () => {
     const fixture = createDomainFixture()
     const primary = createMinimalWork(fixture, 'A Vingança do Cao de Caca dos Baskerville')
-    const secondary = createMinimalWork(fixture, 'A Vingança do Cão de Caça dos Baskerville')
+    const secondary = fixture.services.works.createWork({
+      title: 'A Vingança do Cão de Caça dos Baskerville', mediaType: 'manhwa', userStatus: 'reading', reviewedWorkIds: [primary.id]
+    })
     const preview = fixture.services.workMerge.previewMerge({ primaryWorkId: primary.id, secondaryWorkId: secondary.id })
     await fixture.services.workMerge.merge({ primaryWorkId: primary.id, secondaryWorkId: secondary.id, fieldChoices: defaults(preview) })
     expect(fixture.repositories.aliases.listByWork(primary.id)).toHaveLength(0)
@@ -209,7 +213,8 @@ async function mergeAndListAliases(title: string, options: {
   const primary = createMinimalWork(fixture, 'O Retorno do Cão de Caça dos Baskerville')
   const secondary = fixture.services.works.createWork({
     title, mediaType: 'manhwa', userStatus: 'reading',
-    aliases: options.aliases?.map((name) => ({ name }))
+    aliases: options.aliases?.map((name) => ({ name })),
+    reviewedWorkIds: [primary.id]
   })
   if (options.sourceName || options.sourceDomain) {
     await fixture.services.sources.createSource({
